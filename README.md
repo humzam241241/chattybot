@@ -1,0 +1,225 @@
+# ChattyBot — Multi-Tenant Embeddable AI Chatbot Platform
+
+A production-ready MVP SaaS platform for embedding AI chatbots on any website, powered by RAG (Retrieval Augmented Generation) and pgvector.
+
+---
+
+## Architecture Overview
+
+```
+chattybot/
+├── backend/          Node.js + Express API (deploy to Render)
+├── widget/           React chat widget, built as single JS file (deploy to Vercel)
+└── admin/            Next.js admin dashboard (deploy to Vercel)
+```
+
+**Data flow:**
+```
+Customer site
+  └── <script data-site-id="...">
+        └── widget.js fetches /site-config → renders branded chat
+              └── POST /chat → backend embeds query → pgvector search → GPT-4o-mini → answer
+```
+
+---
+
+## Quick Start (Local Dev)
+
+### Prerequisites
+- Node.js 18+
+- A Supabase project with pgvector enabled
+- OpenAI API key
+
+### 1. Database Setup
+
+In your Supabase SQL editor, run:
+```sql
+-- contents of backend/migrations/001_initial.sql
+```
+
+Enable the pgvector extension in Supabase:
+> Dashboard → Database → Extensions → search "vector" → Enable
+
+### 2. Backend
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+# Edit .env with your DATABASE_URL, OPENAI_API_KEY, ADMIN_SECRET
+npm run dev
+# Runs on http://localhost:3001
+```
+
+### 3. Widget
+
+```bash
+cd widget
+npm install
+npm run build
+# Output: dist/widget.js
+# Serve dist/ folder statically
+```
+
+For local testing, serve the dist folder:
+```bash
+npx serve widget/dist
+```
+
+### 4. Admin Dashboard
+
+```bash
+cd admin
+npm install
+cp .env.example .env
+# Set NEXT_PUBLIC_API_URL=http://localhost:3001
+# Set NEXT_PUBLIC_ADMIN_SECRET=same-as-backend-ADMIN_SECRET
+npm run dev
+# Runs on http://localhost:3000
+```
+
+---
+
+## Deployment
+
+### Backend → Render
+
+1. Push code to GitHub
+2. Create a new **Web Service** on [render.com](https://render.com)
+3. Settings:
+   - **Root directory:** `backend`
+   - **Build command:** `npm install`
+   - **Start command:** `npm start`
+4. Add environment variables (from `backend/.env.example`)
+5. Deploy
+
+Note: Free Render tier spins down after 15 min idle. Upgrade to Starter ($7/mo) for production.
+
+### Widget → Vercel (Static)
+
+1. Build the widget: `cd widget && npm run build`
+2. Deploy `widget/dist/` as a static site on Vercel:
+   ```bash
+   cd widget
+   npx vercel --prod
+   # Set output directory to: dist
+   ```
+3. Note the deployed URL (e.g. `https://chattybot-widget.vercel.app`)
+4. Update the embed code in your admin dashboard to point to this URL
+
+### Admin Dashboard → Vercel
+
+1. ```bash
+   cd admin
+   npx vercel --prod
+   ```
+2. Add environment variables in Vercel dashboard:
+   - `NEXT_PUBLIC_API_URL` → your Render backend URL
+   - `NEXT_PUBLIC_ADMIN_SECRET` → your admin secret
+
+---
+
+## Usage Guide
+
+### Creating Your First Site
+
+1. Open the admin dashboard
+2. Click **+ New Site**
+3. Fill in company name, domain, color, tone
+4. Click **Create Site**
+5. Click **Re-ingest Site** to crawl and embed your website content
+6. Copy the **Embed Code** and paste it before `</body>` on your website
+
+### Embed Code
+
+```html
+<script 
+  src="https://your-widget.vercel.app/widget.js" 
+  data-site-id="YOUR_SITE_ID"
+  data-api-url="https://your-backend.onrender.com">
+</script>
+```
+
+### Viewing Leads
+
+Admin Dashboard → Sites → [Site Name] → View Leads → Export CSV
+
+---
+
+## API Reference
+
+### Public Endpoints (Widget)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/site-config/:site_id` | Fetch widget branding config |
+| POST | `/chat` | Send message, get AI response |
+| POST | `/lead` | Submit a lead capture form |
+
+### Admin Endpoints (Bearer token required)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/sites` | List all sites |
+| POST | `/sites` | Create site |
+| GET | `/sites/:id` | Get site |
+| PUT | `/sites/:id` | Update site |
+| DELETE | `/sites/:id` | Delete site |
+| POST | `/ingest/:site_id` | Trigger content ingestion |
+| GET | `/lead/:site_id` | List leads for a site |
+
+---
+
+## Security
+
+- **Domain verification:** Widget requests validated against registered domain in production
+- **Rate limiting:** Chat (30/min), Ingest (10/hr), API (60/min)
+- **Tenant isolation:** Every DB query is scoped by `site_id`
+- **Input sanitization:** `express-validator` on all endpoints
+- **Admin auth:** Bearer token (swap for proper JWT auth in v2)
+
+---
+
+## Environment Variables
+
+### Backend (`backend/.env`)
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | Supabase PostgreSQL connection string |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `PORT` | Server port (default: 3001) |
+| `NODE_ENV` | `production` or `development` |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins |
+| `ADMIN_SECRET` | Bearer token for admin endpoints |
+
+### Admin (`admin/.env`)
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Backend API URL |
+| `NEXT_PUBLIC_ADMIN_SECRET` | Must match backend `ADMIN_SECRET` |
+
+---
+
+## Tech Decisions
+
+| Decision | Reasoning |
+|----------|-----------|
+| `gpt-4o-mini` for chat | Fast, cheap, sufficient quality for RAG answers |
+| `text-embedding-3-small` | Best cost/quality for embeddings |
+| `pgvector` on Supabase | Simplest path to production vector search |
+| Shadow DOM for widget | CSS isolation — won't conflict with host site styles |
+| IIFE bundle | One `<script>` tag, no module system required on host site |
+| No streaming | Simpler for MVP; add SSE streaming in v2 |
+
+---
+
+## Next Steps (Post-MVP)
+
+- [ ] Streaming responses (SSE)
+- [ ] Conversation history (multi-turn context)
+- [ ] Proper JWT auth for admin
+- [ ] Webhook on lead capture
+- [ ] Multi-language support
+- [ ] White-label reseller mode
