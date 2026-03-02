@@ -25,9 +25,10 @@ const connectionString = sanitizeConnectionString(process.env.DATABASE_URL);
 const pool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false },
-  max: 10,
+  max: 1,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
+  simple_query_mode: true,
 });
 
 pool.on('connect', () => {
