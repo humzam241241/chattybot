@@ -1,5 +1,11 @@
 require('dotenv').config();
 
+// Force Node.js DNS to resolve IPv4 first.
+// Render's free tier only has IPv4 outbound — without this, DNS resolves
+// Supabase's hostname to an IPv6 address and the connection fails with ENETUNREACH.
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -14,6 +20,11 @@ const siteConfigRouter = require('./routes/siteConfig');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
+
+// Render (and most cloud platforms) sit behind a reverse proxy.
+// This tells Express to trust the X-Forwarded-For header so that
+// rate limiting and IP detection work correctly.
+app.set('trust proxy', 1);
 
 // ── Security headers ──────────────────────────────────────────────────────────
 // helmet sets X-Content-Type-Options, X-Frame-Options, HSTS, CSP, etc.
