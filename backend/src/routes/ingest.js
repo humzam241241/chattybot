@@ -9,6 +9,11 @@ const adminAuth = require('../middleware/adminAuth');
 
 const router = express.Router();
 
+// Prevent concurrent ingestion jobs (Render free tier will OOM easily).
+// In-memory lock is enough for MVP (single instance); if you scale horizontally,
+// move this to Redis or the database.
+const ingestLocks = new Set();
+
 /**
  * POST /ingest/:site_id
  * 
@@ -20,6 +25,12 @@ const router = express.Router();
  */
 router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
   const { site_id } = req.params;
+
+  if (ingestLocks.has(site_id)) {
+    return res.status(409).json({ error: 'Ingestion already running for this site' });
+  }
+
+  ingestLocks.add(site_id);
 
   try {
     const siteResult = await pool.query(
@@ -51,9 +62,9 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
 
     // Render free tier memory is tight — keep ingestion streamed and capped.
     // These caps prevent OOM on large pages / SPA bundles.
-    const MAX_CHUNKS_PER_SITE = 300;
-    const MAX_CHUNKS_PER_PAGE = 80;
-    const EMBED_BATCH_SIZE = 20;
+    const MAX_CHUNKS_PER_SITE = 150;
+    const MAX_CHUNKS_PER_PAGE = 40;
+    const EMBED_BATCH_SIZE = 8;
 
     for (const page of pages) {
       if (totalStored >= MAX_CHUNKS_PER_SITE) break;
@@ -93,6 +104,8 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
   } catch (err) {
     console.error('Ingest error:', err);
     return res.status(500).json({ error: 'Ingestion failed', details: err.message });
+  } finally {
+    ingestLocks.delete(site_id);
   }
 });
 

@@ -6,6 +6,7 @@ const CRAWL_DELAY_MS = 500; // Polite delay between requests
 const REQUEST_TIMEOUT = 10000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;      // 2MB per page
 const MAX_TEXT_CHARS = 20_000;               // cap extracted text to avoid OOM
+const MAX_LINKS_PER_PAGE = 200;              // cap link extraction per page
 
 /**
  * Crawl a website starting from the given URL.
@@ -52,11 +53,14 @@ async function crawlSite(startUrl) {
       }
 
       // Discover links on the same domain
+      let linksAdded = 0;
       $('a[href]').each((_, el) => {
+        if (linksAdded >= MAX_LINKS_PER_PAGE) return false;
         const href = $(el).attr('href');
         const resolved = resolveUrl(href, baseUrl);
         if (resolved && !visited.has(resolved)) {
           queue.push(resolved);
+          linksAdded++;
         }
       });
     } catch (err) {
