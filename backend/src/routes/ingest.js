@@ -1,4 +1,9 @@
 const express = require('express');
+// Render runtime doesn't persist Playwright's default browser cache path.
+// We download browsers during the Render build step with PLAYWRIGHT_BROWSERS_PATH=0,
+// which installs them into node_modules. Force the same setting at runtime
+// BEFORE requiring Playwright so chromium.launch finds the executable.
+process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || '0';
 const { chromium } = require('playwright');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
