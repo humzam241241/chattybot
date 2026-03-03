@@ -7,6 +7,7 @@ const REQUEST_TIMEOUT = 10000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;      // 2MB per page
 const MAX_TEXT_CHARS = 20_000;               // cap extracted text to avoid OOM
 const MAX_LINKS_PER_PAGE = 200;              // cap link extraction per page
+const MAX_SITEMAP_URLS = 2000;               // cap sitemap expansion
 
 /**
  * Crawl a website starting from the given URL.
@@ -33,7 +34,7 @@ async function crawlSite(startUrl) {
         timeout: REQUEST_TIMEOUT,
         headers: {
           'User-Agent': 'ChattyBot/1.0 (AI assistant crawler; polite)',
-          Accept: 'text/html',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.1',
         },
         maxRedirects: 5,
         maxContentLength: MAX_HTML_BYTES,
@@ -41,10 +42,29 @@ async function crawlSite(startUrl) {
         validateStatus: (s) => s >= 200 && s < 400,
       });
 
-      const contentType = response.headers['content-type'] || '';
-      if (!contentType.includes('text/html')) continue;
+      const contentType = (response.headers['content-type'] || '').toLowerCase();
+      const raw = typeof response.data === 'string' ? response.data : String(response.data);
 
-      const $ = cheerio.load(response.data);
+      // Handle sitemap / XML formats (common for non-HTML sites)
+      if (isLikelyXml(contentType, raw)) {
+        const urls = extractSitemapUrls(raw, baseUrl).slice(0, MAX_SITEMAP_URLS);
+        for (const u of urls) {
+          if (!visited.has(u)) queue.push(u);
+        }
+        continue;
+      }
+
+      // Handle plain text endpoints (some sites serve text pages / markdown proxies)
+      if (contentType.includes('text/plain')) {
+        const text = normalizeText(raw).slice(0, MAX_TEXT_CHARS);
+        if (text.length > 100) results.push({ url, text });
+        continue;
+      }
+
+      // Default: HTML (or unknown type that looks like HTML)
+      if (!isLikelyHtml(contentType, raw)) continue;
+
+      const $ = cheerio.load(raw);
       let text = extractText($);
       if (text.length > MAX_TEXT_CHARS) text = text.slice(0, MAX_TEXT_CHARS);
 
@@ -95,6 +115,61 @@ function extractText($) {
   return $('body').text().replace(/\s+/g, ' ').trim();
 }
 
+function normalizeText(text) {
+  return String(text).replace(/\s+/g, ' ').trim();
+}
+
+function isLikelyHtml(contentType, raw) {
+  if (contentType.includes('text/html') || contentType.includes('application/xhtml+xml')) return true;
+  const head = raw.slice(0, 300).toLowerCase();
+  return head.includes('<!doctype html') || head.includes('<html') || head.includes('<head') || head.includes('<body');
+}
+
+function isLikelyXml(contentType, raw) {
+  if (contentType.includes('application/xml') || contentType.includes('text/xml')) return true;
+  const head = raw.slice(0, 300).toLowerCase();
+  return head.includes('<?xml') || head.includes('<urlset') || head.includes('<sitemapindex');
+}
+
+function extractSitemapUrls(xml, baseUrl) {
+  try {
+    const $ = cheerio.load(xml, { xmlMode: true });
+    const urls = [];
+
+    // urlset (normal sitemap)
+    $('url > loc').each((_, el) => {
+      const loc = $(el).text().trim();
+      const resolved = resolveAbsoluteUrl(loc, baseUrl);
+      if (resolved) urls.push(resolved);
+    });
+
+    // sitemapindex (index of sitemaps)
+    if (urls.length === 0) {
+      $('sitemap > loc').each((_, el) => {
+        const loc = $(el).text().trim();
+        const resolved = resolveAbsoluteUrl(loc, baseUrl);
+        if (resolved) urls.push(resolved);
+      });
+    }
+
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
+function resolveAbsoluteUrl(loc, baseUrl) {
+  if (!loc) return null;
+  try {
+    const u = new URL(loc, baseUrl.origin);
+    if (u.hostname !== baseUrl.hostname) return null;
+    u.hash = '';
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
 function resolveUrl(href, baseUrl) {
   if (!href) return null;
   try {
@@ -103,7 +178,9 @@ function resolveUrl(href, baseUrl) {
     if (url.hostname !== baseUrl.hostname) return null;
     if (['#', 'mailto:', 'tel:', 'javascript:'].some((p) => href.startsWith(p))) return null;
     // Skip common non-content paths
-    if (/\.(pdf|jpg|jpeg|png|gif|svg|css|js|zip|xml|json)$/i.test(url.pathname)) return null;
+    if (/\.(pdf|jpg|jpeg|png|gif|svg|css|js|zip|json)$/i.test(url.pathname)) return null;
+    // Allow sitemap XML explicitly; skip other XML by default
+    if (/\.xml$/i.test(url.pathname) && !/sitemap/i.test(url.pathname)) return null;
 
     url.hash = '';
     return url.href;
