@@ -96,6 +96,7 @@ npm run dev
 Render-specific notes for ingestion (Playwright):
 - Set `PLAYWRIGHT_BROWSERS_PATH=0` (ensures browsers install into `node_modules`)
 - Set `NODE_OPTIONS=--max-old-space-size=512` (matches Render's memory limits and avoids unexpected heap growth)
+- Optional: set `INGEST_MAX_PAGES=10` (or lower) to cap crawl size per ingestion job
 
 Note: Free Render tier spins down after 15 min idle. Upgrade to Starter ($7/mo) for production.
 
