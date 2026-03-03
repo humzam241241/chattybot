@@ -7,7 +7,6 @@ process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || '
 const { chromium } = require('playwright');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
-const { chunkText } = require('../services/chunker');
 const { embedBatch, vectorToSql } = require('../services/embeddings');
 const { ingestLimiter } = require('../middleware/rateLimiter');
 const adminAuth = require('../middleware/adminAuth');
@@ -20,34 +19,62 @@ const router = express.Router();
 const ingestLocks = new Set();
 
 const CRAWL_UA = 'Mozilla/5.0 (compatible; ChattyBotCrawler/1.0)';
-const MAX_PAGES = 10; // MVP safety limit
+const MAX_PAGES = Number(process.env.INGEST_MAX_PAGES || 10); // MVP safety limit (configurable)
+const MAX_CHUNK_CHARS = 1000; // safety: keep chunks small to avoid OOM
+const EMBED_BATCH_SIZE = 10;  // safety: small embedding batches
+const MAX_TEXT_CHARS = 20_000; // safety: cap per-page extracted text
 
-async function storeChunks(siteId, chunks, caps) {
-  const { maxChunksPerSite, embedBatchSize, state } = caps;
-  const remaining = Math.max(0, maxChunksPerSite - state.totalStored);
-  const limitedChunks = chunks.slice(0, remaining);
-  if (limitedChunks.length === 0) return;
+function normalizeText(text) {
+  const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+  return cleaned.length > MAX_TEXT_CHARS ? cleaned.slice(0, MAX_TEXT_CHARS) : cleaned;
+}
 
-  state.totalChunks += limitedChunks.length;
+function chunkByChars(text, maxChars) {
+  // Simple, low-memory chunking: yield sequential chunks up to maxChars.
+  // (We intentionally keep this local to ingest; chat/RAG chunking remains unchanged.)
+  const t = String(text || '').trim();
+  if (!t) return [];
+  const chunks = [];
+  for (let i = 0; i < t.length; i += maxChars) {
+    const chunk = t.slice(i, i + maxChars).trim();
+    if (chunk.length > 50) chunks.push(chunk);
+  }
+  return chunks;
+}
 
-  for (let i = 0; i < limitedChunks.length; i += embedBatchSize) {
-    if (state.totalStored >= maxChunksPerSite) break;
-    const batch = limitedChunks.slice(i, i + embedBatchSize);
-    const embeddings = await embedBatch(batch);
-    for (let j = 0; j < batch.length; j++) {
-      if (state.totalStored >= maxChunksPerSite) break;
-      await pool.query(
-        `INSERT INTO documents (id, site_id, content, embedding, created_at)
-         VALUES ($1, $2, $3, $4::vector, NOW())`,
-        [uuidv4(), siteId, batch[j], vectorToSql(embeddings[j])]
-      );
-      state.totalStored++;
-    }
+async function insertChunkBatch(siteId, chunkBatch, state) {
+  if (chunkBatch.length === 0) return;
+  const embeddings = await embedBatch(chunkBatch);
+  for (let i = 0; i < chunkBatch.length; i++) {
+    await pool.query(
+      `INSERT INTO documents (id, site_id, content, embedding, created_at)
+       VALUES ($1, $2, $3, $4::vector, NOW())`,
+      [uuidv4(), siteId, chunkBatch[i], vectorToSql(embeddings[i])]
+    );
+    state.totalStored++;
   }
 }
 
-function normalizeText(text) {
-  return String(text || '').replace(/\s+/g, ' ').trim();
+async function processTextStreaming(siteId, text, caps, state) {
+  if (!text) return;
+  if (state.totalStored >= caps.maxChunksPerSite) return;
+
+  const chunks = chunkByChars(text, MAX_CHUNK_CHARS);
+  if (chunks.length === 0) return;
+
+  // Stream embeddings + inserts in small batches, clearing arrays each time.
+  for (let i = 0; i < chunks.length; i += EMBED_BATCH_SIZE) {
+    if (state.totalStored >= caps.maxChunksPerSite) break;
+    const remaining = caps.maxChunksPerSite - state.totalStored;
+    const batch = chunks.slice(i, i + EMBED_BATCH_SIZE);
+    if (batch.length > remaining) batch.length = remaining;
+
+    state.totalChunks += batch.length;
+    await insertChunkBatch(siteId, batch, state);
+
+    // Clear batch references (helps GC on tight memory)
+    batch.length = 0;
+  }
 }
 
 function isSameDomain(url, baseHost) {
@@ -112,11 +139,8 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
     // Render free tier memory is tight — keep ingestion streamed and capped.
     // These caps prevent OOM on large pages / SPA bundles.
     const MAX_CHUNKS_PER_SITE = 150;
-    const MAX_CHUNKS_PER_PAGE = 40;
-    const EMBED_BATCH_SIZE = 8;
-
     const state = { totalChunks: 0, totalStored: 0 };
-    const caps = { maxChunksPerSite: MAX_CHUNKS_PER_SITE, embedBatchSize: EMBED_BATCH_SIZE, state };
+    const caps = { maxChunksPerSite: MAX_CHUNKS_PER_SITE };
 
     // ---------------------------------------------------------------------
     // Playwright crawl (root page is always processed first)
@@ -170,10 +194,9 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
             if (!visited.has(l)) queue.push(l);
           }
 
-          // Chunk + store (existing logic unchanged)
+          // Streamed chunk → embed → insert (no large arrays kept in memory)
           if (state.totalStored < MAX_CHUNKS_PER_SITE) {
-            const pageChunks = chunkText(cleanedText).slice(0, MAX_CHUNKS_PER_PAGE);
-            await storeChunks(site_id, pageChunks, caps);
+            await processTextStreaming(site_id, cleanedText, caps, state);
           }
         } catch (e) {
           console.warn(`[Ingest] Failed ${nextUrl}: ${e.message}`);

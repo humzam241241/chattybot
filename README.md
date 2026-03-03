@@ -93,6 +93,10 @@ npm run dev
 4. Add environment variables (from `backend/.env.example`)
 5. Deploy
 
+Render-specific notes for ingestion (Playwright):
+- Set `PLAYWRIGHT_BROWSERS_PATH=0` (ensures browsers install into `node_modules`)
+- Set `NODE_OPTIONS=--max-old-space-size=512` (matches Render's memory limits and avoids unexpected heap growth)
+
 Note: Free Render tier spins down after 15 min idle. Upgrade to Starter ($7/mo) for production.
 
 ### Widget → Vercel (Static)
