@@ -8,6 +8,9 @@ const MAX_HTML_BYTES = 2 * 1024 * 1024;      // 2MB per page
 const MAX_TEXT_CHARS = 20_000;               // cap extracted text to avoid OOM
 const MAX_LINKS_PER_PAGE = 200;              // cap link extraction per page
 const MAX_SITEMAP_URLS = 2000;               // cap sitemap expansion
+const JS_RENDER_ENABLED = (process.env.CRAWL_RENDER_JS || '').toLowerCase() === 'true';
+const JS_RENDER_TIMEOUT_MS = Number(process.env.CRAWL_RENDER_TIMEOUT_MS || 15000);
+const JS_RENDER_MAX_PAGES = Number(process.env.CRAWL_RENDER_MAX_PAGES || 5); // keep free tier safe
 
 /**
  * Crawl a website starting from the given URL.
@@ -21,6 +24,7 @@ async function crawlSite(startUrl) {
   const visited = new Set();
   const queue = [startUrl];
   const results = [];
+  let jsRenderedPages = 0;
 
   while (queue.length > 0 && results.length < MAX_PAGES) {
     const url = queue.shift();
@@ -67,6 +71,20 @@ async function crawlSite(startUrl) {
       const $ = cheerio.load(raw);
       let text = extractText($);
       if (text.length > MAX_TEXT_CHARS) text = text.slice(0, MAX_TEXT_CHARS);
+
+      // Some modern sites render content client-side (React/Vue/Next SPA).
+      // Static HTML will look like an empty shell; optionally render with a headless browser.
+      if (
+        JS_RENDER_ENABLED &&
+        jsRenderedPages < JS_RENDER_MAX_PAGES &&
+        looksLikeSpaShell(raw, text)
+      ) {
+        const rendered = await tryRenderJsPage(url, JS_RENDER_TIMEOUT_MS);
+        if (rendered && rendered.length > text.length) {
+          text = rendered.slice(0, MAX_TEXT_CHARS);
+          jsRenderedPages++;
+        }
+      }
 
       if (text.length > 100) {
         results.push({ url, text });
@@ -117,6 +135,71 @@ function extractText($) {
 
 function normalizeText(text) {
   return String(text).replace(/\s+/g, ' ').trim();
+}
+
+function looksLikeSpaShell(rawHtml, extractedText) {
+  // Heuristic: very little visible text but lots of scripts / app root markers.
+  if (extractedText && extractedText.length > 400) return false;
+  const lower = rawHtml.slice(0, 50_000).toLowerCase();
+  const hasAppRoot =
+    lower.includes('id="__next"') ||
+    lower.includes('id="root"') ||
+    lower.includes('data-reactroot') ||
+    lower.includes('ng-version=');
+  const scriptCount = (lower.match(/<script\b/g) || []).length;
+  return hasAppRoot || scriptCount >= 10;
+}
+
+async function tryRenderJsPage(url, timeoutMs) {
+  // Optional dependency: this will only work if Playwright is installed and
+  // the runtime has a Chromium binary available. We keep it optional so
+  // production deployments can stay lightweight on free tiers.
+  try {
+    const playwright = await importPlaywright();
+    if (!playwright) return null;
+
+    const browser = await playwright.chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    try {
+      const page = await browser.newPage();
+      page.setDefaultTimeout(timeoutMs);
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+      // Give client JS a brief chance to render
+      await page.waitForTimeout(1200);
+
+      const text = await page.evaluate(() => {
+        const t = document.body?.innerText || '';
+        return t.replace(/\s+/g, ' ').trim();
+      });
+
+      return text || null;
+    } finally {
+      await browser.close();
+    }
+  } catch (err) {
+    // Fail silently — fallback to static mode
+    console.warn(`[Crawler] JS render skipped for ${url}: ${err.message}`);
+    return null;
+  }
+}
+
+async function importPlaywright() {
+  // Works for both CJS/ESM environments when available
+  try {
+    // eslint-disable-next-line global-require
+    return require('playwright');
+  } catch {
+    try {
+      const mod = await import('playwright');
+      return mod;
+    } catch {
+      return null;
+    }
+  }
 }
 
 function isLikelyHtml(contentType, raw) {
