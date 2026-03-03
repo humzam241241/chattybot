@@ -17,6 +17,7 @@ const ingestRouter = require('./routes/ingest');
 const leadsRouter = require('./routes/leads');
 const sitesRouter = require('./routes/sites');
 const siteConfigRouter = require('./routes/siteConfig');
+const adminAuth = require('./middleware/adminAuth');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -74,10 +75,22 @@ app.disable('x-powered-by'); // helmet also does this, belt-and-suspenders
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
 app.use('/chat', chatRouter);
+app.use('/api/chat', chatRouter);
 app.use('/ingest', ingestRouter);
 app.use('/lead', leadsRouter);
+app.use('/api/lead', leadsRouter);
 app.use('/sites', sitesRouter);
 app.use('/site-config', siteConfigRouter);
+app.use('/api/site-config', siteConfigRouter);
+app.use('/api/sites', siteConfigRouter); // public alias: /api/sites/:siteId
+
+// Protected admin API namespace (auth required)
+const adminApi = express.Router();
+adminApi.use(adminAuth);
+adminApi.use('/sites', sitesRouter);
+adminApi.use('/ingest', ingestRouter);
+adminApi.use('/leads', leadsRouter);
+app.use('/api/admin', adminApi);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
