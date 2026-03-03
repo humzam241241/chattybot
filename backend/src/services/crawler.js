@@ -1,9 +1,11 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-const MAX_PAGES = 50;       // Hard cap to prevent runaway crawls
+const MAX_PAGES = 30;       // Hard cap to prevent runaway crawls (Render free tier)
 const CRAWL_DELAY_MS = 500; // Polite delay between requests
 const REQUEST_TIMEOUT = 10000;
+const MAX_HTML_BYTES = 2 * 1024 * 1024;      // 2MB per page
+const MAX_TEXT_CHARS = 20_000;               // cap extracted text to avoid OOM
 
 /**
  * Crawl a website starting from the given URL.
@@ -33,13 +35,17 @@ async function crawlSite(startUrl) {
           Accept: 'text/html',
         },
         maxRedirects: 5,
+        maxContentLength: MAX_HTML_BYTES,
+        maxBodyLength: MAX_HTML_BYTES,
+        validateStatus: (s) => s >= 200 && s < 400,
       });
 
       const contentType = response.headers['content-type'] || '';
       if (!contentType.includes('text/html')) continue;
 
       const $ = cheerio.load(response.data);
-      const text = extractText($);
+      let text = extractText($);
+      if (text.length > MAX_TEXT_CHARS) text = text.slice(0, MAX_TEXT_CHARS);
 
       if (text.length > 100) {
         results.push({ url, text });

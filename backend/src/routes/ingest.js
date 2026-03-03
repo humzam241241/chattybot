@@ -49,35 +49,36 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
     let totalChunks = 0;
     let totalStored = 0;
 
-    // Process pages in batches to avoid OOM on large sites
-    const BATCH_SIZE = 10;
-    for (let i = 0; i < pages.length; i += BATCH_SIZE) {
-      const batch = pages.slice(i, i + BATCH_SIZE);
+    // Render free tier memory is tight — keep ingestion streamed and capped.
+    // These caps prevent OOM on large pages / SPA bundles.
+    const MAX_CHUNKS_PER_SITE = 300;
+    const MAX_CHUNKS_PER_PAGE = 80;
+    const EMBED_BATCH_SIZE = 20;
 
-      // Collect all chunks for this batch of pages
-      const allChunks = [];
-      for (const page of batch) {
-        const chunks = chunkText(page.text);
-        chunks.forEach((chunk) => allChunks.push({ chunk, url: page.url }));
-      }
+    for (const page of pages) {
+      if (totalStored >= MAX_CHUNKS_PER_SITE) break;
 
-      if (allChunks.length === 0) continue;
-      totalChunks += allChunks.length;
+      const pageChunks = chunkText(page.text).slice(0, MAX_CHUNKS_PER_PAGE);
+      if (pageChunks.length === 0) continue;
 
-      // Embed the entire batch in one API call
-      const embeddings = await embedBatch(allChunks.map((c) => c.chunk));
+      totalChunks += pageChunks.length;
 
-      // Insert each chunk + embedding into the DB
-      for (let j = 0; j < allChunks.length; j++) {
-        const { chunk } = allChunks[j];
-        const embedding = embeddings[j];
+      // Embed + insert in small batches to keep memory stable
+      for (let i = 0; i < pageChunks.length; i += EMBED_BATCH_SIZE) {
+        if (totalStored >= MAX_CHUNKS_PER_SITE) break;
 
-        await pool.query(
-          `INSERT INTO documents (id, site_id, content, embedding, created_at)
-           VALUES ($1, $2, $3, $4::vector, NOW())`,
-          [uuidv4(), site_id, chunk, vectorToSql(embedding)]
-        );
-        totalStored++;
+        const chunkBatch = pageChunks.slice(i, i + EMBED_BATCH_SIZE);
+        const embeddings = await embedBatch(chunkBatch);
+
+        for (let j = 0; j < chunkBatch.length; j++) {
+          if (totalStored >= MAX_CHUNKS_PER_SITE) break;
+          await pool.query(
+            `INSERT INTO documents (id, site_id, content, embedding, created_at)
+             VALUES ($1, $2, $3, $4::vector, NOW())`,
+            [uuidv4(), site_id, chunkBatch[j], vectorToSql(embeddings[j])]
+          );
+          totalStored++;
+        }
       }
     }
 
@@ -87,6 +88,7 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
       success: true,
       pages_crawled: pages.length,
       chunks_stored: totalStored,
+      chunks_total: totalChunks,
     });
   } catch (err) {
     console.error('Ingest error:', err);
