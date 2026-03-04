@@ -8,8 +8,8 @@ const { chromium } = require('playwright');
 
 const CRAWL_UA = 'Mozilla/5.0 (compatible; ChattyBotCrawler/1.0)';
 const MAX_RETRIES = 3;
-const PAGE_TIMEOUT = 15000;
-const HYDRATION_DELAY = 1000;
+const PAGE_TIMEOUT = 20000;
+const HYDRATION_DELAY = 2500; // Increased for heavy React apps
 
 /**
  * Normalizes URLs by removing hashes and standardizing format
@@ -82,6 +82,19 @@ async function crawlPageWithRetry(page, url, retries = 0) {
  * Removes nav, footer, header elements for better quality
  */
 async function extractPageContent(page) {
+  // Wait for content to actually appear (not just body)
+  try {
+    await page.waitForFunction(
+      () => document.body && document.body.innerText.length > 200,
+      { timeout: 5000 }
+    ).catch(() => {
+      // If content doesn't appear in 5s, proceed anyway
+      console.warn(`[Ingest] Content wait timeout - proceeding with extraction`);
+    });
+  } catch (e) {
+    // Continue if wait fails
+  }
+  
   return await page.evaluate(() => {
     // Remove UI noise elements
     document.querySelectorAll('nav, footer, header, script, style, iframe, noscript').forEach(el => {
@@ -156,7 +169,7 @@ class SiteCrawler {
       console.log(`[Ingest] Text length: ${text.length}`);
       
       // Quality filter: skip pages with minimal content
-      if (text.length < 300) {
+      if (text.length < 200) {
         console.warn(`[Ingest] Skipping ${url} - insufficient content (${text.length} chars)`);
         return null;
       }

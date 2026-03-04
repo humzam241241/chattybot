@@ -12,7 +12,7 @@ function validateContent(text, url) {
   const trimmed = text.trim();
   
   // Minimum length check
-  if (trimmed.length < 300) {
+  if (trimmed.length < 200) {
     return {
       valid: false,
       reason: `Insufficient content (${trimmed.length} chars)`
