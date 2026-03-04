@@ -14,3 +14,13 @@ export async function POST(request, { params }) {
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }
+
+export async function GET(request, { params }) {
+  const res = await fetch(`${API_URL}/ingest/${params.site_id}/status`, {
+    headers: {
+      Authorization: `Bearer ${ADMIN_SECRET}`,
+    },
+  });
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
+}

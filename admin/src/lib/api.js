@@ -32,6 +32,7 @@ export const updateSite = (id, data) => apiFetch(`/api/sites/${id}`, { method: '
 export const deleteSite = (id) => apiFetch(`/api/sites/${id}`, { method: 'DELETE' });
 
 export const triggerIngest = (siteId) => apiFetch(`/api/ingest/${siteId}`, { method: 'POST' });
+export const getIngestStatus = (siteId) => apiFetch(`/api/ingest/${siteId}`);
 
 export const getLeads = (siteId) => apiFetch(`/api/leads/${siteId}`);
 

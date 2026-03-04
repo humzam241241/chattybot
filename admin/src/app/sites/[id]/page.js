@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getSite, updateSite, triggerIngest } from '../../../lib/api';
+import { getSite, updateSite, triggerIngest, getIngestStatus } from '../../../lib/api';
 import SiteLayout from '../../../components/SiteLayout';
 
 export default function EditSitePage() {
@@ -80,11 +80,30 @@ export default function EditSitePage() {
     setIngestResult(null);
     setError('');
     try {
-      const result = await triggerIngest(id);
-      setIngestResult(result);
+      await triggerIngest(id);
+      // Poll for completion
+      const poll = setInterval(async () => {
+        try {
+          const status = await getIngestStatus(id);
+          if (status.status === 'done') {
+            clearInterval(poll);
+            setIngestResult({
+              pages_crawled: status.result?.pagesCrawled || 0,
+              chunks_stored: status.result?.chunksStored || status.chunk_count || 0,
+            });
+            setIngesting(false);
+          } else if (status.status === 'error') {
+            clearInterval(poll);
+            setError('Ingestion failed: ' + (status.result?.error || 'Unknown error'));
+            setIngesting(false);
+          }
+          // still 'running' — keep polling
+        } catch {
+          // Ignore transient poll errors, keep trying
+        }
+      }, 5000);
     } catch (err) {
-      setError('Ingestion failed: ' + err.message);
-    } finally {
+      setError('Ingestion failed to start: ' + err.message);
       setIngesting(false);
     }
   }
