@@ -52,9 +52,12 @@ router.post(
     const { site_id, user_message, current_page_url, conversation_id, visitor_id } = req.body;
 
     try {
+      console.log(`[Chat] Processing message for site ${site_id}`);
+      
       const settings = await getEffectiveRaffySettings(site_id);
       if (!settings) return res.status(404).json({ error: 'Site not found' });
       const { site, raffy } = settings;
+      console.log(`[Chat] Settings loaded for ${site.company_name}`);
 
       const convoId = await getOrCreateConversation({
         siteId: site_id,
@@ -62,6 +65,7 @@ router.post(
         conversationId: conversation_id,
         currentPageUrl: current_page_url,
       });
+      console.log(`[Chat] Conversation: ${convoId}`);
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 
@@ -72,7 +76,9 @@ router.post(
       const isEmergency = Array.isArray(emergencyKeywords) && emergencyKeywords.some((k) => msgLower.includes(String(k).toLowerCase()));
 
       // RAG: retrieve relevant chunks
+      console.log(`[Chat] Retrieving context...`);
       const contextChunks = await retrieveContext(site_id, user_message);
+      console.log(`[Chat] Context chunks: ${contextChunks.length}`);
 
       // ALWAYS build the prompt with RAG context, even if custom system_prompt exists
       const basePrompt = buildSystemPrompt(site, contextChunks);
@@ -176,8 +182,12 @@ router.post(
         conversation_id: convoId,
       });
     } catch (err) {
-      console.error('Chat error:', err);
-      return res.status(500).json({ error: 'Failed to process message' });
+      console.error('Chat error:', err.message, err.stack);
+      return res.status(500).json({ 
+        error: 'Failed to process message',
+        detail: process.env.NODE_ENV !== 'production' ? err.message : undefined,
+        step: err._step || 'unknown'
+      });
     }
   }
 );
