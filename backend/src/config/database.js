@@ -1,5 +1,16 @@
 const { Pool } = require('pg');
 
+// Unit tests should not require a live database, nor keep open handles.
+// (Avoid top-level `return` so Jest/Babel parsers don't choke.)
+if (process.env.NODE_ENV === 'test') {
+  module.exports = {
+    query: async () => {
+      throw new Error('Database is disabled in test environment');
+    },
+    on: () => {},
+  };
+} else {
+
 /**
  * Supabase appends ?pgbouncer=true to their pooler connection strings as a
  * hint for ORMs (Prisma etc.) to disable prepared statements.
@@ -39,12 +50,17 @@ pool.on('error', (err) => {
   console.error('[DB] Unexpected error on idle client:', err.message);
 });
 
-// Eagerly test the connection at startup so misconfiguration is caught immediately
-pool.query('SELECT 1').then(() => {
-  console.log('[DB] Database connection verified');
-}).catch((err) => {
-  console.error('[DB] STARTUP CONNECTION FAILED:', err.message);
-  console.error('[DB] Check DATABASE_URL in your environment variables');
-});
+// Eagerly test the connection at startup so misconfiguration is caught immediately.
+// Skip during tests so unit tests don't require a live database.
+if (process.env.NODE_ENV !== 'test') {
+  pool.query('SELECT 1').then(() => {
+    console.log('[DB] Database connection verified');
+  }).catch((err) => {
+    console.error('[DB] STARTUP CONNECTION FAILED:', err.message);
+    console.error('[DB] Check DATABASE_URL in your environment variables');
+  });
+}
 
 module.exports = pool;
+
+}

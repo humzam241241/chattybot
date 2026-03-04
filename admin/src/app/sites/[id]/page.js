@@ -22,13 +22,41 @@ export default function EditSitePage() {
 
   useEffect(() => {
     getSite(id)
-      .then((data) => setForm(data.site))
+      .then((data) => {
+        const site = data.site;
+        if (site && typeof site.raffy_overrides === 'string') {
+          try { site.raffy_overrides = JSON.parse(site.raffy_overrides); } catch {}
+        }
+        if (site && (!site.raffy_overrides || typeof site.raffy_overrides !== 'object')) {
+          site.raffy_overrides = {};
+        }
+        setForm(site);
+      })
       .catch(() => setError('Site not found'))
       .finally(() => setLoading(false));
   }, [id]);
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }
+
+  function setOverride(updater) {
+    setForm((prev) => {
+      const ro = prev?.raffy_overrides && typeof prev.raffy_overrides === 'object' ? { ...prev.raffy_overrides } : {};
+      const nextOverrides = updater(ro) || ro;
+      return { ...prev, raffy_overrides: nextOverrides };
+    });
+  }
+
+  function getOverride(path, fallback = '') {
+    const ro = form?.raffy_overrides && typeof form.raffy_overrides === 'object' ? form.raffy_overrides : {};
+    const parts = path.split('.');
+    let cur = ro;
+    for (const p of parts) {
+      if (!cur || typeof cur !== 'object') return fallback;
+      cur = cur[p];
+    }
+    return cur ?? fallback;
   }
 
   async function handleSave(e) {
@@ -120,6 +148,61 @@ export default function EditSitePage() {
             <label>System Prompt</label>
             <textarea className="textarea" name="system_prompt" value={form.system_prompt || ''} onChange={handleChange} rows={5} />
           </div>
+
+          <div style={{ height: 1, background: 'var(--border)', marginTop: 18, marginBottom: 10 }} />
+          <div className="field">
+            <label>Widget Intro Message</label>
+            <textarea
+              className="textarea"
+              value={getOverride('ui.intro_message', '')}
+              onChange={(e) =>
+                setOverride((ro) => ({ ...ro, ui: { ...(ro.ui || {}), intro_message: e.target.value } }))
+              }
+              rows={3}
+              placeholder="Shown as the first message in the widget"
+            />
+          </div>
+          <div className="field">
+            <label>Suggested Questions (one per line)</label>
+            <textarea
+              className="textarea"
+              value={(getOverride('ui.suggested_questions', []) || []).join('\n')}
+              onChange={(e) => {
+                const arr = e.target.value
+                  .split('\n')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .slice(0, 8);
+                setOverride((ro) => ({ ...ro, ui: { ...(ro.ui || {}), suggested_questions: arr } }));
+              }}
+              rows={4}
+              placeholder="Example:\nWhat services do you offer?\nHow does pricing work?\nHow do I book a call?"
+            />
+          </div>
+          <div className="field">
+            <label>Booking Link URL</label>
+            <input
+              className="input"
+              value={getOverride('booking.url', '')}
+              onChange={(e) =>
+                setOverride((ro) => ({ ...ro, booking: { ...(ro.booking || {}), url: e.target.value } }))
+              }
+              placeholder="https://cal.com/your-team/intro"
+            />
+          </div>
+          <div className="field">
+            <label>Lead Notification Email</label>
+            <input
+              className="input"
+              value={getOverride('notifications.lead_email', '')}
+              onChange={(e) =>
+                setOverride((ro) => ({ ...ro, notifications: { ...(ro.notifications || {}), lead_email: e.target.value } }))
+              }
+              placeholder="leads@yourcompany.com"
+            />
+            <small>Requires backend SMTP env vars; otherwise leads still save to the dashboard.</small>
+          </div>
+
           <div className="flex gap-2 mt-4">
             <button className="btn btn-primary" type="submit" disabled={saving}>
               {saving ? 'Saving...' : 'Save Changes'}

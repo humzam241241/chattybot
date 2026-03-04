@@ -4,6 +4,8 @@ const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
 const { apiLimiter } = require('../middleware/rateLimiter');
 const adminAuth = require('../middleware/adminAuth');
+const { getEffectiveRaffySettings } = require('../services/raffySettings');
+const { sendLeadEmail } = require('../services/mailer');
 
 const router = express.Router();
 
@@ -30,16 +32,33 @@ router.post(
 
     try {
       // Verify site exists (tenant isolation)
-      const siteCheck = await pool.query('SELECT id FROM sites WHERE id = $1', [site_id]);
-      if (siteCheck.rows.length === 0) {
+      const siteCheck = await pool.query('SELECT id, company_name FROM sites WHERE id = $1', [site_id]);
+      const siteRow = siteCheck.rows[0];
+      if (!siteRow) {
         return res.status(404).json({ error: 'Site not found' });
       }
 
+      const leadId = uuidv4();
       await pool.query(
         `INSERT INTO leads (id, site_id, name, email, message, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW())`,
-        [uuidv4(), site_id, name || null, email, message || null]
+        [leadId, site_id, name || null, email, message || null]
       );
+
+      // Optional: email notification (SMTP), configured per-site via raffy_overrides.notifications.lead_email
+      try {
+        const settings = await getEffectiveRaffySettings(site_id);
+        const to = settings?.raffy?.notifications?.lead_email ? String(settings.raffy.notifications.lead_email) : '';
+        if (to) {
+          await sendLeadEmail({
+            to,
+            siteName: siteRow.company_name,
+            lead: { id: leadId, name, email, message },
+          });
+        }
+      } catch (e) {
+        console.warn('Lead email notification failed (non-fatal):', e.message);
+      }
 
       return res.json({ success: true });
     } catch (err) {

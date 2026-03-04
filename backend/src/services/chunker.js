@@ -43,6 +43,8 @@ function chunkText(text) {
       chunks.push(chunk);
     }
 
+    // If we've reached the end, stop. Otherwise, overlap for continuity.
+    if (end >= normalized.length) break;
     start = end - CHUNK_OVERLAP;
   }
 

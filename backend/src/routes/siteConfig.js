@@ -1,6 +1,6 @@
 const express = require('express');
-const pool = require('../config/database');
 const { apiLimiter } = require('../middleware/rateLimiter');
+const { getEffectiveRaffySettings } = require('../services/raffySettings');
 
 const router = express.Router();
 
@@ -20,16 +20,25 @@ router.get('/:site_id', apiLimiter, async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      'SELECT id, company_name, primary_color, tone FROM sites WHERE id = $1',
-      [site_id]
-    );
+    const settings = await getEffectiveRaffySettings(site_id);
+    if (!settings) return res.status(404).json({ error: 'Site not found' });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Site not found' });
-    }
+    const { site, raffy } = settings;
+    const suggested = Array.isArray(raffy?.ui?.suggested_questions)
+      ? raffy.ui.suggested_questions.slice(0, 8).map((s) => String(s)).filter(Boolean)
+      : [];
 
-    return res.json({ config: result.rows[0] });
+    return res.json({
+      config: {
+        id: site.id,
+        company_name: site.company_name,
+        primary_color: site.primary_color,
+        tone: site.tone,
+        intro_message: raffy?.ui?.intro_message || undefined,
+        suggested_questions: suggested,
+        booking_url: raffy?.booking?.url || undefined,
+      },
+    });
   } catch (err) {
     console.error('Site config error:', err);
     return res.status(500).json({ error: 'Failed to fetch config' });

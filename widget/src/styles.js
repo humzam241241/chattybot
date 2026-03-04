@@ -85,6 +85,50 @@ export function injectStyles(shadow) {
     .cb-messages::-webkit-scrollbar { width: 4px; }
     .cb-messages::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
 
+    .cb-chips {
+      padding: 10px 12px 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      border-top: 1px solid #f0f0f0;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .cb-chip {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      max-width: 100%;
+      text-align: left;
+    }
+    .cb-chip:hover { background: #eef2ff; border-color: #c7d2fe; }
+    .cb-chip:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .cb-cta-row {
+      padding: 10px 12px 0;
+      display: flex;
+      justify-content: flex-start;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .cb-cta {
+      width: 100%;
+      border: none;
+      background: var(--cb-primary);
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .cb-cta:hover { opacity: 0.92; }
+
     .cb-msg { display: flex; flex-direction: column; max-width: 82%; gap: 2px; }
     .cb-msg.bot { align-self: flex-start; }
     .cb-msg.user { align-self: flex-end; }
