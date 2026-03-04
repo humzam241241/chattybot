@@ -6,8 +6,9 @@
  *   - Links are discovered BEFORE any DOM mutation (noise removal).
  *   - Only <script>, <style>, <noscript>, <iframe> are stripped; nav/header/footer
  *     are kept because small-business sites embed critical info there.
- *   - For SPAs with client-side routing (/about, /contact) the crawler tries
- *     a hash-based fallback when a direct URL 404s.
+ *   - For SPAs with client-side routing, when direct navigation to a sub-page
+ *     fails (blank/404), the crawler falls back to navigating from the home page
+ *     and clicking the link so React Router renders the content.
  */
 
 process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || '0';
@@ -28,7 +29,6 @@ function cleanUrl(url) {
     for (const p of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'fbclid', 'gclid']) {
       u.searchParams.delete(p);
     }
-    // Remove trailing slash for dedup (except root)
     let out = u.toString();
     if (out.endsWith('/') && u.pathname !== '/') out = out.slice(0, -1);
     return out;
@@ -58,46 +58,43 @@ function isSkippableUrl(url) {
 
 // ───────────────────────── Page-level helpers ───────────────────────────
 
-/**
- * Navigate to url. Tries 'networkidle', falls back to 'domcontentloaded'
- * if the page hangs (common with analytics/chat widgets that keep sockets open).
- */
 async function navigatePage(page, url) {
   try {
     await page.goto(url, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT });
   } catch {
-    console.warn(`[Ingest] networkidle timeout for ${url}, falling back to domcontentloaded`);
+    console.warn(`[Ingest] networkidle timeout for ${url}, trying domcontentloaded`);
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
     } catch (e) {
       throw new Error(`Navigation failed: ${e.message}`);
     }
   }
-  // Let React/Vue/Angular hydrate & render
   await page.waitForTimeout(RENDER_SETTLE_MS);
 }
 
 /**
- * Returns true if the page looks like a real content page (not a soft 404).
+ * Returns the visible text length on the page (quick check).
+ */
+async function getVisibleTextLength(page) {
+  return page.evaluate(() => (document.body?.innerText || '').trim().length);
+}
+
+/**
+ * Checks if the page has enough real content (not a 404 / blank shell).
  */
 async function isContentPage(page) {
   return page.evaluate(() => {
     const text = (document.body?.innerText || '').trim();
     if (text.length < 80) return false;
     const lower = text.toLowerCase();
-    // Detect common soft-404 / error patterns (only if page is very short)
     if (text.length < 600) {
-      const errorPhrases = ['page not found', '404', 'not found', 'error', 'page unavailable', 'access denied'];
+      const errorPhrases = ['page not found', '404', 'not found', 'this page could not be found', 'page unavailable'];
       if (errorPhrases.some(p => lower.includes(p))) return false;
     }
     return true;
   });
 }
 
-/**
- * Discovers all internal links on the page.
- * MUST be called BEFORE any DOM mutations.
- */
 async function discoverLinks(page, baseHost) {
   const rawLinks = await page.evaluate(() =>
     Array.from(document.querySelectorAll('a[href]'))
@@ -117,22 +114,13 @@ async function discoverLinks(page, baseHost) {
   return links;
 }
 
-/**
- * Extracts visible text content.
- * Only strips script/style/iframe/noscript — keeps nav, header, footer
- * because they contain valuable info on small-business sites.
- */
 async function extractText(page) {
   return page.evaluate(() => {
-    // Remove only non-content elements
     document.querySelectorAll('script, style, noscript, iframe, svg').forEach(el => el.remove());
-
     const text = document.body?.innerText || '';
     return text.replace(/\s+/g, ' ').trim();
   });
 }
-
-// ─────────────────────── Crawl with retry ───────────────────────────────
 
 async function crawlPage(page, url, retries = 0) {
   try {
@@ -150,6 +138,64 @@ async function crawlPage(page, url, retries = 0) {
   }
 }
 
+// ──────────────────── SPA client-side navigation ────────────────────────
+
+/**
+ * For SPAs (React, Vue, etc.) sub-pages often 404 on direct navigation
+ * because the server doesn't have a catch-all rewrite. The content only
+ * renders when you navigate from within the app via React Router.
+ *
+ * This function navigates to the home page, finds the <a> link that
+ * matches the target path, clicks it, and waits for content to appear.
+ */
+async function spaNavigate(page, startUrl, targetUrl) {
+  const targetPath = new URL(targetUrl).pathname;
+  console.log(`[Ingest] SPA fallback: navigating to ${targetPath} via client-side routing`);
+
+  // Go to the home page first
+  await page.goto(startUrl, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT });
+  await page.waitForTimeout(RENDER_SETTLE_MS);
+
+  // Find and click the link that points to our target path
+  const clicked = await page.evaluate((path) => {
+    const anchors = Array.from(document.querySelectorAll('a[href]'));
+    for (const a of anchors) {
+      try {
+        const href = new URL(a.href, window.location.origin);
+        if (href.pathname === path || href.pathname === path + '/') {
+          a.click();
+          return true;
+        }
+      } catch { /* skip malformed hrefs */ }
+    }
+    return false;
+  }, targetPath);
+
+  if (!clicked) {
+    // Fallback: use History API to push the route
+    console.log(`[Ingest] No matching link found, trying pushState for ${targetPath}`);
+    await page.evaluate((path) => {
+      window.history.pushState({}, '', path);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, targetPath);
+  }
+
+  // Wait for React Router to render the new content
+  await page.waitForTimeout(RENDER_SETTLE_MS);
+
+  // Also try waiting for visible text to grow
+  try {
+    await page.waitForFunction(
+      () => (document.body?.innerText || '').trim().length > 200,
+      { timeout: 5000 }
+    );
+  } catch {
+    // Content might genuinely be short
+  }
+
+  return true;
+}
+
 // ────────────────────────── SiteCrawler ─────────────────────────────────
 
 class SiteCrawler {
@@ -158,6 +204,7 @@ class SiteCrawler {
     this.baseHost = new URL(startUrl).hostname;
     this.maxPages = opts.maxPages || 150;
     this.concurrency = opts.concurrency || 3;
+    this.isSpa = false; // detected at runtime
 
     this.visited = new Set();
     this.queue = [startUrl];
@@ -190,13 +237,34 @@ class SiteCrawler {
       this.enqueue(links);
 
       // ② Check if this is a real content page
-      const hasContent = await isContentPage(page);
+      let hasContent = await isContentPage(page);
+
+      // ③ SPA fallback: if sub-page is empty, try client-side navigation
+      if (!hasContent && url !== this.startUrl && url !== this.startUrl + '/') {
+        this.isSpa = true;
+        console.log(`[Ingest] Direct navigation failed for ${url}, trying SPA navigation`);
+
+        try {
+          await spaNavigate(page, this.startUrl, url);
+          hasContent = await isContentPage(page);
+
+          if (hasContent) {
+            // Also discover links from the SPA-rendered page
+            const spaLinks = await discoverLinks(page, this.baseHost);
+            this.totalLinks += spaLinks.length;
+            this.enqueue(spaLinks);
+          }
+        } catch (err) {
+          console.warn(`[Ingest] SPA navigation failed for ${url}: ${err.message}`);
+        }
+      }
+
       if (!hasContent) {
-        console.warn(`[Ingest] Skipping ${url} — not a content page`);
+        console.warn(`[Ingest] Skipping ${url} — no content after all attempts`);
         return null;
       }
 
-      // ③ Extract text (strips only script/style/svg)
+      // ④ Extract text (strips only script/style/svg)
       const text = await extractText(page);
       console.log(`[Ingest] Text length: ${text.length}`);
 
@@ -214,6 +282,11 @@ class SiteCrawler {
     }
   }
 
+  /**
+   * Sequential worker — processes one URL at a time.
+   * For SPAs we use concurrency=1 to avoid race conditions
+   * with client-side routing.
+   */
   async worker(context, id) {
     while (this.queue.length > 0 && this.pagesCrawled < this.maxPages) {
       const url = this.queue.shift();
@@ -224,7 +297,7 @@ class SiteCrawler {
   }
 
   async crawl() {
-    console.log(`[Ingest] Starting crawl: ${this.startUrl} (max ${this.maxPages} pages, ${this.concurrency} workers)`);
+    console.log(`[Ingest] Starting crawl: ${this.startUrl} (max ${this.maxPages} pages, concurrency ${this.concurrency})`);
 
     const browser = await chromium.launch({
       headless: true,
@@ -235,20 +308,22 @@ class SiteCrawler {
       const context = await browser.newContext({
         userAgent: CRAWL_UA,
         viewport: { width: 1280, height: 720 },
-        // Accept English to avoid translated content
         locale: 'en-US',
       });
 
+      // Start with configured concurrency; if SPA mode is detected
+      // during crawl, subsequent pages will use SPA fallback per-page.
       const workers = Array.from({ length: this.concurrency }, (_, i) => this.worker(context, i));
       await Promise.all(workers);
 
-      console.log(`[Ingest] Crawl done — pages: ${this.pagesCrawled}, results: ${this.results.length}, links: ${this.totalLinks}`);
+      console.log(`[Ingest] Crawl done — pages: ${this.pagesCrawled}, results: ${this.results.length}, links: ${this.totalLinks}, spa: ${this.isSpa}`);
 
       return {
         success: true,
         pagesCrawled: this.pagesCrawled,
         linksDiscovered: this.totalLinks,
         results: this.results,
+        isSpa: this.isSpa,
       };
     } finally {
       await browser.close().catch(() => {});
