@@ -5,6 +5,7 @@ const pool = require('../config/database');
 const { retrieveContext, buildSystemPrompt } = require('../services/rag');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { getOrCreateConversation, appendMessage, getRecentMessages, updateConversationSummary } = require('../services/conversationLog');
+const { notifyOwnerOfLead } = require('../services/leadNotifier');
 const { chatLimiter } = require('../middleware/rateLimiter');
 const domainVerify = require('../middleware/domainVerify');
 
@@ -156,6 +157,13 @@ router.post(
         if (newSummary) await updateConversationSummary(convoId, newSummary);
       }
 
+      // Trigger lead notification for high-value intents (non-blocking)
+      if (intent === 'booking' || intent === 'emergency' || intent === 'escalation') {
+        notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent }).catch((err) => {
+          console.warn('[Chat] Lead notification failed (non-fatal):', err.message);
+        });
+      }
+
       return res.json({
         answer,
         intent,
@@ -258,6 +266,12 @@ router.post(
       if (emergencyResponse && isEmergency) {
         res.write(`event: token\ndata: ${JSON.stringify({ token: emergencyResponse })}\n\n`);
         await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: emergencyResponse });
+        
+        // Trigger lead notification for emergency (non-blocking)
+        notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent }).catch((err) => {
+          console.warn('[Chat/Stream] Lead notification failed (non-fatal):', err.message);
+        });
+
         res.write(`event: done\ndata: ${JSON.stringify({ should_capture_lead: wantsHuman, should_offer_booking: shouldOfferBooking, booking_url: shouldOfferBooking ? bookingUrl : null })}\n\n`);
         return res.end();
       }
@@ -286,6 +300,14 @@ router.post(
       if (!closed) {
         const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer);
         await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+        
+        // Trigger lead notification for high-value intents (non-blocking)
+        if (intent === 'booking' || intent === 'emergency' || intent === 'escalation') {
+          notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent }).catch((err) => {
+            console.warn('[Chat/Stream] Lead notification failed (non-fatal):', err.message);
+          });
+        }
+
         res.write(`event: done\ndata: ${JSON.stringify({ should_capture_lead: shouldCaptureLead, should_offer_booking: shouldOfferBooking, booking_url: shouldOfferBooking ? bookingUrl : null })}\n\n`);
         return res.end();
       }
