@@ -8,7 +8,7 @@ export default function SiteLayout({ children, siteName = 'Site' }) {
   const { id } = useParams();
 
   const navItems = [
-    { href: `/sites/${id}`, label: '⚙️ Settings', icon: '⚙️' },
+    { href: `/sites/${id}`, label: '⚙️ Chatbot Settings', icon: '⚙️' },
     { href: `/sites/${id}/conversations`, label: '💬 Conversations', icon: '💬' },
     { href: `/sites/${id}/leads`, label: '👥 Leads', icon: '👥' },
     { href: `/sites/${id}/files`, label: '📁 Files', icon: '📁' },

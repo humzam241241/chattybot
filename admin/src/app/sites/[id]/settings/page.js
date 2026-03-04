@@ -72,7 +72,7 @@ export default function SiteSettingsPage() {
     <SiteLayout siteName={form.company_name}>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Raffy Settings</h1>
+          <h1 className="page-title">Chatbot Settings</h1>
           <p className="page-subtitle">Personality, guardrails, and behavior</p>
         </div>
       </div>
@@ -83,15 +83,16 @@ export default function SiteSettingsPage() {
       <form className="form" onSubmit={handleSave}>
         {/* Identity */}
         <div className="card">
-          <div className="card-title">Identity</div>
+          <div className="card-title">Chatbot Identity</div>
           <div className="field">
             <label>Bot Name</label>
             <input
               className="input"
               value={getOverride('name', 'Raffy')}
               onChange={(e) => setOverride((ro) => ({ ...ro, name: e.target.value }))}
-              placeholder="Raffy"
+              placeholder="e.g., Sarah, Alex, BotName"
             />
+            <small>The name your chatbot will use when introducing itself</small>
           </div>
           <div className="field">
             <label>Role</label>
@@ -99,8 +100,9 @@ export default function SiteSettingsPage() {
               className="input"
               value={getOverride('role', 'AI assistant')}
               onChange={(e) => setOverride((ro) => ({ ...ro, role: e.target.value }))}
-              placeholder="AI assistant"
+              placeholder="e.g., Sales Assistant, Support Agent, Virtual Receptionist"
             />
+            <small>How the chatbot describes its role to visitors</small>
           </div>
           <div className="field">
             <label>Tone</label>
@@ -108,8 +110,9 @@ export default function SiteSettingsPage() {
               className="input"
               value={getOverride('tone', 'friendly, confident, never cocky')}
               onChange={(e) => setOverride((ro) => ({ ...ro, tone: e.target.value }))}
-              placeholder="friendly, confident, never cocky"
+              placeholder="e.g., friendly and professional, casual, formal"
             />
+            <small>The conversational style and personality of the chatbot</small>
           </div>
         </div>
 
@@ -117,7 +120,7 @@ export default function SiteSettingsPage() {
         <div className="card">
           <div className="card-title">Guardrails</div>
           <div className="field">
-            <label>What Raffy Won't Say (one per line)</label>
+            <label>Topics the Chatbot Won't Discuss (one per line)</label>
             <textarea
               className="textarea"
               value={(getOverride('guardrails.wont_say', []) || []).join('\n')}
@@ -129,16 +132,17 @@ export default function SiteSettingsPage() {
                 }));
               }}
               rows={5}
-              placeholder="Do not claim you are a human.\nDo not invent pricing."
+              placeholder="Do not claim you are a human.\nDo not invent pricing.\nDo not provide medical advice."
             />
+            <small>Add boundaries to keep conversations on-brand and compliant</small>
           </div>
         </div>
 
         {/* Escalation */}
         <div className="card">
-          <div className="card-title">Escalation Triggers</div>
+          <div className="card-title">Human Escalation</div>
           <div className="field">
-            <label>Keywords (one per line)</label>
+            <label>Escalation Keywords (one per line)</label>
             <textarea
               className="textarea"
               value={(getOverride('escalation_triggers.keywords', []) || []).join('\n')}
@@ -150,9 +154,9 @@ export default function SiteSettingsPage() {
                 }));
               }}
               rows={4}
-              placeholder="human\nagent\nrepresentative"
+              placeholder="human\nagent\nrepresentative\ntalk to someone"
             />
-            <small>When these keywords appear, offer lead capture form</small>
+            <small>When visitors use these words, the chatbot will offer to connect them with your team</small>
           </div>
         </div>
 
@@ -172,8 +176,9 @@ export default function SiteSettingsPage() {
                 }));
               }}
               rows={3}
-              placeholder="emergency\nsuicide\n911"
+              placeholder="emergency\nurgent\nasap\nimmediate"
             />
+            <small>Trigger words that indicate urgent situations requiring immediate response</small>
           </div>
           <div className="field">
             <label>Emergency Response Message</label>
@@ -187,8 +192,9 @@ export default function SiteSettingsPage() {
                 }))
               }
               rows={3}
-              placeholder="If this is an emergency, please call 911 immediately."
+              placeholder="e.g., I understand this is urgent. Please call us immediately at [phone] or..."
             />
+            <small>Custom message shown when emergency keywords are detected</small>
           </div>
         </div>
 
@@ -196,7 +202,7 @@ export default function SiteSettingsPage() {
         <div className="card">
           <div className="card-title">Sales & Personality</div>
           <div className="field">
-            <label>Sales CTA</label>
+            <label>Sales Call-to-Action</label>
             <input
               className="input"
               value={getOverride('sales_prompts.cta', '')}
@@ -206,11 +212,12 @@ export default function SiteSettingsPage() {
                   sales_prompts: { ...(ro.sales_prompts || {}), cta: e.target.value },
                 }))
               }
-              placeholder="Would you like to schedule a free consultation?"
+              placeholder="e.g., Would you like to schedule a free consultation?"
             />
+            <small>Encourage visitors to take action (optional)</small>
           </div>
           <div className="field">
-            <label>Enable Humor</label>
+            <label>Enable Humor & Personality</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 type="checkbox"
@@ -238,8 +245,9 @@ export default function SiteSettingsPage() {
                   }))
                 }
                 rows={2}
-                placeholder="Light, professional humor only. Avoid controversial topics."
+                placeholder="e.g., Keep it professional, avoid sarcasm, dad jokes are ok"
               />
+              <small>Set boundaries for how the chatbot uses humor</small>
             </div>
           )}
         </div>
