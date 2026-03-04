@@ -36,12 +36,14 @@ async function retrieveContext(siteId, query) {
  * @returns {string}
  */
 function buildSystemPrompt(site, contextChunks) {
+  // Use custom system_prompt if provided, otherwise use default
   const basePrompt = site.system_prompt ||
     `You are the AI assistant for ${site.company_name}. ` +
     `Only answer using the provided company information. ` +
     `If the answer is not found in the context, say: ` +
     `"I'm not sure about that. Would you like me to connect you with the team?"`;
 
+  // ALWAYS inject RAG context when available
   const contextBlock = contextChunks.length > 0
     ? `\n\n---\nCOMPANY INFORMATION (use only this to answer):\n${contextChunks.join('\n\n---\n')}\n---`
     : '\n\n[No relevant company information was found for this query.]';
@@ -50,7 +52,7 @@ function buildSystemPrompt(site, contextChunks) {
     ? `\n\nTone: ${site.tone}.`
     : '';
 
-  return basePrompt + toneInstruction + contextBlock;
+  return basePrompt + contextBlock + toneInstruction;
 }
 
 module.exports = { retrieveContext, buildSystemPrompt };

@@ -74,7 +74,9 @@ router.post(
       // RAG: retrieve relevant chunks
       const contextChunks = await retrieveContext(site_id, user_message);
 
-      const basePrompt = site.system_prompt || buildSystemPrompt(site, contextChunks);
+      // ALWAYS build the prompt with RAG context, even if custom system_prompt exists
+      const basePrompt = buildSystemPrompt(site, contextChunks);
+      
       const guardrails = raffy?.guardrails?.wont_say?.length
         ? `\n\nGuardrails (never do these):\n- ${raffy.guardrails.wont_say.join('\n- ')}`
         : '';
@@ -240,7 +242,10 @@ router.post(
 
       // RAG: retrieve relevant chunks
       const contextChunks = await retrieveContext(site_id, user_message);
-      const basePrompt = site.system_prompt || buildSystemPrompt(site, contextChunks);
+      
+      // ALWAYS build the prompt with RAG context, even if custom system_prompt exists
+      const basePrompt = buildSystemPrompt(site, contextChunks);
+      
       const guardrails = raffy?.guardrails?.wont_say?.length
         ? `\n\nGuardrails (never do these):\n- ${raffy.guardrails.wont_say.join('\n- ')}`
         : '';
