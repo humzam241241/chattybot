@@ -79,10 +79,21 @@ export default function EditSitePage() {
     setIngesting(true);
     setIngestResult(null);
     setError('');
+    const MAX_POLL_MINUTES = 5;
+    const pollIntervalMs = 5000;
+    const maxPolls = (MAX_POLL_MINUTES * 60 * 1000) / pollIntervalMs;
+    let pollCount = 0;
+
     try {
       await triggerIngest(id);
-      // Poll for completion
       const poll = setInterval(async () => {
+        pollCount++;
+        if (pollCount > maxPolls) {
+          clearInterval(poll);
+          setError('Ingestion timed out after ' + MAX_POLL_MINUTES + ' minutes. Check Render logs.');
+          setIngesting(false);
+          return;
+        }
         try {
           const status = await getIngestStatus(id);
           if (status.status === 'done') {
@@ -96,12 +107,14 @@ export default function EditSitePage() {
             clearInterval(poll);
             setError('Ingestion failed: ' + (status.result?.error || 'Unknown error'));
             setIngesting(false);
+          } else if (status.status === 'idle' && pollCount > 2) {
+            clearInterval(poll);
+            setIngesting(false);
           }
-          // still 'running' — keep polling
         } catch {
-          // Ignore transient poll errors, keep trying
+          // Ignore transient poll errors
         }
-      }, 5000);
+      }, pollIntervalMs);
     } catch (err) {
       setError('Ingestion failed to start: ' + err.message);
       setIngesting(false);
