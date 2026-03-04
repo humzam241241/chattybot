@@ -133,10 +133,14 @@ async function domainVerify(req, res, next) {
       return next();
     }
 
+    // Log mismatch for debugging (always, even in production)
+    console.warn(`[domainVerify] BLOCKED: request="${requestDomain}" vs allowed="${allowedDomain}" for site=${siteId}`);
+
     // Domain mismatch → block request
     return res.status(403).json({
       error: 'Domain not authorized. This widget is not configured for this domain.',
-      debug: process.env.NODE_ENV === 'development' ? { requestDomain, allowedDomain } : undefined
+      requestDomain,
+      allowedDomain,
     });
 
   } catch (err) {
