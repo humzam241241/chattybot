@@ -69,14 +69,45 @@ async function getEffectiveRaffySettings(siteId) {
     globalSettings = {};
   }
 
-  const siteRes = await pool.query(
-    'SELECT id, company_name, primary_color, tone, system_prompt, raffy_overrides FROM sites WHERE id = $1',
-    [siteId]
-  );
+  // Try to fetch site with all columns, but handle missing columns gracefully
+  let siteRes;
+  try {
+    siteRes = await pool.query(
+      'SELECT id, company_name, primary_color, tone, system_prompt, raffy_overrides FROM sites WHERE id = $1',
+      [siteId]
+    );
+  } catch (err) {
+    // If raffy_overrides column doesn't exist, try without it
+    if (err.message && err.message.includes('raffy_overrides')) {
+      siteRes = await pool.query(
+        'SELECT id, company_name, primary_color, tone, system_prompt FROM sites WHERE id = $1',
+        [siteId]
+      );
+    } else {
+      throw err;
+    }
+  }
+
   if (siteRes.rows.length === 0) return null;
 
   const site = siteRes.rows[0];
-  const overrides = site.raffy_overrides || {};
+  
+  // Safely extract overrides - handle when column doesn't exist or is null
+  let overrides = {};
+  if (site.raffy_overrides) {
+    // If it's a string (JSON), parse it
+    if (typeof site.raffy_overrides === 'string') {
+      try {
+        overrides = JSON.parse(site.raffy_overrides);
+      } catch (e) {
+        console.warn('Failed to parse raffy_overrides JSON:', e);
+        overrides = {};
+      }
+    } else if (isPlainObject(site.raffy_overrides)) {
+      overrides = site.raffy_overrides;
+    }
+  }
+
   const merged = deepMerge(deepMerge(DEFAULT_RAFFY_SETTINGS, globalSettings), overrides);
 
   return {
