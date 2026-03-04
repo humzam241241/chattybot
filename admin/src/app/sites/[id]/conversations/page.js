@@ -46,6 +46,7 @@ export default function SiteConversationsPage() {
                   <th>Updated</th>
                   <th>Visitor</th>
                   <th>Messages</th>
+                  <th>Lead Score</th>
                   <th>Summary</th>
                   <th></th>
                 </tr>
@@ -53,26 +54,52 @@ export default function SiteConversationsPage() {
               <tbody>
                 {conversations.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
+                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
                       No conversations yet.
                     </td>
                   </tr>
                 )}
-                {conversations.map((c) => (
-                  <tr key={c.id}>
-                    <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{new Date(c.updated_at).toLocaleString()}</td>
-                    <td className="text-muted">{c.visitor_id || '—'}</td>
-                    <td><span className="badge">{c.message_count}</span></td>
-                    <td className="text-muted" style={{ maxWidth: 340 }}>
-                      {c.summary ? (c.summary.length > 120 ? c.summary.slice(0, 120) + '…' : c.summary) : '—'}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <Link href={`/sites/${id}/conversations/${c.id}`} className="btn btn-secondary btn-sm">
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {conversations.map((c) => {
+                  const leadRating = c.lead_rating || null;
+                  const leadScore = c.lead_score || null;
+                  
+                  return (
+                    <tr key={c.id}>
+                      <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{new Date(c.updated_at).toLocaleString()}</td>
+                      <td className="text-muted">{c.visitor_id || '—'}</td>
+                      <td><span className="badge">{c.message_count}</span></td>
+                      <td>
+                        {leadRating ? (
+                          <span
+                            className="badge"
+                            style={{
+                              background:
+                                leadRating === 'HOT'
+                                  ? '#ef4444'
+                                  : leadRating === 'WARM'
+                                    ? '#f59e0b'
+                                    : '#94a3b8',
+                              color: '#fff',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {leadRating} ({leadScore})
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="text-muted" style={{ maxWidth: 340 }}>
+                        {c.summary ? (c.summary.length > 120 ? c.summary.slice(0, 120) + '…' : c.summary) : '—'}
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <Link href={`/sites/${id}/conversations/${c.id}`} className="btn btn-secondary btn-sm">
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

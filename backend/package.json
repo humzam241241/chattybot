@@ -5,7 +5,8 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "test": "jest --ci --runInBand --forceExit"
+    "test": "jest --ci --runInBand --forceExit",
+    "test:rag": "node tests/runRagEvaluation.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",

@@ -111,6 +111,12 @@ export default function EditSitePage() {
           <Link href={`/sites/${id}/conversations`} className="btn btn-secondary">
             Conversations
           </Link>
+          <Link href={`/sites/${id}/rag-eval`} className="btn btn-secondary">
+            RAG Evaluation
+          </Link>
+          <Link href={`/sites/${id}/settings`} className="btn btn-secondary">
+            Settings
+          </Link>
           <Link href="/sites" className="btn btn-secondary">← Back</Link>
         </div>
       </div>
