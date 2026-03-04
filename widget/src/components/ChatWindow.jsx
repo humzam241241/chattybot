@@ -80,7 +80,7 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
           user_message: text,
           current_page_url: window.location.href,
           visitor_id: visitorId,
-          conversation_id: conversationId,
+          conversation_id: conversationId || undefined,
         }),
       });
 
@@ -147,11 +147,17 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
           user_message: text,
           current_page_url: window.location.href,
           visitor_id: visitorId,
-          conversation_id: conversationId,
+          conversation_id: conversationId || undefined,
         }),
       });
 
       const data = await res.json();
+
+      if (!res.ok) {
+        console.error('[ChattyBot] Chat error:', data);
+        throw new Error(data.error || 'Chat request failed');
+      }
+
       const answer = data.answer || "Sorry, I couldn't get a response. Please try again.";
       setMessages((prev) => [...prev, { role: 'bot', content: answer, timestamp: new Date() }]);
       if (data.conversation_id) upsertConversation(data.conversation_id);

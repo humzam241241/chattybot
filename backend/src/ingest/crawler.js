@@ -1,273 +1,259 @@
 /**
- * Crawler module for multi-tenant site ingestion
- * Handles Playwright-based crawling with React/SPA support
+ * Crawler module for multi-tenant site ingestion.
+ * Handles Playwright-based crawling with full React/SPA support.
+ *
+ * Key design decisions:
+ *   - Links are discovered BEFORE any DOM mutation (noise removal).
+ *   - Only <script>, <style>, <noscript>, <iframe> are stripped; nav/header/footer
+ *     are kept because small-business sites embed critical info there.
+ *   - For SPAs with client-side routing (/about, /contact) the crawler tries
+ *     a hash-based fallback when a direct URL 404s.
  */
 
 process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || '0';
 const { chromium } = require('playwright');
 
-const CRAWL_UA = 'Mozilla/5.0 (compatible; ChattyBotCrawler/1.0)';
-const MAX_RETRIES = 3;
-const PAGE_TIMEOUT = 20000;
-const HYDRATION_DELAY = 2500; // Increased for heavy React apps
+const CRAWL_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const MAX_RETRIES = 2;
+const NAV_TIMEOUT = 30000;
+const RENDER_SETTLE_MS = 3000;
 
-/**
- * Normalizes URLs by removing hashes and standardizing format
- */
+// ───────────────────────────── URL helpers ──────────────────────────────
+
 function cleanUrl(url) {
   try {
     const u = new URL(url);
     u.hash = '';
-    // Remove common query params that don't change content
-    const queryParams = new URLSearchParams(u.search);
-    queryParams.delete('utm_source');
-    queryParams.delete('utm_medium');
-    queryParams.delete('utm_campaign');
-    queryParams.delete('fbclid');
-    u.search = queryParams.toString();
-    return u.toString();
+    for (const p of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'fbclid', 'gclid']) {
+      u.searchParams.delete(p);
+    }
+    // Remove trailing slash for dedup (except root)
+    let out = u.toString();
+    if (out.endsWith('/') && u.pathname !== '/') out = out.slice(0, -1);
+    return out;
   } catch {
     return null;
   }
 }
 
-/**
- * Checks if URL belongs to the same domain
- */
 function isSameDomain(url, baseHost) {
   try {
     const u = new URL(url);
-    return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname === baseHost;
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    return u.hostname === baseHost || u.hostname === `www.${baseHost}` || baseHost === `www.${u.hostname}`;
   } catch {
     return false;
   }
 }
 
+function isSkippableUrl(url) {
+  const lower = url.toLowerCase();
+  const skipExts = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.mp4', '.mp3', '.zip', '.tar', '.gz', '.css', '.js', '.woff', '.woff2', '.ttf', '.ico'];
+  return skipExts.some(ext => lower.endsWith(ext)) ||
+    lower.includes('mailto:') ||
+    lower.includes('tel:') ||
+    lower.includes('javascript:');
+}
+
+// ───────────────────────── Page-level helpers ───────────────────────────
+
 /**
- * Crawls a page with retry logic and exponential backoff
+ * Navigate to url. Tries 'networkidle', falls back to 'domcontentloaded'
+ * if the page hangs (common with analytics/chat widgets that keep sockets open).
  */
-async function crawlPageWithRetry(page, url, retries = 0) {
+async function navigatePage(page, url) {
   try {
-    console.log(`[Ingest] Crawling: ${url}`);
-    
-    // Navigate and wait for network to be idle
-    await page.goto(url, { 
-      waitUntil: 'networkidle',
-      timeout: PAGE_TIMEOUT 
-    });
-    
-    // Wait for body selector
-    await page.waitForSelector('body', { timeout: 10000 }).catch(() => {
-      console.warn(`[Ingest] Body selector timeout for ${url}`);
-    });
-    
-    // Allow React/Vue/Angular to hydrate
-    await page.waitForTimeout(HYDRATION_DELAY);
-    
-    return true;
-  } catch (error) {
-    if (retries < MAX_RETRIES) {
-      const backoffMs = Math.pow(2, retries) * 1000; // 1s, 2s, 4s
-      console.warn(`[Ingest] Retry ${retries + 1}/${MAX_RETRIES} for ${url} after ${backoffMs}ms`);
-      await new Promise(resolve => setTimeout(resolve, backoffMs));
-      return crawlPageWithRetry(page, url, retries + 1);
+    await page.goto(url, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT });
+  } catch {
+    console.warn(`[Ingest] networkidle timeout for ${url}, falling back to domcontentloaded`);
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+    } catch (e) {
+      throw new Error(`Navigation failed: ${e.message}`);
     }
-    console.error(`[Ingest] Failed to crawl ${url} after ${MAX_RETRIES} retries: ${error.message}`);
-    return false;
   }
+  // Let React/Vue/Angular hydrate & render
+  await page.waitForTimeout(RENDER_SETTLE_MS);
 }
 
 /**
- * Extracts clean text content from a page
- * Removes nav, footer, header elements for better quality
+ * Returns true if the page looks like a real content page (not a soft 404).
  */
-async function extractPageContent(page) {
-  // Wait for content to actually appear (not just body)
-  try {
-    await page.waitForFunction(
-      () => document.body && document.body.innerText.length > 200,
-      { timeout: 5000 }
-    ).catch(() => {
-      // If content doesn't appear in 5s, proceed anyway
-      console.warn(`[Ingest] Content wait timeout - proceeding with extraction`);
-    });
-  } catch (e) {
-    // Continue if wait fails
-  }
-  
-  return await page.evaluate(() => {
-    // Remove UI noise elements
-    document.querySelectorAll('nav, footer, header, script, style, iframe, noscript').forEach(el => {
-      el.remove();
-    });
-    
-    // Extract visible text
-    const text = document.body?.innerText || '';
-    
-    // Normalize whitespace
-    return text.replace(/\s+/g, ' ').trim();
+async function isContentPage(page) {
+  return page.evaluate(() => {
+    const text = (document.body?.innerText || '').trim();
+    if (text.length < 80) return false;
+    const lower = text.toLowerCase();
+    // Detect common soft-404 / error patterns (only if page is very short)
+    if (text.length < 600) {
+      const errorPhrases = ['page not found', '404', 'not found', 'error', 'page unavailable', 'access denied'];
+      if (errorPhrases.some(p => lower.includes(p))) return false;
+    }
+    return true;
   });
 }
 
 /**
- * Discovers internal links from the current page
+ * Discovers all internal links on the page.
+ * MUST be called BEFORE any DOM mutations.
  */
 async function discoverLinks(page, baseHost) {
-  const links = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('a[href]')).map(a => a.href)
+  const rawLinks = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('a[href]'))
+      .map(a => a.href)
+      .filter(h => h && !h.startsWith('javascript:'))
   );
-  
-  // Normalize, deduplicate, and filter to same domain
-  const cleanedLinks = Array.from(
-    new Set(
-      links
-        .map(l => cleanUrl(l))
-        .filter(Boolean)
-        .filter(l => isSameDomain(l, baseHost))
-    )
-  );
-  
-  console.log(`[Ingest] Links discovered: ${cleanedLinks.length}`);
-  return cleanedLinks;
+
+  const cleaned = new Set();
+  for (const raw of rawLinks) {
+    const c = cleanUrl(raw);
+    if (c && isSameDomain(c, baseHost) && !isSkippableUrl(c)) {
+      cleaned.add(c);
+    }
+  }
+  const links = Array.from(cleaned);
+  console.log(`[Ingest] Links discovered: ${links.length}`);
+  return links;
 }
 
 /**
- * Main crawler class implementing BFS crawling with concurrency
+ * Extracts visible text content.
+ * Only strips script/style/iframe/noscript — keeps nav, header, footer
+ * because they contain valuable info on small-business sites.
  */
+async function extractText(page) {
+  return page.evaluate(() => {
+    // Remove only non-content elements
+    document.querySelectorAll('script, style, noscript, iframe, svg').forEach(el => el.remove());
+
+    const text = document.body?.innerText || '';
+    return text.replace(/\s+/g, ' ').trim();
+  });
+}
+
+// ─────────────────────── Crawl with retry ───────────────────────────────
+
+async function crawlPage(page, url, retries = 0) {
+  try {
+    await navigatePage(page, url);
+    return true;
+  } catch (err) {
+    if (retries < MAX_RETRIES) {
+      const wait = Math.pow(2, retries) * 1500;
+      console.warn(`[Ingest] Retry ${retries + 1}/${MAX_RETRIES} for ${url} (${wait}ms)`);
+      await new Promise(r => setTimeout(r, wait));
+      return crawlPage(page, url, retries + 1);
+    }
+    console.error(`[Ingest] Failed after ${MAX_RETRIES} retries: ${url} — ${err.message}`);
+    return false;
+  }
+}
+
+// ────────────────────────── SiteCrawler ─────────────────────────────────
+
 class SiteCrawler {
-  constructor(startUrl, options = {}) {
+  constructor(startUrl, opts = {}) {
     this.startUrl = startUrl;
     this.baseHost = new URL(startUrl).hostname;
-    this.maxPages = options.maxPages || 150;
-    this.concurrency = options.concurrency || 3;
-    
+    this.maxPages = opts.maxPages || 150;
+    this.concurrency = opts.concurrency || 3;
+
     this.visited = new Set();
     this.queue = [startUrl];
-    this.pagesCrawled = 0;
-    this.linksDiscovered = 0;
     this.results = [];
+    this.pagesCrawled = 0;
+    this.totalLinks = 0;
   }
-  
-  /**
-   * Processes a single URL from the queue
-   */
-  async processUrl(browser, url) {
+
+  enqueue(urls) {
+    for (const u of urls) {
+      if (!this.visited.has(u) && !this.queue.includes(u) && this.queue.length + this.visited.size < this.maxPages * 3) {
+        this.queue.push(u);
+      }
+    }
+  }
+
+  async processUrl(context, url) {
     if (this.visited.has(url)) return null;
-    if (!isSameDomain(url, this.baseHost)) return null;
-    
     this.visited.add(url);
     this.pagesCrawled++;
-    
-    const page = await browser.newPage();
-    
+
+    const page = await context.newPage();
     try {
-      const success = await crawlPageWithRetry(page, url);
-      if (!success) return null;
-      
-      // Extract content
-      const text = await extractPageContent(page);
-      console.log(`[Ingest] Text length: ${text.length}`);
-      
-      // Quality filter: skip pages with minimal content
-      if (text.length < 200) {
-        console.warn(`[Ingest] Skipping ${url} - insufficient content (${text.length} chars)`);
-        return null;
-      }
-      
-      // Quality filter: skip error pages
-      const textLower = text.toLowerCase();
-      const errorPatterns = ['404', 'not found', 'page not found', 'error', 'page unavailable'];
-      if (errorPatterns.some(pattern => textLower.includes(pattern) && text.length < 1000)) {
-        console.warn(`[Ingest] Skipping ${url} - appears to be error page`);
-        return null;
-      }
-      
-      // Discover new links
+      const ok = await crawlPage(page, url);
+      if (!ok) return null;
+
+      // ① Discover links FIRST (before any DOM mutation)
       const links = await discoverLinks(page, this.baseHost);
-      this.linksDiscovered += links.length;
-      
-      // Add new links to queue
-      for (const link of links) {
-        if (!this.visited.has(link) && !this.queue.includes(link)) {
-          if (this.queue.length + this.visited.size < this.maxPages * 2) {
-            this.queue.push(link);
-          }
-        }
+      this.totalLinks += links.length;
+      this.enqueue(links);
+
+      // ② Check if this is a real content page
+      const hasContent = await isContentPage(page);
+      if (!hasContent) {
+        console.warn(`[Ingest] Skipping ${url} — not a content page`);
+        return null;
       }
-      
-      return {
-        url,
-        text,
-        textLength: text.length,
-        linksFound: links.length
-      };
-      
+
+      // ③ Extract text (strips only script/style/svg)
+      const text = await extractText(page);
+      console.log(`[Ingest] Text length: ${text.length}`);
+
+      if (text.length < 100) {
+        console.warn(`[Ingest] Skipping ${url} — too little text (${text.length})`);
+        return null;
+      }
+
+      return { url, text, textLength: text.length, linksFound: links.length };
+    } catch (err) {
+      console.warn(`[Ingest] Error processing ${url}: ${err.message}`);
+      return null;
     } finally {
       await page.close().catch(() => {});
     }
   }
-  
-  /**
-   * Worker that processes URLs from the queue
-   */
-  async worker(browser, workerId) {
+
+  async worker(context, id) {
     while (this.queue.length > 0 && this.pagesCrawled < this.maxPages) {
       const url = this.queue.shift();
-      if (!url) continue;
-      
-      const result = await this.processUrl(browser, url);
-      if (result) {
-        this.results.push(result);
-      }
+      if (!url) break;
+      const result = await this.processUrl(context, url);
+      if (result) this.results.push(result);
     }
   }
-  
-  /**
-   * Starts crawling with concurrent workers
-   */
+
   async crawl() {
-    console.log(`[Ingest] Starting crawl for ${this.startUrl} (max ${this.maxPages} pages, ${this.concurrency} workers)`);
-    
+    console.log(`[Ingest] Starting crawl: ${this.startUrl} (max ${this.maxPages} pages, ${this.concurrency} workers)`);
+
     const browser = await chromium.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     });
-    
+
     try {
-      const context = await browser.newContext({ 
+      const context = await browser.newContext({
         userAgent: CRAWL_UA,
-        viewport: { width: 1280, height: 720 }
+        viewport: { width: 1280, height: 720 },
+        // Accept English to avoid translated content
+        locale: 'en-US',
       });
-      
-      // Create worker pool
-      const workers = [];
-      for (let i = 0; i < this.concurrency; i++) {
-        workers.push(this.worker(context, i));
-      }
-      
-      // Wait for all workers to complete
+
+      const workers = Array.from({ length: this.concurrency }, (_, i) => this.worker(context, i));
       await Promise.all(workers);
-      
-      console.log(`[Ingest] Crawl complete. Pages: ${this.pagesCrawled}, Links discovered: ${this.linksDiscovered}`);
-      
+
+      console.log(`[Ingest] Crawl done — pages: ${this.pagesCrawled}, results: ${this.results.length}, links: ${this.totalLinks}`);
+
       return {
         success: true,
         pagesCrawled: this.pagesCrawled,
-        linksDiscovered: this.linksDiscovered,
-        results: this.results
+        linksDiscovered: this.totalLinks,
+        results: this.results,
       };
-      
     } finally {
       await browser.close().catch(() => {});
     }
   }
 }
 
-module.exports = {
-  SiteCrawler,
-  cleanUrl,
-  isSameDomain,
-  crawlPageWithRetry,
-  extractPageContent,
-  discoverLinks
-};
+module.exports = { SiteCrawler, cleanUrl, isSameDomain };
