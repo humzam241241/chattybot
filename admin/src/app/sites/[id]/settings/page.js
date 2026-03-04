@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getSite, updateSite } from '../../../../lib/api';
-import Link from 'next/link';
+import SiteLayout from '../../../../components/SiteLayout';
 
 export default function SiteSettingsPage() {
   const { id } = useParams();
@@ -65,17 +65,16 @@ export default function SiteSettingsPage() {
     }
   }
 
-  if (loading) return <p className="text-muted">Loading...</p>;
-  if (!form) return <div className="alert alert-error">{error}</div>;
+  if (loading) return <SiteLayout siteName="Loading..."><p className="text-muted">Loading...</p></SiteLayout>;
+  if (!form) return <SiteLayout siteName="Error"><div className="alert alert-error">{error}</div></SiteLayout>;
 
   return (
-    <div>
+    <SiteLayout siteName={form.company_name}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Raffy Settings</h1>
           <p className="page-subtitle">Personality, guardrails, and behavior</p>
         </div>
-        <Link href={`/sites/${id}`} className="btn btn-secondary">← Back to Site</Link>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -251,6 +250,6 @@ export default function SiteSettingsPage() {
           </button>
         </div>
       </form>
-    </div>
+    </SiteLayout>
   );
 }

@@ -2,28 +2,34 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { getSite } from '../../../../lib/api';
+import SiteLayout from '../../../../components/SiteLayout';
 
 export default function RagEvaluationPage() {
   const { id } = useParams();
+  const [site, setSite] = useState(null);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadLatestReport();
+    loadData();
   }, [id]);
 
-  async function loadLatestReport() {
+  async function loadData() {
     try {
-      const res = await fetch(`/api/rag-eval/${id}`);
-      if (res.ok) {
-        const data = await res.json();
+      const [siteData, reportRes] = await Promise.all([
+        getSite(id),
+        fetch(`/api/rag-eval/${id}`)
+      ]);
+      setSite(siteData.site);
+      if (reportRes.ok) {
+        const data = await reportRes.json();
         setReport(data);
       }
     } catch (err) {
-      console.error('Failed to load report:', err);
+      console.error('Failed to load:', err);
     } finally {
       setLoading(false);
     }
@@ -49,28 +55,25 @@ export default function RagEvaluationPage() {
     }
   }
 
-  if (loading) return <p className="text-muted">Loading...</p>;
+  if (loading) return <SiteLayout siteName={site?.company_name || 'Loading...'}><p className="text-muted">Loading...</p></SiteLayout>;
 
   const accuracy = report?.summary?.accuracy_percent || 0;
   const isHealthy = accuracy >= 75;
 
   return (
-    <div>
+    <SiteLayout siteName={site?.company_name || 'Site'}>
       <div className="page-header">
         <div>
           <h1 className="page-title">RAG Evaluation</h1>
           <p className="page-subtitle">Automated chatbot accuracy testing</p>
         </div>
-        <div className="flex gap-2">
-          <button 
-            className="btn btn-primary" 
-            onClick={runEvaluation} 
+        <button 
+          className="btn btn-primary" 
+          onClick={runEvaluation} 
             disabled={running}
           >
             {running ? '⏳ Running...' : '▶ Run New Evaluation'}
           </button>
-          <Link href={`/sites/${id}`} className="btn btn-secondary">← Back to Site</Link>
-        </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -171,6 +174,6 @@ export default function RagEvaluationPage() {
           </div>
         </>
       )}
-    </div>
+    </SiteLayout>
   );
 }

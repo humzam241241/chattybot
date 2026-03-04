@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import { listFiles, uploadFiles, reprocessFile, deleteFile, getSite } from '../../../../lib/api';
+import SiteLayout from '../../../../components/SiteLayout';
 
 export default function SiteFilesPage() {
   const { id } = useParams();
@@ -48,14 +48,11 @@ export default function SiteFilesPage() {
   }
 
   return (
-    <div>
+    <SiteLayout siteName={site?.company_name || 'Loading...'}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Files</h1>
-          <p className="page-subtitle">{site?.company_name || id}</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/sites/${id}`} className="btn btn-secondary">← Back</Link>
+          <p className="page-subtitle">PDF, DOCX, XLSX knowledge base uploads</p>
         </div>
       </div>
 
@@ -126,7 +123,7 @@ export default function SiteFilesPage() {
           </div>
         </>
       )}
-    </div>
+    </SiteLayout>
   );
 }
 

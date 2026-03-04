@@ -73,7 +73,11 @@ export default function SitesPage() {
                 )}
                 {sites.map((site) => (
                   <tr key={site.id}>
-                    <td style={{ fontWeight: 500 }}>{site.company_name}</td>
+                    <td>
+                      <Link href={`/sites/${site.id}`} style={{ fontWeight: 500, color: 'var(--primary)', textDecoration: 'none' }}>
+                        {site.company_name}
+                      </Link>
+                    </td>
                     <td className="text-muted">{site.domain || '—'}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -88,12 +92,18 @@ export default function SitesPage() {
                       {new Date(site.created_at).toLocaleDateString()}
                     </td>
                     <td>
-                      <div className="flex gap-2">
-                        <Link href={`/sites/${site.id}`} className="btn btn-secondary btn-sm">
-                          Edit
+                      <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                        <Link href={`/sites/${site.id}/conversations`} className="btn btn-secondary btn-sm">
+                          💬 Chats
                         </Link>
                         <Link href={`/sites/${site.id}/leads`} className="btn btn-secondary btn-sm">
-                          Leads
+                          👥 Leads
+                        </Link>
+                        <Link href={`/sites/${site.id}/files`} className="btn btn-secondary btn-sm">
+                          📁 Files
+                        </Link>
+                        <Link href={`/sites/${site.id}/settings`} className="btn btn-secondary btn-sm">
+                          ⚙️ Settings
                         </Link>
                         <button
                           className="btn btn-danger btn-sm"

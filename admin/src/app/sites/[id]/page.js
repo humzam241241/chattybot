@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getSite, updateSite, triggerIngest } from '../../../lib/api';
-import Link from 'next/link';
+import SiteLayout from '../../../components/SiteLayout';
 
 export default function EditSitePage() {
   const { id } = useParams();
@@ -89,35 +89,17 @@ export default function EditSitePage() {
     }
   }
 
-  if (loading) return <p className="text-muted">Loading...</p>;
-  if (!form) return <div className="alert alert-error">{error}</div>;
+  if (loading) return <SiteLayout siteName="Loading..."><p className="text-muted">Loading...</p></SiteLayout>;
+  if (!form) return <SiteLayout siteName="Error"><div className="alert alert-error">{error}</div></SiteLayout>;
 
   const embedCode = `<script src="${widgetUrl}" data-site-id="${id}" data-api-url="${apiUrl}"></script>`;
 
   return (
-    <div>
+    <SiteLayout siteName={form.company_name}>
       <div className="page-header">
         <div>
-          <h1 className="page-title">{form.company_name}</h1>
-          <p className="page-subtitle">Edit site configuration</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/sites/${id}/leads`} className="btn btn-secondary">
-            View Leads
-          </Link>
-          <Link href={`/sites/${id}/files`} className="btn btn-secondary">
-            Files
-          </Link>
-          <Link href={`/sites/${id}/conversations`} className="btn btn-secondary">
-            Conversations
-          </Link>
-          <Link href={`/sites/${id}/rag-eval`} className="btn btn-secondary">
-            RAG Evaluation
-          </Link>
-          <Link href={`/sites/${id}/settings`} className="btn btn-secondary">
-            Settings
-          </Link>
-          <Link href="/sites" className="btn btn-secondary">← Back</Link>
+          <h1 className="page-title">Site Configuration</h1>
+          <p className="page-subtitle">Basic settings and widget embed code</p>
         </div>
       </div>
 
@@ -248,6 +230,6 @@ export default function EditSitePage() {
         </div>
         <div className="embed-code">{embedCode}</div>
       </div>
-    </div>
+    </SiteLayout>
   );
 }

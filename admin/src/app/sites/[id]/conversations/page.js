@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { listConversations, getSite } from '../../../../lib/api';
+import SiteLayout from '../../../../components/SiteLayout';
 
 export default function SiteConversationsPage() {
   const { id } = useParams();
@@ -23,14 +24,11 @@ export default function SiteConversationsPage() {
   }, [id]);
 
   return (
-    <div>
+    <SiteLayout siteName={site?.company_name || 'Loading...'}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Conversations</h1>
-          <p className="page-subtitle">{site?.company_name || id}</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/sites/${id}`} className="btn btn-secondary">← Back</Link>
+          <p className="page-subtitle">Chat history and lead scores</p>
         </div>
       </div>
 
@@ -105,7 +103,7 @@ export default function SiteConversationsPage() {
           </div>
         </div>
       )}
-    </div>
+    </SiteLayout>
   );
 }
 

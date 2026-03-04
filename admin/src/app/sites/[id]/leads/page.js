@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getLeads, getSite } from '../../../../lib/api';
-import Link from 'next/link';
+import SiteLayout from '../../../../components/SiteLayout';
 
 export default function LeadsPage() {
   const { id } = useParams();
@@ -41,11 +41,11 @@ export default function LeadsPage() {
   }
 
   return (
-    <div>
+    <SiteLayout siteName={site?.company_name || 'Loading...'}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Leads</h1>
-          <p className="page-subtitle">{site?.company_name || 'Loading...'}</p>
+          <p className="page-subtitle">Captured contacts from your chatbot</p>
         </div>
         <div className="flex gap-2">
           {leads.length > 0 && (
@@ -53,7 +53,6 @@ export default function LeadsPage() {
               ↓ Export CSV
             </button>
           )}
-          <Link href={`/sites/${id}`} className="btn btn-secondary">← Edit Site</Link>
         </div>
       </div>
 
@@ -106,6 +105,6 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
-    </div>
+    </SiteLayout>
   );
 }
