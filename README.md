@@ -1,6 +1,14 @@
-# ChattyBot — Multi-Tenant Embeddable AI Chatbot Platform
+# ChattyBot — White-Label AI Chatbot Platform
 
-A production-ready MVP SaaS platform for embedding AI chatbots on any website, powered by RAG (Retrieval Augmented Generation) and pgvector.
+A production-ready, **white-label** SaaS platform for embedding customizable AI chatbots on any website. Powered by RAG (Retrieval Augmented Generation), pgvector, and OpenAI.
+
+**Key Features:**
+- 🎨 **Fully Customizable** — Each client can configure their chatbot's name, personality, tone, and branding
+- 🏢 **Multi-Tenant** — Manage unlimited client sites from a single dashboard
+- 🧠 **RAG-Powered** — Automatic website ingestion + vector search for accurate, contextual responses
+- 📊 **Lead Intelligence** — Automatic lead scoring and owner notifications
+- 🎯 **RAG Evaluation** — Built-in accuracy testing system
+- 🚀 **Production-Ready** — Full deployment guides for Render + Vercel
 
 ---
 
