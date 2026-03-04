@@ -44,6 +44,7 @@ async function getSiteDomain(siteId) {
  * - "http://example.com" → "example.com"
  * - "www.example.com" → "example.com"
  * - "example.com/" → "example.com"
+ * - "mysite-abc123-preview.vercel.app" → "mysite.vercel.app" (strips Vercel preview suffix)
  * 
  * @param {string} input - Domain or URL string
  * @returns {string} - Normalized hostname in lowercase
@@ -54,15 +55,38 @@ function normalizeDomain(input) {
   try {
     // Try parsing as URL (handles full URLs with protocol)
     const url = new URL(input.startsWith('http') ? input : `https://${input}`);
-    return url.hostname.replace(/^www\./, '').toLowerCase();
+    let hostname = url.hostname.replace(/^www\./, '').toLowerCase();
+    
+    // Strip Vercel preview deployment suffixes (e.g., mysite-abc123-username.vercel.app → mysite.vercel.app)
+    if (hostname.includes('.vercel.app')) {
+      const parts = hostname.split('.');
+      if (parts.length >= 3) {
+        // Extract the base name (before first hyphen)
+        const baseName = parts[0].split('-')[0];
+        hostname = `${baseName}.vercel.app`;
+      }
+    }
+    
+    return hostname;
   } catch {
     // Fallback: manual cleanup for edge cases
-    return input
+    let cleaned = input
       .replace(/^https?:\/\//, '')  // Remove protocol
       .replace(/^www\./, '')         // Remove www prefix
       .replace(/\/$/, '')            // Remove trailing slash
       .split('/')[0]                 // Take only hostname
       .toLowerCase();
+    
+    // Apply Vercel normalization to fallback too
+    if (cleaned.includes('.vercel.app')) {
+      const parts = cleaned.split('.');
+      if (parts.length >= 3) {
+        const baseName = parts[0].split('-')[0];
+        cleaned = `${baseName}.vercel.app`;
+      }
+    }
+    
+    return cleaned;
   }
 }
 
