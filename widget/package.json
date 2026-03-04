@@ -1,24 +1,23 @@
 {
-  "name": "chattybot-backend",
+  "name": "chattybot-widget",
   "version": "1.0.0",
-  "main": "src/app.js",
+  "description": "Embeddable React chatbot widget",
+  "type": "module",
   "private": true,
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "scripts": {
-    "start": "node src/app.js",
-    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "compression": "^1.7.4",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.18.2",
-    "helmet": "^7.0.0",
-    "hpp": "^0.2.3",
-    "openai": "^4.0.0",
-    "pg": "^8.11.3",
-    "playwright": "^1.43.0"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
