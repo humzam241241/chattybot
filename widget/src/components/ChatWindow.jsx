@@ -15,6 +15,8 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
   const [isTyping, setIsTyping] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadCaptured, setLeadCaptured] = useState(false);
+  const [visitorId, setVisitorId] = useState(null);
+  const [conversationId, setConversationId] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -25,6 +27,21 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    // Stable anonymous visitor id for analytics/logs (no PII)
+    const key = 'chattybot_visitor_id';
+    let id = localStorage.getItem(key);
+    if (!id) {
+      id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      localStorage.setItem(key, id);
+    }
+    setVisitorId(id);
+
+    const convKey = `chattybot_conversation_${siteId}`;
+    const existing = localStorage.getItem(convKey);
+    if (existing) setConversationId(existing);
+  }, [siteId]);
 
   async function sendMessage() {
     const text = input.trim();
@@ -42,6 +59,8 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
           site_id: siteId,
           user_message: text,
           current_page_url: window.location.href,
+          visitor_id: visitorId,
+          conversation_id: conversationId,
         }),
       });
 
@@ -49,6 +68,11 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
       const answer = data.answer || "Sorry, I couldn't get a response. Please try again.";
 
       setMessages((prev) => [...prev, { role: 'bot', content: answer, timestamp: new Date() }]);
+
+      if (data.conversation_id && data.conversation_id !== conversationId) {
+        setConversationId(data.conversation_id);
+        localStorage.setItem(`chattybot_conversation_${siteId}`, data.conversation_id);
+      }
 
       // Show lead form if backend detected contact intent and not already captured
       if (data.should_capture_lead && !leadCaptured) {

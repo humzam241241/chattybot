@@ -44,20 +44,21 @@ router.post(
     body('primary_color').optional().matches(/^#[0-9A-Fa-f]{6}$/),
     body('tone').optional().isString().trim().isLength({ max: 200 }),
     body('system_prompt').optional().isString().trim().isLength({ max: 2000 }),
+    body('raffy_overrides').optional().isObject(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { company_name, domain, primary_color, tone, system_prompt } = req.body;
+    const { company_name, domain, primary_color, tone, system_prompt, raffy_overrides } = req.body;
 
     try {
       const id = uuidv4();
       const result = await pool.query(
-        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
          RETURNING *`,
-        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null]
+        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null, raffy_overrides || {}]
       );
       return res.status(201).json({ site: result.rows[0] });
     } catch (err) {
@@ -76,12 +77,13 @@ router.put(
     body('primary_color').optional().matches(/^#[0-9A-Fa-f]{6}$/),
     body('tone').optional().isString().trim().isLength({ max: 200 }),
     body('system_prompt').optional().isString().trim().isLength({ max: 2000 }),
+    body('raffy_overrides').optional().isObject(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { company_name, domain, primary_color, tone, system_prompt } = req.body;
+    const { company_name, domain, primary_color, tone, system_prompt, raffy_overrides } = req.body;
 
     try {
       const result = await pool.query(
@@ -90,10 +92,11 @@ router.put(
              domain = COALESCE($2, domain),
              primary_color = COALESCE($3, primary_color),
              tone = COALESCE($4, tone),
-             system_prompt = COALESCE($5, system_prompt)
-         WHERE id = $6
+             system_prompt = COALESCE($5, system_prompt),
+             raffy_overrides = COALESCE($6, raffy_overrides)
+         WHERE id = $7
          RETURNING *`,
-        [company_name, domain, primary_color, tone, system_prompt, req.params.id]
+        [company_name, domain, primary_color, tone, system_prompt, raffy_overrides, req.params.id]
       );
       if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
       return res.json({ site: result.rows[0] });

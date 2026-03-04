@@ -77,6 +77,12 @@ export default function EditSitePage() {
           <Link href={`/sites/${id}/leads`} className="btn btn-secondary">
             View Leads
           </Link>
+          <Link href={`/sites/${id}/files`} className="btn btn-secondary">
+            Files
+          </Link>
+          <Link href={`/sites/${id}/conversations`} className="btn btn-secondary">
+            Conversations
+          </Link>
           <Link href="/sites" className="btn btn-secondary">← Back</Link>
         </div>
       </div>

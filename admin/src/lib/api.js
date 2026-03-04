@@ -34,3 +34,24 @@ export const deleteSite = (id) => apiFetch(`/api/sites/${id}`, { method: 'DELETE
 export const triggerIngest = (siteId) => apiFetch(`/api/ingest/${siteId}`, { method: 'POST' });
 
 export const getLeads = (siteId) => apiFetch(`/api/leads/${siteId}`);
+
+// Files
+export const listFiles = (siteId) => apiFetch(`/api/files/site/${siteId}`);
+export const reprocessFile = (fileId) => apiFetch(`/api/files/reprocess/${fileId}`, { method: 'POST' });
+export const deleteFile = (fileId) => apiFetch(`/api/files/file/${fileId}`, { method: 'DELETE' });
+export async function uploadFiles(siteId, files) {
+  const formData = new FormData();
+  formData.append('site_id', siteId);
+  for (const f of files) formData.append('files', f);
+
+  const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Upload failed');
+  }
+  return res.json();
+}
+
+// Conversations
+export const listConversations = (siteId) => apiFetch(`/api/conversations/site/${siteId}`);
+export const getConversation = (conversationId) => apiFetch(`/api/conversations/${conversationId}`);

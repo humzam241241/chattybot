@@ -17,6 +17,8 @@ const ingestRouter = require('./routes/ingest');
 const leadsRouter = require('./routes/leads');
 const sitesRouter = require('./routes/sites');
 const siteConfigRouter = require('./routes/siteConfig');
+const filesRouter = require('./routes/files');
+const conversationsRouter = require('./routes/conversations');
 const adminAuth = require('./middleware/adminAuth');
 
 const app = express();
@@ -90,6 +92,8 @@ adminApi.use(adminAuth);
 adminApi.use('/sites', sitesRouter);
 adminApi.use('/ingest', ingestRouter);
 adminApi.use('/leads', leadsRouter);
+adminApi.use('/files', filesRouter);
+adminApi.use('/conversations', conversationsRouter);
 app.use('/api/admin', adminApi);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

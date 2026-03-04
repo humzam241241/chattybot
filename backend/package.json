@@ -7,6 +7,7 @@
     "start": "node src/app.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
     "axios": "^1.6.7",
     "cheerio": "^1.0.0",
     "compression": "^1.8.1",
@@ -17,10 +18,14 @@
     "express-validator": "^7.0.1",
     "helmet": "^8.1.0",
     "hpp": "^0.2.3",
+    "mammoth": "^1.11.0",
+    "multer": "^2.1.0",
     "openai": "^4.28.4",
-    "playwright": "^1.43.0",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.11.3",
-    "uuid": "^9.0.1"
+    "playwright": "^1.43.0",
+    "uuid": "^9.0.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
