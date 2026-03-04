@@ -39,7 +39,7 @@ router.post(
   [
     body('site_id').isUUID().withMessage('Valid site_id required'),
     body('user_message').isString().trim().isLength({ min: 1, max: 2000 }),
-    body('conversation_id').optional().isUUID(),
+    body('conversation_id').optional({ nullable: true, checkFalsy: false }).isUUID(),
     body('visitor_id').optional().isString().trim().isLength({ max: 128 }),
     body('current_page_url').optional().isString().trim().isLength({ max: 500 }),
   ],
@@ -190,7 +190,7 @@ router.post(
   [
     body('site_id').isUUID().withMessage('Valid site_id required'),
     body('user_message').isString().trim().isLength({ min: 1, max: 2000 }),
-    body('conversation_id').optional().isUUID(),
+    body('conversation_id').optional({ nullable: true, checkFalsy: false }).isUUID(),
     body('visitor_id').optional().isString().trim().isLength({ max: 128 }),
     body('current_page_url').optional().isString().trim().isLength({ max: 500 }),
   ],

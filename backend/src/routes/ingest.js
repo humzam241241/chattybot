@@ -170,13 +170,30 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
 
         const page = await context.newPage();
         try {
-          await page.goto(nextUrl, { waitUntil: 'networkidle', timeout: 20000 });
+          // Navigate and wait for React/SPA to render
+          await page.goto(nextUrl, { waitUntil: 'networkidle', timeout: 30000 });
+          
+          // Wait for body to ensure content is loaded
+          await page.waitForSelector('body', { timeout: 10000 }).catch(() => {
+            console.warn(`[Ingest] Body selector timeout for ${nextUrl}`);
+          });
+          
+          // Give React/Vue/Angular time to hydrate
+          await page.waitForTimeout(1000);
 
-          const text = await page.evaluate(() => document.body?.innerText || '');
+          // Extract visible text (better for SPAs than raw HTML)
+          const text = await page.evaluate(() => {
+            return document.body?.innerText?.replace(/\s+/g, ' ').trim() || '';
+          });
+          
           const cleanedText = normalizeText(text);
           console.log(`[Ingest] Text length: ${cleanedText.length}`);
 
-          const links = await page.$$eval('a', (anchors) => anchors.map((a) => a.href));
+          // Extract links using evaluate (more reliable for dynamic content)
+          const links = await page.evaluate(() =>
+            Array.from(document.querySelectorAll('a')).map((a) => a.href)
+          );
+          
           const filteredInternal = Array.from(
             new Set(
               (links || [])
