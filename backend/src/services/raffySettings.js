@@ -1,5 +1,9 @@
 const pool = require('../config/database');
 
+// Simple in-memory cache for site settings (5 min TTL)
+const settingsCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 function isPlainObject(v) {
   return v && typeof v === 'object' && !Array.isArray(v);
 }
@@ -19,8 +23,8 @@ const DEFAULT_RAFFY_SETTINGS = {
     keywords: ['human', 'agent', 'representative', 'call me', 'email me', 'talk to someone'],
   },
   emergency: {
-    keywords: ['emergency', 'suicide', 'self-harm', 'harm myself', 'call 911', 'ambulance'],
-    response: "If this is an emergency, please call your local emergency number immediately. If you're in the US, call 911.",
+    keywords: ['suicide', 'self-harm', 'harm myself', 'kill myself', '911', 'ambulance', 'overdose', 'dying'],
+    response: "If this is a life-threatening emergency, please call your local emergency number immediately. If you're in the US, call 911.",
   },
   sales_prompts: {
     cta: '',
@@ -60,6 +64,13 @@ function deepMerge(base, override) {
 }
 
 async function getEffectiveRaffySettings(siteId) {
+  // Check cache first
+  const cached = settingsCache.get(siteId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log(`[RaffySettings] Cache hit for site ${siteId}`);
+    return cached.data;
+  }
+
   let globalSettings = {};
   try {
     const globalRes = await pool.query('SELECT settings FROM global_settings WHERE id = 1');
@@ -110,11 +121,32 @@ async function getEffectiveRaffySettings(siteId) {
 
   const merged = deepMerge(deepMerge(DEFAULT_RAFFY_SETTINGS, globalSettings), overrides);
 
-  return {
+  const result = {
     site,
     raffy: merged,
   };
+
+  // Cache the result
+  settingsCache.set(siteId, {
+    data: result,
+    timestamp: Date.now(),
+  });
+  
+  console.log(`[RaffySettings] Cached settings for site ${siteId}`);
+
+  return result;
 }
 
-module.exports = { getEffectiveRaffySettings, deepMerge };
+// Export a function to clear cache (useful for admin updates)
+function clearSettingsCache(siteId = null) {
+  if (siteId) {
+    settingsCache.delete(siteId);
+    console.log(`[RaffySettings] Cleared cache for site ${siteId}`);
+  } else {
+    settingsCache.clear();
+    console.log('[RaffySettings] Cleared all settings cache');
+  }
+}
+
+module.exports = { getEffectiveRaffySettings, deepMerge, clearSettingsCache };
 

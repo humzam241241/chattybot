@@ -162,9 +162,14 @@ export default function SiteSettingsPage() {
 
         {/* Emergency */}
         <div className="card">
-          <div className="card-title">Emergency Response</div>
+          <div className="card-title">Life-Threatening Emergency Response</div>
+          <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+            Configure how the chatbot responds to critical medical/mental health emergencies.
+            <br />
+            <strong>Note:</strong> Generic keywords like "emergency" or "urgent" are NOT recommended here, as they trigger false positives for business emergencies (like roofing leaks).
+          </p>
           <div className="field">
-            <label>Emergency Keywords (one per line)</label>
+            <label>Critical Emergency Keywords (one per line)</label>
             <textarea
               className="textarea"
               value={(getOverride('emergency.keywords', []) || []).join('\n')}
@@ -175,10 +180,10 @@ export default function SiteSettingsPage() {
                   emergency: { ...(ro.emergency || {}), keywords: arr },
                 }));
               }}
-              rows={3}
-              placeholder="emergency\nurgent\nasap\nimmediate"
+              rows={5}
+              placeholder="suicide\nself-harm\nharm myself\nkill myself\n911\nambulance\noverdose\ndying"
             />
-            <small>Trigger words that indicate urgent situations requiring immediate response</small>
+            <small>Only life-threatening situations (suicide, overdose, etc). Avoid generic words like "emergency" or "urgent".</small>
           </div>
           <div className="field">
             <label>Emergency Response Message</label>
@@ -192,9 +197,9 @@ export default function SiteSettingsPage() {
                 }))
               }
               rows={3}
-              placeholder="e.g., I understand this is urgent. Please call us immediately at [phone] or..."
+              placeholder="e.g., If this is a life-threatening emergency, please call 911 immediately or go to your nearest emergency room."
             />
-            <small>Custom message shown when emergency keywords are detected</small>
+            <small>Message shown when critical emergency keywords are detected</small>
           </div>
         </div>
 

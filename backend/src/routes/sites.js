@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
 const { apiLimiter } = require('../middleware/rateLimiter');
 const adminAuth = require('../middleware/adminAuth');
+const { clearSettingsCache } = require('../services/raffySettings');
 
 const router = express.Router();
 
@@ -99,6 +100,10 @@ router.put(
         [company_name, domain, primary_color, tone, system_prompt, raffy_overrides, req.params.id]
       );
       if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+      
+      // Clear cache when settings are updated
+      clearSettingsCache(req.params.id);
+      
       return res.json({ site: result.rows[0] });
     } catch (err) {
       console.error(err);

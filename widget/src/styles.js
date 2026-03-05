@@ -30,8 +30,8 @@ export function injectStyles(shadow) {
       position: fixed;
       bottom: 92px;
       right: 24px;
-      width: 360px;
-      max-height: 520px;
+      width: min(420px, 100vw);
+      max-height: min(600px, 80vh);
       background: #fff;
       border-radius: 16px;
       box-shadow: 0 8px 40px rgba(0,0,0,0.16);
@@ -196,12 +196,13 @@ export function injectStyles(shadow) {
     }
     .cb-input:focus { border-color: var(--cb-primary); }
     .cb-send {
-      width: 38px; height: 38px; border-radius: 50%; border: none;
+      width: 42px; height: 42px; border-radius: 50%; border: none;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
       color: #fff; flex-shrink: 0; transition: opacity 0.15s; align-self: flex-end;
+      min-width: 42px; /* Ensure tap target is large enough on mobile */
     }
     .cb-send:disabled { opacity: 0.5; cursor: not-allowed; }
-    .cb-send svg { width: 17px; height: 17px; fill: #fff; }
+    .cb-send svg { width: 19px; height: 19px; fill: #fff; }
 
     /* Lead form */
     .cb-lead-form {
@@ -243,8 +244,36 @@ export function injectStyles(shadow) {
       padding: 6px 0 4px;
     }
 
-    @media (max-width: 420px) {
-      .cb-window { width: calc(100vw - 32px); right: 16px; }
+    @media (max-width: 480px) {
+      .cb-window { 
+        width: 100vw;
+        max-width: 100vw;
+        right: 0;
+        bottom: 0;
+        max-height: 100vh;
+        border-radius: 0;
+      }
+      .cb-bubble {
+        bottom: 16px;
+        right: 16px;
+        width: 60px;
+        height: 60px;
+      }
+      .cb-chip {
+        font-size: 13px;
+        padding: 8px 12px;
+      }
+      .cb-input-row {
+        padding: 14px;
+        /* Prevent keyboard from covering input on iOS */
+        position: sticky;
+        bottom: 0;
+      }
+      .cb-send {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+      }
     }
   `;
   shadow.appendChild(style);

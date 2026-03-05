@@ -58,6 +58,11 @@ router.post(
       if (!settings) return res.status(404).json({ error: 'Site not found' });
       const { site, raffy } = settings;
       console.log(`[Chat] Settings loaded for ${site.company_name}`);
+      console.log(`[Chat] SITE ID: ${site_id}`);
+      console.log(`[Chat] Custom system_prompt exists: ${Boolean(site.system_prompt)}`);
+      if (site.system_prompt) {
+        console.log(`[Chat] Custom system_prompt (first 100 chars): ${site.system_prompt.substring(0, 100)}...`);
+      }
 
       const convoId = await getOrCreateConversation({
         siteId: site_id,
@@ -69,19 +74,27 @@ router.post(
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 
-      // Emergency handling (keyword-based MVP)
+      // Emergency handling (keyword-based MVP) - only for life-threatening emergencies
       const emergencyKeywords = raffy?.emergency?.keywords || [];
       const emergencyResponse = raffy?.emergency?.response;
       const msgLower = user_message.toLowerCase();
-      const isEmergency = Array.isArray(emergencyKeywords) && emergencyKeywords.some((k) => msgLower.includes(String(k).toLowerCase()));
+      
+      // More specific emergency detection - avoid false positives for business emergencies
+      const isLifeThreateningEmergency = Array.isArray(emergencyKeywords) && emergencyKeywords.some((k) => {
+        const keyword = String(k).toLowerCase();
+        // Only trigger on specific life-threatening keywords, not generic "emergency" or "urgent"
+        const criticalKeywords = ['suicide', 'self-harm', 'harm myself', 'kill myself', '911', 'ambulance', 'overdose', 'dying'];
+        return criticalKeywords.includes(keyword) && msgLower.includes(keyword);
+      });
 
       // RAG: retrieve relevant chunks
       console.log(`[Chat] Retrieving context...`);
       const contextChunks = await retrieveContext(site_id, user_message);
-      console.log(`[Chat] Context chunks: ${contextChunks.length}`);
+      console.log(`[Chat] Context chunks retrieved: ${contextChunks.length}`);
 
       // ALWAYS build the prompt with RAG context, even if custom system_prompt exists
       const basePrompt = buildSystemPrompt(site, contextChunks);
+      console.log(`[Chat] Base prompt built (first 150 chars): ${basePrompt.substring(0, 150)}...`);
       
       const guardrails = raffy?.guardrails?.wont_say?.length
         ? `\n\nGuardrails (never do these):\n- ${raffy.guardrails.wont_say.join('\n- ')}`
@@ -94,18 +107,20 @@ router.post(
         ? `\n\nSales CTA (when relevant): ${raffy.sales_prompts.cta}`
         : '';
       const identity = `You are ${raffy?.name || 'Raffy'}, the ${raffy?.role || 'AI assistant'} for ${site.company_name}.`;
-      const emergency = emergencyResponse
-        ? `\n\nEmergency rule: If the user describes an emergency, respond with:\n"${emergencyResponse}"`
+      const emergency = emergencyResponse && isLifeThreateningEmergency
+        ? `\n\nCRITICAL EMERGENCY RULE: If the user mentions suicide, self-harm, or life-threatening crisis, respond with:\n"${emergencyResponse}"`
         : '';
 
       const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${humor}`;
+      
+      console.log(`[Chat] SYSTEM PROMPT USED (first 200 chars):\n${systemPrompt.substring(0, 200)}...`);
 
       // Build messages array; optionally hint on the current page for context
       const userContent = current_page_url
         ? `[User is on page: ${current_page_url}]\n\n${user_message}`
         : user_message;
 
-      let answer = emergencyResponse && isEmergency
+      let answer = emergencyResponse && isLifeThreateningEmergency
         ? emergencyResponse
         : null;
 
@@ -130,7 +145,7 @@ router.post(
       const wantsBooking = detectBookingIntent(user_message, raffy);
       const shouldOfferBooking = Boolean(bookingUrl) && wantsBooking;
 
-      const intent = isEmergency
+      const intent = isLifeThreateningEmergency
         ? 'emergency'
         : shouldOfferBooking
           ? 'booking'
@@ -227,6 +242,9 @@ router.post(
         return res.end();
       }
       const { site, raffy } = settings;
+      
+      console.log(`[Chat/Stream] SITE ID: ${site_id}`);
+      console.log(`[Chat/Stream] Custom system_prompt exists: ${Boolean(site.system_prompt)}`);
 
       const convoId = await getOrCreateConversation({
         siteId: site_id,
@@ -240,7 +258,13 @@ router.post(
       const emergencyKeywords = raffy?.emergency?.keywords || [];
       const emergencyResponse = raffy?.emergency?.response;
       const msgLower = String(user_message || '').toLowerCase();
-      const isEmergency = Array.isArray(emergencyKeywords) && emergencyKeywords.some((k) => msgLower.includes(String(k).toLowerCase()));
+      
+      // More specific emergency detection - only for life-threatening emergencies
+      const isLifeThreateningEmergency = Array.isArray(emergencyKeywords) && emergencyKeywords.some((k) => {
+        const keyword = String(k).toLowerCase();
+        const criticalKeywords = ['suicide', 'self-harm', 'harm myself', 'kill myself', '911', 'ambulance', 'overdose', 'dying'];
+        return criticalKeywords.includes(keyword) && msgLower.includes(keyword);
+      });
 
       const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
       const wantsBooking = detectBookingIntent(user_message, raffy);
@@ -248,10 +272,11 @@ router.post(
 
       const escalationKeywords = raffy?.escalation_triggers?.keywords || [];
       const wantsHuman = Array.isArray(escalationKeywords) && escalationKeywords.some((k) => msgLower.includes(String(k).toLowerCase()));
-      const intent = isEmergency ? 'emergency' : shouldOfferBooking ? 'booking' : wantsHuman ? 'escalation' : 'kb';
+      const intent = isLifeThreateningEmergency ? 'emergency' : shouldOfferBooking ? 'booking' : wantsHuman ? 'escalation' : 'kb';
 
       // RAG: retrieve relevant chunks
       const contextChunks = await retrieveContext(site_id, user_message);
+      console.log(`[Chat/Stream] Context chunks: ${contextChunks.length}`);
       
       // ALWAYS build the prompt with RAG context, even if custom system_prompt exists
       const basePrompt = buildSystemPrompt(site, contextChunks);
@@ -267,10 +292,12 @@ router.post(
         ? `\n\nSales CTA (when relevant): ${raffy.sales_prompts.cta}`
         : '';
       const identity = `You are ${raffy?.name || 'Raffy'}, the ${raffy?.role || 'AI assistant'} for ${site.company_name}.`;
-      const emergency = emergencyResponse
-        ? `\n\nEmergency rule: If the user describes an emergency, respond with:\n"${emergencyResponse}"`
+      const emergency = emergencyResponse && isLifeThreateningEmergency
+        ? `\n\nCRITICAL EMERGENCY RULE: If the user mentions suicide, self-harm, or life-threatening crisis, respond with:\n"${emergencyResponse}"`
         : '';
       const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${humor}`;
+      
+      console.log(`[Chat/Stream] SYSTEM PROMPT (first 200 chars):\n${systemPrompt.substring(0, 200)}...`);
 
       const userContent = current_page_url
         ? `[User is on page: ${current_page_url}]\n\n${user_message}`
@@ -278,7 +305,7 @@ router.post(
 
       res.write(`event: meta\ndata: ${JSON.stringify({ conversation_id: convoId, intent, context_used: contextChunks.length })}\n\n`);
 
-      if (emergencyResponse && isEmergency) {
+      if (emergencyResponse && isLifeThreateningEmergency) {
         res.write(`event: token\ndata: ${JSON.stringify({ token: emergencyResponse })}\n\n`);
         await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: emergencyResponse });
         
