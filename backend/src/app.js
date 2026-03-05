@@ -19,6 +19,7 @@ const sitesRouter = require('./routes/sites');
 const siteConfigRouter = require('./routes/siteConfig');
 const filesRouter = require('./routes/files');
 const conversationsRouter = require('./routes/conversations');
+const adminAnalyticsRouter = require('./routes/adminAnalytics');
 const adminAuth = require('./middleware/adminAuth');
 
 const app = express();
@@ -94,6 +95,10 @@ adminApi.use('/ingest', ingestRouter);
 adminApi.use('/leads', leadsRouter);
 adminApi.use('/files', filesRouter);
 adminApi.use('/conversations', conversationsRouter);
+adminApi.use('/conversations', adminAnalyticsRouter);
+adminApi.use('/transcript', adminAnalyticsRouter);
+adminApi.use('/stats', adminAnalyticsRouter);
+adminApi.use('/debug', adminAnalyticsRouter);
 app.use('/api/admin', adminApi);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

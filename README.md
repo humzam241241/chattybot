@@ -13,6 +13,7 @@ A production-ready, **white-label** SaaS platform for embedding customizable AI 
 - 🧠 **RAG-Powered** — Automatic website ingestion + vector search for accurate, contextual responses
 - 📊 **Lead Intelligence** — Automatic lead scoring and owner notifications
 - 🎯 **RAG Evaluation** — Built-in accuracy testing system
+- 📈 **Conversation Analytics** — Complete analytics dashboard with AI summaries and lead extraction
 - 🚀 **Production-Ready** — Full deployment guides for Render + Vercel
 
 > **Note**: "Raffy" in code variable names is just historical naming. The actual chatbot name, personality, and behavior are 100% configurable per site.
@@ -25,7 +26,8 @@ A production-ready, **white-label** SaaS platform for embedding customizable AI 
 chattybot/
 ├── backend/          Node.js + Express API (deploy to Render)
 ├── widget/           React chat widget, built as single JS file (deploy to Vercel)
-└── admin/            Next.js admin dashboard (deploy to Vercel)
+├── admin/            Next.js admin dashboard (deploy to Vercel)
+└── admin-dashboard/  React analytics dashboard (NEW - deploy to Vercel)
 ```
 
 **Data flow:**
@@ -200,6 +202,53 @@ Admin Dashboard → Sites → [Site Name] → View Leads → Export CSV
 
 ---
 
+## 📊 Conversation Analytics System (NEW)
+
+ChattyBot now includes a **complete conversation analytics dashboard** with AI-powered insights.
+
+### Features
+- 🤖 **AI Summaries** — Automatic 1-sentence conversation summaries
+- 📇 **Lead Extraction** — Structured data extraction (name, phone, email, service, urgency)
+- 📈 **Analytics Dashboard** — Real-time metrics, charts, and conversation tracking
+- 💬 **Transcript Viewer** — Chat-style message display with full context
+- 🎯 **Lead Intelligence** — Emergency detection, quote tracking, conversion rates
+
+### Quick Setup
+
+**Automated:**
+```bash
+# Windows
+setup-analytics.bat
+
+# Linux/Mac
+chmod +x setup-analytics.sh
+./setup-analytics.sh
+```
+
+**Manual:**
+```bash
+cd backend && npm install
+cd ../admin-dashboard && npm install
+node backend/scripts/createIndexes.js
+```
+
+### Documentation
+- **[ANALYTICS_SETUP.md](./ANALYTICS_SETUP.md)** — Complete deployment guide
+- **[ANALYTICS_IMPLEMENTATION.md](./ANALYTICS_IMPLEMENTATION.md)** — Technical overview
+- **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** — Pre-launch verification
+- **[README_ANALYTICS.md](./README_ANALYTICS.md)** — Full feature documentation
+
+### Background Workers
+- `summarizeWorker.js` — Generates AI summaries (run every 5 min)
+- `leadExtractor.js` — Extracts structured leads (run every 10 min)
+
+Deploy with cron jobs or PM2:
+```bash
+pm2 start ecosystem.config.js
+```
+
+---
+
 ## Environment Variables
 
 ### Backend (`backend/.env`)
@@ -220,6 +269,13 @@ Admin Dashboard → Sites → [Site Name] → View Leads → Export CSV
 | `NEXT_PUBLIC_API_URL` | Backend API URL |
 | `NEXT_PUBLIC_ADMIN_SECRET` | Must match backend `ADMIN_SECRET` |
 
+### Analytics Dashboard (`admin-dashboard/.env`)
+
+| Variable | Description |
+|----------|-------------|
+| `REACT_APP_API_URL` | Backend API URL |
+| `REACT_APP_ADMIN_SECRET` | Must match backend `ADMIN_SECRET` |
+
 ---
 
 ## Tech Decisions
@@ -237,8 +293,10 @@ Admin Dashboard → Sites → [Site Name] → View Leads → Export CSV
 
 ## Next Steps (Post-MVP)
 
-- [ ] Streaming responses (SSE)
-- [ ] Conversation history (multi-turn context)
+- [x] Streaming responses (SSE) ✅
+- [x] Conversation history (multi-turn context) ✅
+- [x] Conversation analytics dashboard ✅
+- [x] AI-powered lead extraction ✅
 - [ ] Proper JWT auth for admin
 - [ ] Webhook on lead capture
 - [ ] Multi-language support
