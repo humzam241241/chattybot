@@ -121,12 +121,12 @@ router.post(
         : user_message;
 
       // Load conversation history for context (exclude current user message - we add it with page context)
-      const recent = await getRecentMessages(convoId, 21); // 21 = up to 10 turns + current
+      const recent = await getRecentMessages(convoId, 201); // 201 = up to 100 turns + current
       const conversationHistory = recent.slice(0, -1).map((m) => ({
         role: m.role,
         content: m.content,
       }));
-      console.log(`[Chat] Conversation history: ${conversationHistory.length} messages`);
+      console.log(`[Chat] Conversation history: ${conversationHistory.length} messages loaded, conversation has ${recent.length} total messages`);
 
       let answer = emergencyResponse && isLifeThreateningEmergency
         ? emergencyResponse
@@ -163,6 +163,7 @@ router.post(
             : 'kb';
 
       const afterAssistant = await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+      console.log(`[Chat] Assistant response saved. Total messages in conversation: ${afterAssistant.message_count}`);
 
       // Rolling summary update every 8 messages (≈4 turns)
       if (afterAssistant.message_count % 8 === 0) {
@@ -313,12 +314,12 @@ router.post(
         : user_message;
 
       // Load conversation history for context (exclude current user message)
-      const recent = await getRecentMessages(convoId, 21);
+      const recent = await getRecentMessages(convoId, 201);
       const conversationHistory = recent.slice(0, -1).map((m) => ({
         role: m.role,
         content: m.content,
       }));
-      console.log(`[Chat/Stream] Conversation history: ${conversationHistory.length} messages`);
+      console.log(`[Chat/Stream] Conversation history: ${conversationHistory.length} messages loaded, conversation has ${recent.length} total messages`);
 
       res.write(`event: meta\ndata: ${JSON.stringify({ conversation_id: convoId, intent, context_used: contextChunks.length })}\n\n`);
 
@@ -360,6 +361,7 @@ router.post(
       if (!closed) {
         const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer);
         await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+        console.log(`[Chat/Stream] Assistant response saved to conversation ${convoId}`);
         
         // Trigger lead notification for high-value intents (non-blocking)
         if (intent === 'booking' || intent === 'emergency' || intent === 'escalation') {
