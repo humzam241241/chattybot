@@ -70,7 +70,7 @@ router.post(
         conversationId: conversation_id,
         currentPageUrl: current_page_url,
       });
-      console.log(`[Chat] Conversation: ${convoId}`);
+      console.log(`[Chat] Conversation: ${convoId}, Site: ${site_id}, Visitor: ${visitor_id}`);
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 

@@ -17,6 +17,7 @@ router.get('/site/:site_id', async (req, res) => {
        LIMIT 200`,
       [site_id]
     );
+    console.log(`[Conversations] Fetched ${result.rows.length} conversations for site ${site_id}`);
     return res.json({ conversations: result.rows });
   } catch (err) {
     console.error('List conversations error:', err);
