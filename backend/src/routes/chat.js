@@ -120,6 +120,14 @@ router.post(
         ? `[User is on page: ${current_page_url}]\n\n${user_message}`
         : user_message;
 
+      // Load conversation history for context (exclude current user message - we add it with page context)
+      const recent = await getRecentMessages(convoId, 21); // 21 = up to 10 turns + current
+      const conversationHistory = recent.slice(0, -1).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      console.log(`[Chat] Conversation history: ${conversationHistory.length} messages`);
+
       let answer = emergencyResponse && isLifeThreateningEmergency
         ? emergencyResponse
         : null;
@@ -129,6 +137,7 @@ router.post(
           model: 'gpt-4o-mini', // Fast, cheap, good enough for RAG answers
           messages: [
             { role: 'system', content: systemPrompt },
+            ...conversationHistory,
             { role: 'user', content: userContent },
           ],
           max_tokens: 500,
@@ -303,6 +312,14 @@ router.post(
         ? `[User is on page: ${current_page_url}]\n\n${user_message}`
         : user_message;
 
+      // Load conversation history for context (exclude current user message)
+      const recent = await getRecentMessages(convoId, 21);
+      const conversationHistory = recent.slice(0, -1).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      console.log(`[Chat/Stream] Conversation history: ${conversationHistory.length} messages`);
+
       res.write(`event: meta\ndata: ${JSON.stringify({ conversation_id: convoId, intent, context_used: contextChunks.length })}\n\n`);
 
       if (emergencyResponse && isLifeThreateningEmergency) {
@@ -322,6 +339,7 @@ router.post(
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
+          ...conversationHistory,
           { role: 'user', content: userContent },
         ],
         max_tokens: 500,

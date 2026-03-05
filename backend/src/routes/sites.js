@@ -44,7 +44,7 @@ router.post(
     body('domain').isURL({ require_protocol: false }).withMessage('Valid domain required'),
     body('primary_color').optional().matches(/^#[0-9A-Fa-f]{6}$/),
     body('tone').optional().isString().trim().isLength({ max: 200 }),
-    body('system_prompt').optional().isString().trim().isLength({ max: 2000 }),
+    body('system_prompt').optional().isString().trim().isLength({ max: 8000 }),
     body('raffy_overrides').optional().isObject(),
   ],
   async (req, res) => {
@@ -77,7 +77,7 @@ router.put(
     body('domain').optional().isURL({ require_protocol: false }),
     body('primary_color').optional().matches(/^#[0-9A-Fa-f]{6}$/),
     body('tone').optional().isString().trim().isLength({ max: 200 }),
-    body('system_prompt').optional().isString().trim().isLength({ max: 2000 }),
+    body('system_prompt').optional().isString().trim().isLength({ max: 8000 }),
     body('raffy_overrides').optional().isObject(),
   ],
   async (req, res) => {

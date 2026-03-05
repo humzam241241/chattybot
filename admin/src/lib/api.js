@@ -18,7 +18,14 @@ async function apiFetch(path, options = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'API error');
+    const msg =
+      err.error ||
+      (Array.isArray(err.errors) && err.errors.length
+        ? err.errors.map((e) => e.msg || e.message).filter(Boolean).join('. ')
+        : null) ||
+      res.statusText ||
+      'API error';
+    throw new Error(msg);
   }
 
   return res.json();
