@@ -360,8 +360,36 @@ router.post(
 
       if (!closed) {
         const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer);
-        await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
-        console.log(`[Chat/Stream] Assistant response saved to conversation ${convoId}`);
+        const afterAssistant = await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+        console.log(`[Chat/Stream] Assistant response saved to conversation ${convoId}. Total messages: ${afterAssistant.message_count}`);
+        
+        // Rolling summary update every 8 messages (≈4 turns)
+        if (afterAssistant.message_count % 8 === 0) {
+          const recent = await getRecentMessages(convoId, 12);
+          const summaryPrompt = [
+            'You update a rolling summary of a customer support conversation.',
+            'Keep it concise (max 800 characters).',
+            '',
+            `Existing summary:\n${afterAssistant.summary || '(none)'}`,
+            '',
+            'Recent messages:',
+            ...recent.map((m) => `${m.role.toUpperCase()}: ${m.content}`),
+            '',
+            'Return ONLY the updated summary text.',
+          ].join('\n');
+
+          const summaryCompletion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: summaryPrompt }],
+            max_tokens: 220,
+            temperature: 0.2,
+          });
+          const newSummary = summaryCompletion.choices[0].message.content?.trim() || '';
+          if (newSummary) {
+            await updateConversationSummary(convoId, newSummary);
+            console.log(`[Chat/Stream] Summary updated for conversation ${convoId}`);
+          }
+        }
         
         // Trigger lead notification for high-value intents (non-blocking)
         if (intent === 'booking' || intent === 'emergency' || intent === 'escalation') {
