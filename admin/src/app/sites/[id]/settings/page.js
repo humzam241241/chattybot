@@ -88,9 +88,9 @@ export default function SiteSettingsPage() {
             <label>Bot Name</label>
             <input
               className="input"
-              value={getOverride('name', 'Raffy')}
+              value={getOverride('name', 'Assistant')}
               onChange={(e) => setOverride((ro) => ({ ...ro, name: e.target.value }))}
-              placeholder="e.g., Sarah, Alex, BotName"
+              placeholder="e.g., Sarah, Alex, Jamie"
             />
             <small>The name your chatbot will use when introducing itself</small>
           </div>

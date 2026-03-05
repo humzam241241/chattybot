@@ -106,7 +106,7 @@ router.post(
       const sales = raffy?.sales_prompts?.cta
         ? `\n\nSales CTA (when relevant): ${raffy.sales_prompts.cta}`
         : '';
-      const identity = `You are ${raffy?.name || 'Raffy'}, the ${raffy?.role || 'AI assistant'} for ${site.company_name}.`;
+      const identity = `You are ${raffy?.name || 'Assistant'}, the ${raffy?.role || 'AI assistant'} for ${site.company_name}.`;
       const emergency = emergencyResponse && isLifeThreateningEmergency
         ? `\n\nCRITICAL EMERGENCY RULE: If the user mentions suicide, self-harm, or life-threatening crisis, respond with:\n"${emergencyResponse}"`
         : '';
@@ -291,7 +291,7 @@ router.post(
       const sales = raffy?.sales_prompts?.cta
         ? `\n\nSales CTA (when relevant): ${raffy.sales_prompts.cta}`
         : '';
-      const identity = `You are ${raffy?.name || 'Raffy'}, the ${raffy?.role || 'AI assistant'} for ${site.company_name}.`;
+      const identity = `You are ${raffy?.name || 'Assistant'}, the ${raffy?.role || 'AI assistant'} for ${site.company_name}.`;
       const emergency = emergencyResponse && isLifeThreateningEmergency
         ? `\n\nCRITICAL EMERGENCY RULE: If the user mentions suicide, self-harm, or life-threatening crisis, respond with:\n"${emergencyResponse}"`
         : '';

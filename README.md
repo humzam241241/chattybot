@@ -2,13 +2,20 @@
 
 A production-ready, **white-label** SaaS platform for embedding customizable AI chatbots on any website. Powered by RAG (Retrieval Augmented Generation), pgvector, and OpenAI.
 
+**Perfect For:**
+- 🏢 **Agencies** — Deploy custom-branded chatbots for multiple clients
+- 💼 **SaaS Businesses** — Embed AI chat on customer websites
+- 🎨 **White-Label Solutions** — Each client gets their own bot name, personality, and branding
+
 **Key Features:**
-- 🎨 **Fully Customizable** — Each client can configure their chatbot's name, personality, tone, and branding
+- 🎨 **Fully Customizable** — Each site configures its own bot name (Sarah, Alex, etc.), personality, tone, and visual branding
 - 🏢 **Multi-Tenant** — Manage unlimited client sites from a single dashboard
 - 🧠 **RAG-Powered** — Automatic website ingestion + vector search for accurate, contextual responses
 - 📊 **Lead Intelligence** — Automatic lead scoring and owner notifications
 - 🎯 **RAG Evaluation** — Built-in accuracy testing system
 - 🚀 **Production-Ready** — Full deployment guides for Render + Vercel
+
+> **Note**: "Raffy" in code variable names is just historical naming. The actual chatbot name, personality, and behavior are 100% configurable per site.
 
 ---
 

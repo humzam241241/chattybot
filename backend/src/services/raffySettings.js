@@ -1,3 +1,19 @@
+/**
+ * ChattyBot Settings Service
+ * 
+ * This service manages chatbot configuration for each site.
+ * 
+ * WHITE-LABEL ARCHITECTURE:
+ * - "raffy" is just a variable name (historical) - the actual bot name is fully configurable
+ * - Each site can have a completely custom bot name, role, tone, and behavior
+ * - The DEFAULT settings provide fallbacks, but everything can be overridden per-site
+ * 
+ * Configuration layers (lowest to highest priority):
+ * 1. DEFAULT_RAFFY_SETTINGS (code defaults)
+ * 2. global_settings (database-wide defaults)
+ * 3. site.raffy_overrides (per-site customization)
+ */
+
 const pool = require('../config/database');
 
 // Simple in-memory cache for site settings (5 min TTL)
@@ -8,8 +24,9 @@ function isPlainObject(v) {
   return v && typeof v === 'object' && !Array.isArray(v);
 }
 
+// Default chatbot configuration (fully customizable per site)
 const DEFAULT_RAFFY_SETTINGS = {
-  name: 'Raffy',
+  name: 'Assistant',  // Default bot name - can be changed to anything (Sarah, Alex, etc.)
   role: 'AI assistant',
   tone: 'friendly, confident, never cocky',
   guardrails: {
