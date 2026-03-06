@@ -153,4 +153,70 @@ router.get('/:site_id', adminAuth, async (req, res) => {
   }
 });
 
+/**
+ * POST /lead/:site_id/rescore
+ * Re-score all leads for a site that are missing ratings
+ */
+router.post('/:site_id/rescore', adminAuth, async (req, res) => {
+  const { site_id } = req.params;
+  
+  try {
+    // Import scoreLead
+    const { scoreLead } = require('../services/leadScore');
+    
+    // Get leads without ratings or with NULL rating
+    const leadsToScore = await pool.query(
+      `SELECT l.id, l.conversation_id, l.email, l.phone, l.name
+       FROM leads l
+       WHERE l.site_id = $1 
+       AND (l.lead_rating IS NULL OR l.lead_rating = '')`,
+      [site_id]
+    );
+    
+    let updated = 0;
+    
+    for (const lead of leadsToScore.rows) {
+      // Get messages for this conversation
+      let messages = [];
+      if (lead.conversation_id) {
+        const msgResult = await pool.query(
+          `SELECT role, content FROM messages 
+           WHERE conversation_id = $1 
+           ORDER BY created_at ASC`,
+          [lead.conversation_id]
+        );
+        messages = msgResult.rows;
+      }
+      
+      // Score the lead
+      const { score, rating } = scoreLead({
+        messages,
+        extracted: {
+          email: lead.email,
+          phone: lead.phone,
+          name: lead.name,
+        },
+      });
+      
+      // Update the lead
+      await pool.query(
+        `UPDATE leads SET lead_score = $1, lead_rating = $2 WHERE id = $3`,
+        [score, rating, lead.id]
+      );
+      updated++;
+    }
+    
+    console.log(`[Rescore] Updated ${updated} leads for site ${site_id}`);
+    
+    return res.json({
+      success: true,
+      updated,
+      message: `Re-scored ${updated} leads`,
+    });
+  } catch (err) {
+    console.error('Rescore leads error:', err);
+    return res.status(500).json({ error: 'Failed to rescore leads' });
+  }
+});
+
 module.exports = router;

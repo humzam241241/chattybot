@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getLeads, getSite } from '../../../../lib/api';
+import { getLeads, getSite, rescoreLeads } from '../../../../lib/api';
 import SiteLayout from '../../../../components/SiteLayout';
 
 const RATING_COLORS = {
@@ -19,6 +19,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [counts, setCounts] = useState({ hot: 0, warm: 0, cold: 0 });
+  const [rescoring, setRescoring] = useState(false);
 
   async function loadData() {
     try {
@@ -40,6 +41,21 @@ export default function LeadsPage() {
     setError('');
     await loadData();
     setLoading(false);
+  }
+
+  async function handleRescore() {
+    if (!confirm('Re-score all leads without ratings? This will analyze conversations and assign HOT/WARM/COLD ratings.')) return;
+    
+    setRescoring(true);
+    try {
+      const result = await rescoreLeads(id);
+      alert(`Re-scored ${result.updated} leads. Refreshing...`);
+      await loadData();
+    } catch (err) {
+      alert('Failed to rescore: ' + err.message);
+    } finally {
+      setRescoring(false);
+    }
   }
 
   function exportCSV() {
@@ -74,9 +90,12 @@ export default function LeadsPage() {
           <h1 className="page-title">Leads</h1>
           <p className="page-subtitle">Captured contacts from your chatbot</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
             {loading ? '...' : 'Refresh'}
+          </button>
+          <button className="btn btn-secondary" onClick={handleRescore} disabled={rescoring || loading}>
+            {rescoring ? '...' : '⚡ Re-score'}
           </button>
           {leads.length > 0 && (
             <button className="btn btn-secondary" onClick={exportCSV}>

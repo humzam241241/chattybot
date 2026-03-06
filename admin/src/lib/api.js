@@ -42,6 +42,7 @@ export const triggerIngest = (siteId) => apiFetch(`/api/ingest/${siteId}`, { met
 export const getIngestStatus = (siteId) => apiFetch(`/api/ingest/${siteId}`);
 
 export const getLeads = (siteId) => apiFetch(`/api/leads/${siteId}`);
+export const rescoreLeads = (siteId) => apiFetch(`/api/leads/${siteId}/rescore`, { method: 'POST' });
 
 // Files
 export const listFiles = (siteId) => apiFetch(`/api/files/site/${siteId}`);
