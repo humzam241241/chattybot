@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getSites } from '../lib/api';
+import { getSites, triggerReconciliation } from '../lib/api';
 import Link from 'next/link';
 
 export default function DashboardPage() {
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reconciling, setReconciling] = useState(false);
 
   async function loadSites() {
     try {
@@ -27,6 +28,20 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
+  async function handleReconcile() {
+    if (!confirm('Scan the database for missed lead data? This may take a few minutes.')) return;
+    
+    setReconciling(true);
+    try {
+      const result = await triggerReconciliation();
+      alert(`Data reconciliation started. Check the backend logs for results.`);
+    } catch (err) {
+      alert(`Failed to start reconciliation: ${err.message}`);
+    } finally {
+      setReconciling(false);
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -35,6 +50,14 @@ export default function DashboardPage() {
           <p className="page-subtitle">Overview of your chatbot clients</p>
         </div>
         <div className="flex gap-2">
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleReconcile} 
+            disabled={reconciling}
+            title="Scan database to recover missed lead data"
+          >
+            {reconciling ? '...' : '🔄 Scan for Missed Data'}
+          </button>
           <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
             {loading ? '...' : 'Refresh'}
           </button>

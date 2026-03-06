@@ -27,6 +27,7 @@ const adminAnalyticsRouter = require('./routes/adminAnalytics');
 const missedLeadsRouter = require('./routes/missedLeads');
 const reportsRouter = require('./routes/reports');
 const analyticsRouter = require('./routes/analytics');
+const adminReconcileRouter = require('./routes/adminReconcile');
 const adminAuth = require('./middleware/adminAuth');
 
 const app = express();
@@ -113,6 +114,7 @@ adminApi.use('/debug', adminAnalyticsRouter);
 adminApi.use('/missed-leads', missedLeadsRouter);
 adminApi.use('/reports', reportsRouter);
 adminApi.use('/analytics', analyticsRouter);
+adminApi.use('/reconcile', adminReconcileRouter);
 app.use('/api/admin', adminApi);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

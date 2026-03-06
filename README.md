@@ -21,8 +21,9 @@ A production-ready, **white-label** SaaS platform for embedding customizable AI 
 |------|--------------|
 | **Chat** | RAG-powered responses, streaming (SSE), multi-turn context, intent classification (kb/booking/escalation/emergency), proactive lead capture prompts |
 | **Knowledge Base** | Website ingestion (Playwright), file upload (PDF/DOCX/XLSX), pgvector embeddings, chunking |
-| **Lead Intelligence** | Automatic scoring (HOT/WARM/COLD), email/phone detection, AI extraction, webhook integration, owner notifications, CSV export |
+| **Lead Intelligence** | Automatic scoring (HOT/WARM/COLD), email/phone detection, AI extraction, webhook integration, owner notifications, CSV export, duplicate detection |
 | **Missed Opportunities** | Detect conversations with lead signals but no contact info captured, automatic alerts |
+| **Data Reconciliation** | Automated daily scan (2 AM) + manual trigger to recover missed lead data from database |
 | **Weekly Reports** | Automated email reports with conversation stats, lead breakdown, top questions |
 | **Admin Dashboard** | Site CRUD, conversations list with two-panel chat viewer + summaries, leads, missed leads, files, RAG evaluation, widget settings |
 | **Analytics** | AI summaries, lead extraction worker, stats dashboard (React app), transcript viewer |
@@ -86,6 +87,8 @@ Run migrations in Supabase SQL editor (in order):
 - `backend/migrations/004_conversation_overview_view.sql`
 - `backend/migrations/005_enhanced_leads.sql`
 - `backend/migrations/006_agency_features.sql`
+- `backend/migrations/007_conversation_summary_jobs.sql`
+- `backend/migrations/008_data_reconciliation.sql`
 
 Enable pgvector: Dashboard → Database → Extensions → search "vector" → Enable
 

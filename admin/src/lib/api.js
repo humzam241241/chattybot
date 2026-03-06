@@ -74,3 +74,7 @@ export const getWeeklyReports = (siteId) => apiFetch(`/api/reports/${siteId}`);
 
 // Analytics
 export const getAnalytics = (siteId) => apiFetch(`/api/analytics/${siteId}`);
+
+// Data Reconciliation
+export const triggerReconciliation = () => apiFetch('/api/reconcile', { method: 'POST' });
+

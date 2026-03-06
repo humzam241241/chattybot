@@ -74,6 +74,11 @@ const workers = {
     schedule: '0 0 * * 0',
     description: 'Sundays at midnight',
   },
+  dataReconciliationWorker: {
+    path: path.join(WORKERS_DIR, 'dataReconciliationWorker.js'),
+    schedule: '0 2 * * *',
+    description: 'daily at 2 AM',
+  },
 };
 
 // Schedule all workers
