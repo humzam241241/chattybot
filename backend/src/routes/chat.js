@@ -33,6 +33,15 @@ function detectBookingIntent(message, raffy) {
   return keywords.some((kw) => lower.includes(String(kw).toLowerCase()));
 }
 
+function detectLeadCaptureOpportunity(message, raffy) {
+  if (!raffy?.lead_capture?.enabled) return false;
+  const lower = String(message || '').toLowerCase();
+  const keywords = raffy?.lead_capture?.trigger_keywords || [
+    'repair', 'inspection', 'quote', 'estimate', 'pricing', 'leak', 'damage', 'help', 'service'
+  ];
+  return keywords.some((kw) => lower.includes(String(kw).toLowerCase()));
+}
+
 router.post(
   '/',
   chatLimiter,
@@ -111,8 +120,13 @@ router.post(
       const emergency = emergencyResponse && isLifeThreateningEmergency
         ? `\n\nCRITICAL EMERGENCY RULE: If the user mentions suicide, self-harm, or life-threatening crisis, respond with:\n"${emergencyResponse}"`
         : '';
+      
+      // Lead capture prompt - encourage asking for contact info when service interest detected
+      const leadCapturePrompt = raffy?.lead_capture?.enabled
+        ? `\n\nLEAD CAPTURE: When the user expresses interest in services (repair, inspection, quote, leak, damage, pricing), after answering their question, offer to have someone reach out. Ask for their email or phone number in a friendly, non-pushy way. Example: "${raffy?.lead_capture?.prompt || "Would you like someone from our team to reach out? I'd just need your email or phone number."}"`
+        : '';
 
-      const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${humor}`;
+      const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${leadCapturePrompt}${humor}`;
       
       console.log(`[Chat] SYSTEM PROMPT USED (first 200 chars):\n${systemPrompt.substring(0, 200)}...`);
 
@@ -317,7 +331,13 @@ router.post(
       const emergency = emergencyResponse && isLifeThreateningEmergency
         ? `\n\nCRITICAL EMERGENCY RULE: If the user mentions suicide, self-harm, or life-threatening crisis, respond with:\n"${emergencyResponse}"`
         : '';
-      const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${humor}`;
+      
+      // Lead capture prompt - encourage asking for contact info when service interest detected
+      const leadCapturePrompt = raffy?.lead_capture?.enabled
+        ? `\n\nLEAD CAPTURE: When the user expresses interest in services (repair, inspection, quote, leak, damage, pricing), after answering their question, offer to have someone reach out. Ask for their email or phone number in a friendly, non-pushy way. Example: "${raffy?.lead_capture?.prompt || "Would you like someone from our team to reach out? I'd just need your email or phone number."}"`
+        : '';
+
+      const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${leadCapturePrompt}${humor}`;
       
       console.log(`[Chat/Stream] SYSTEM PROMPT (first 200 chars):\n${systemPrompt.substring(0, 200)}...`);
 

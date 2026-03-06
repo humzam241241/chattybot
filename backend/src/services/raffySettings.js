@@ -46,6 +46,11 @@ const DEFAULT_RAFFY_SETTINGS = {
   sales_prompts: {
     cta: '',
   },
+  lead_capture: {
+    enabled: true,
+    trigger_keywords: ['repair', 'inspection', 'quote', 'estimate', 'pricing', 'leak', 'damage', 'help', 'service'],
+    prompt: "Would you like someone from our team to reach out to you? I'd just need your email or phone number to connect you with the right person.",
+  },
   humor: {
     enabled: false,
     guidelines: '',
