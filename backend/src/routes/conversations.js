@@ -47,26 +47,5 @@ router.get('/:conversation_id', async (req, res) => {
   }
 });
 
-// Temporary debug endpoint — remove after confirming
-router.get('/debug/:site_id', async (req, res) => {
-  const { site_id } = req.params;
-  try {
-    const countResult = await pool.query(
-      'SELECT COUNT(*) as total FROM conversations WHERE site_id = $1',
-      [site_id]
-    );
-    const allCount = await pool.query('SELECT COUNT(*) as total FROM conversations');
-    const dbUrl = (process.env.DATABASE_URL || '').replace(/:[^@]+@/, ':***@');
-    return res.json({
-      site_id,
-      conversations_for_site: parseInt(countResult.rows[0].total),
-      total_conversations_all_sites: parseInt(allCount.rows[0].total),
-      database_host: dbUrl,
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
 module.exports = router;
 
