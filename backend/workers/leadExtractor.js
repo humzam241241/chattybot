@@ -7,6 +7,7 @@
  * Run with: node workers/leadExtractor.js
  */
 
+require('dotenv').config();
 const { Pool } = require('pg');
 const OpenAI = require('openai');
 const { v4: uuidv4 } = require('uuid');

@@ -5,6 +5,10 @@
  * Alternative to PM2 cron_restart for environments that don't support PM2.
  * 
  * Run with: node workers/index.js
+ * 
+ * Workers are spawned as separate processes for isolation.
+ * They only require: DATABASE_URL, OPENAI_API_KEY, SMTP_* settings
+ * No Express or app.js dependency.
  */
 
 require('dotenv').config();
@@ -13,12 +17,16 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const WORKERS_DIR = __dirname;
-
 const runningWorkers = new Map();
 
+console.log('[Scheduler] Worker Scheduler Starting...');
+console.log('[Scheduler] Environment check:');
+console.log(`  DATABASE_URL: ${process.env.DATABASE_URL ? '✓ set' : '✗ missing'}`);
+console.log(`  OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? '✓ set' : '✗ missing'}`);
+console.log(`  SMTP_HOST: ${process.env.SMTP_HOST ? '✓ set' : '○ optional'}`);
+
 function runWorker(name, scriptPath) {
-  // Don't run if already running
-  if (runningWorkers.has(name) && runningWorkers.get(name) !== null) {
+  if (runningWorkers.get(name)) {
     console.log(`[Scheduler] ${name} already running, skipping`);
     return;
   }
@@ -44,38 +52,44 @@ function runWorker(name, scriptPath) {
   });
 }
 
-// Summarize Worker: Every 5 minutes
-cron.schedule('*/5 * * * *', () => {
-  console.log(`[Scheduler] Triggering summarizeWorker at ${new Date().toISOString()}`);
-  runWorker('summarizeWorker', path.join(WORKERS_DIR, 'summarizeWorker.js'));
-});
+// Worker Definitions
+const workers = {
+  summarizeWorker: {
+    path: path.join(WORKERS_DIR, 'summarizeWorker.js'),
+    schedule: '*/5 * * * *',
+    description: 'every 5 minutes',
+  },
+  leadExtractor: {
+    path: path.join(WORKERS_DIR, 'leadExtractor.js'),
+    schedule: '*/10 * * * *',
+    description: 'every 10 minutes',
+  },
+  missedLeadWorker: {
+    path: path.join(WORKERS_DIR, 'missedLeadWorker.js'),
+    schedule: '*/5 * * * *',
+    description: 'every 5 minutes',
+  },
+  weeklyReportWorker: {
+    path: path.join(WORKERS_DIR, 'weeklyReportWorker.js'),
+    schedule: '0 0 * * 0',
+    description: 'Sundays at midnight',
+  },
+};
 
-// Lead Extractor: Every 10 minutes
-cron.schedule('*/10 * * * *', () => {
-  console.log(`[Scheduler] Triggering leadExtractor at ${new Date().toISOString()}`);
-  runWorker('leadExtractor', path.join(WORKERS_DIR, 'leadExtractor.js'));
-});
+// Schedule all workers
+for (const [name, config] of Object.entries(workers)) {
+  cron.schedule(config.schedule, () => {
+    console.log(`[Scheduler] Triggering ${name} at ${new Date().toISOString()}`);
+    runWorker(name, config.path);
+  });
+}
 
-// Missed Lead Detector: Every 5 minutes
-cron.schedule('*/5 * * * *', () => {
-  console.log(`[Scheduler] Triggering missedLeadWorker at ${new Date().toISOString()}`);
-  runWorker('missedLeadWorker', path.join(WORKERS_DIR, 'missedLeadWorker.js'));
-});
+console.log('[Scheduler] Workers scheduled:');
+for (const [name, config] of Object.entries(workers)) {
+  console.log(`  - ${name}: ${config.description}`);
+}
+console.log('[Scheduler] Scheduler running. Workers are independent of Express.');
 
-// Weekly Report: Sunday at midnight
-cron.schedule('0 0 * * 0', () => {
-  console.log(`[Scheduler] Triggering weeklyReportWorker at ${new Date().toISOString()}`);
-  runWorker('weeklyReportWorker', path.join(WORKERS_DIR, 'weeklyReportWorker.js'));
-});
-
-console.log('[Scheduler] Worker scheduler started');
-console.log('[Scheduler] Schedule:');
-console.log('  - summarizeWorker: every 5 minutes');
-console.log('  - leadExtractor: every 10 minutes');
-console.log('  - missedLeadWorker: every 5 minutes');
-console.log('  - weeklyReportWorker: Sundays at midnight');
-
-// Keep process alive
 process.on('SIGINT', () => {
   console.log('[Scheduler] Shutting down...');
   process.exit(0);
