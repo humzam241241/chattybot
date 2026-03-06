@@ -22,10 +22,16 @@ function getTransport() {
     host: process.env.SMTP_HOST,
     port,
     secure: port === 465,
+    // Fail fast (otherwise sendMail can appear to "hang" in logs)
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // Office365 requires STARTTLS on 587; nodemailer will upgrade automatically.
+    requireTLS: port === 587,
   });
 }
 

@@ -119,12 +119,12 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
         .query(
           `SELECT id, email as old_email, phone as old_phone
            FROM leads
-           WHERE site_id = $1
-             AND created_at > $4
+           WHERE site_id = $1::uuid
+             AND created_at > $4::timestamptz
              AND (
-               ($2 IS NOT NULL AND email = $2)
+               ($2::text IS NOT NULL AND email = $2::text)
                OR
-               ($3 IS NOT NULL AND phone = $3)
+               ($3::text IS NOT NULL AND phone = $3::text)
              )
            ORDER BY created_at DESC
            LIMIT 1`,
@@ -153,17 +153,17 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
           
           const updateResult = await pool.query(
             `UPDATE leads
-             SET conversation_id = $2,
-                 name = COALESCE($3, name),
-                 email = COALESCE($4, email),
-                 phone = COALESCE($5, phone),
-                 issue = COALESCE($6, issue),
-                 location = COALESCE($7, location),
-                 lead_score = $8,
-                 lead_rating = $9,
+             SET conversation_id = $2::uuid,
+                 name = COALESCE($3::text, name),
+                 email = COALESCE($4::text, email),
+                 phone = COALESCE($5::text, phone),
+                 issue = COALESCE($6::text, issue),
+                 location = COALESCE($7::text, location),
+                 lead_score = $8::int,
+                 lead_rating = $9::text,
                  extracted_at = NOW(),
                  extraction_json = COALESCE(extraction_json, '{}'::jsonb) || $10::jsonb
-             WHERE id = $1
+             WHERE id = $1::uuid
              RETURNING id, name, email, phone, lead_rating`,
             [
               existingLeadId,
