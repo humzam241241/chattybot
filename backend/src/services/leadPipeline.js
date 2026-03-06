@@ -117,7 +117,7 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       await pool
         .query(
-          `SELECT id
+          `SELECT id, email as old_email, phone as old_phone
            FROM leads
            WHERE site_id = $1
              AND created_at > $4
@@ -131,9 +131,11 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
           [siteId, extracted.email || null, extracted.phone || null, cutoff]
         )
         .then(async (dupRes) => {
-          const existingLeadId = dupRes.rows?.[0]?.id;
-          if (!existingLeadId) return;
+          const existingLead = dupRes.rows?.[0];
+          if (!existingLead) return;
 
+          const existingLeadId = existingLead.id;
+          
           const dupExtractionJson = {
             ...extracted,
             factors,
@@ -144,12 +146,12 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
 
           // Log what's being updated
           console.log(`[LeadPipeline] Updating existing lead ${existingLeadId}:`);
+          console.log(`  → OLD Email: ${existingLead.old_email}, NEW Email: ${extracted.email || 'unchanged'}`);
+          console.log(`  → OLD Phone: ${existingLead.old_phone}, NEW Phone: ${extracted.phone || 'unchanged'}`);
           if (extracted.name) console.log(`  → Name: ${extracted.name}`);
-          if (extracted.email) console.log(`  → Email: ${extracted.email}`);
-          if (extracted.phone) console.log(`  → Phone: ${extracted.phone}`);
           if (extracted.issue) console.log(`  → Issue: ${extracted.issue}`);
           
-          await pool.query(
+          const updateResult = await pool.query(
             `UPDATE leads
              SET conversation_id = $2,
                  name = COALESCE($3, name),
@@ -161,7 +163,8 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
                  lead_rating = $9,
                  extracted_at = NOW(),
                  extraction_json = COALESCE(extraction_json, '{}'::jsonb) || $10::jsonb
-             WHERE id = $1`,
+             WHERE id = $1
+             RETURNING id, name, email, phone, lead_rating`,
             [
               existingLeadId,
               conversationId,
@@ -176,9 +179,15 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
             ]
           );
           
-          console.log(`[LeadPipeline] Lead ${existingLeadId} updated successfully`);
+          if (updateResult.rows.length > 0) {
+            console.log(`[LeadPipeline] ✓ Lead ${existingLeadId} updated in database:`, updateResult.rows[0]);
+          } else {
+            console.error(`[LeadPipeline] ✗ Update failed - no rows returned for lead ${existingLeadId}`);
+          }
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.error('[LeadPipeline] Error updating duplicate lead:', err);
+        });
 
       // Still send notification email for returning contact
       const adminUrl = process.env.ADMIN_DASHBOARD_URL
