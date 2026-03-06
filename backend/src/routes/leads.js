@@ -74,6 +74,10 @@ router.post(
  */
 router.get('/debug/all', adminAuth, async (req, res) => {
   try {
+    // Get all sites first
+    const sites = await pool.query('SELECT id, company_name FROM sites');
+    
+    // Get all leads with site info
     const result = await pool.query(`
       SELECT 
         l.id,
@@ -89,8 +93,18 @@ router.get('/debug/all', adminAuth, async (req, res) => {
       ORDER BY l.created_at DESC
       LIMIT 100
     `);
+    
+    // Count leads per site
+    const countsBySite = await pool.query(`
+      SELECT site_id, COUNT(*) as lead_count
+      FROM leads
+      GROUP BY site_id
+    `);
+    
     return res.json({ 
-      total: result.rows.length,
+      total_leads: result.rows.length,
+      sites: sites.rows,
+      leads_per_site: countsBySite.rows,
       leads: result.rows 
     });
   } catch (err) {
@@ -108,7 +122,16 @@ router.get('/:site_id', adminAuth, async (req, res) => {
   const { site_id } = req.params;
   const { rating, limit = 200 } = req.query;
 
+  console.log(`[Leads API] Fetching leads for site_id: ${site_id}`);
+
   try {
+    // Debug: count total leads for this site
+    const totalCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM leads WHERE site_id = $1',
+      [site_id]
+    );
+    console.log(`[Leads API] Total leads for site ${site_id}: ${totalCheck.rows[0]?.count}`);
+
     let query = `
       SELECT 
         l.id,
@@ -154,6 +177,7 @@ router.get('/:site_id', adminAuth, async (req, res) => {
     params.push(parseInt(limit));
 
     const result = await pool.query(query, params);
+    console.log(`[Leads API] Query returned ${result.rows.length} leads`);
 
     // Get counts by rating
     const countResult = await pool.query(
