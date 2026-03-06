@@ -20,6 +20,8 @@ export function Sidebar() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const isActive = (href) => pathname === href;
+
   return (
     <>
       <button 
@@ -37,21 +39,48 @@ export function Sidebar() {
       
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-logo">
-          <span className="logo-icon">💬</span>
+          <span className="logo-icon">🤖</span>
           <span className="logo-text">ChattyBot</span>
         </div>
         <nav className="sidebar-nav">
-          <Link href="/" className="nav-item" onClick={() => setOpen(false)}>
-            Dashboard
+          <Link 
+            href="/" 
+            className={`nav-item ${isActive('/') ? 'active' : ''}`}
+            onClick={() => setOpen(false)}
+          >
+            📊 Dashboard
           </Link>
-          <Link href="/sites" className="nav-item" onClick={() => setOpen(false)}>
-            Clients
-          </Link>
-          <Link href="/sites/new" className="nav-item nav-cta" onClick={() => setOpen(false)}>
-            + New Client
+          <Link 
+            href="/sites/new" 
+            className="nav-item nav-cta" 
+            onClick={() => setOpen(false)}
+          >
+            + Add Client
           </Link>
         </nav>
+        
+        <div className="sidebar-footer">
+          <div className="footer-text">Manage AI Chatbots</div>
+        </div>
       </aside>
+      
+      <style jsx global>{`
+        .sidebar-footer {
+          margin-top: auto;
+          padding: 16px 20px;
+          border-top: 1px solid var(--border);
+        }
+        
+        .footer-text {
+          font-size: 12px;
+          color: var(--muted);
+        }
+        
+        .nav-item.active {
+          background: rgba(99, 102, 241, 0.1);
+          color: var(--primary);
+        }
+      `}</style>
     </>
   );
 }
