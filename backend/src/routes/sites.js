@@ -12,12 +12,32 @@ const router = express.Router();
 router.use(adminAuth);
 router.use(apiLimiter);
 
-/** GET /sites — list all sites */
+/** GET /sites — list all sites with lead/conversation counts */
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT id, company_name, domain, primary_color, tone, created_at FROM sites ORDER BY created_at DESC'
-    );
+    const result = await pool.query(`
+      SELECT 
+        s.id, 
+        s.company_name, 
+        s.domain, 
+        s.primary_color, 
+        s.tone, 
+        s.created_at,
+        COALESCE(l.lead_count, 0)::int as lead_count,
+        COALESCE(c.conversation_count, 0)::int as conversation_count
+      FROM sites s
+      LEFT JOIN (
+        SELECT site_id, COUNT(*) as lead_count 
+        FROM leads 
+        GROUP BY site_id
+      ) l ON s.id = l.site_id
+      LEFT JOIN (
+        SELECT site_id, COUNT(*) as conversation_count 
+        FROM conversations 
+        GROUP BY site_id
+      ) c ON s.id = c.site_id
+      ORDER BY s.created_at DESC
+    `);
     return res.json({ sites: result.rows });
   } catch (err) {
     console.error(err);

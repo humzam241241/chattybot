@@ -58,6 +58,9 @@ export default function DashboardPage() {
     }
   }
 
+  const totalLeads = sites.reduce((sum, s) => sum + (s.lead_count || 0), 0);
+  const totalChats = sites.reduce((sum, s) => sum + (s.conversation_count || 0), 0);
+
   return (
     <div className="dashboard-page">
       <div className="page-header">
@@ -67,7 +70,7 @@ export default function DashboardPage() {
         </div>
         <div className="header-actions">
           <button 
-            className="btn btn-secondary" 
+            className="btn btn-primary" 
             onClick={handleReconcile} 
             disabled={reconciling}
             title="Scan database to recover missed lead data"
@@ -79,6 +82,24 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Summary Stats */}
+      {!loading && sites.length > 0 && (
+        <div className="summary-row">
+          <div className="summary-stat">
+            <span className="stat-num">{sites.length}</span>
+            <span className="stat-label">Clients</span>
+          </div>
+          <div className="summary-stat">
+            <span className="stat-num">{totalLeads}</span>
+            <span className="stat-label">Total Leads</span>
+          </div>
+          <div className="summary-stat">
+            <span className="stat-num">{totalChats}</span>
+            <span className="stat-label">Total Chats</span>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="loading-state">
@@ -103,10 +124,12 @@ export default function DashboardPage() {
               className="client-card"
             >
               <div className="client-header">
-                <span
+                <div
                   className="client-color"
                   style={{ background: site.primary_color || '#6366f1' }}
-                />
+                >
+                  <span className="color-icon">💬</span>
+                </div>
                 <button
                   className="delete-btn"
                   onClick={(e) => handleDelete(e, site.id, site.company_name)}
@@ -116,13 +139,26 @@ export default function DashboardPage() {
                   {deletingId === site.id ? '...' : '×'}
                 </button>
               </div>
+              
               <div className="client-name">{site.company_name}</div>
               <div className="client-domain">{site.domain || 'No domain set'}</div>
-              <div className="client-date">
-                Created {new Date(site.created_at).toLocaleDateString()}
+              
+              <div className="client-stats">
+                <div className="mini-stat">
+                  <span className="mini-num">{site.lead_count || 0}</span>
+                  <span className="mini-label">Leads</span>
+                </div>
+                <div className="mini-stat">
+                  <span className="mini-num">{site.conversation_count || 0}</span>
+                  <span className="mini-label">Chats</span>
+                </div>
               </div>
-              <div className="client-actions">
-                <span className="action-hint">Click to manage →</span>
+              
+              <div className="client-footer">
+                <span className="client-date">
+                  Created {new Date(site.created_at).toLocaleDateString()}
+                </span>
+                <span className="action-hint">Manage →</span>
               </div>
             </Link>
           ))}
@@ -134,18 +170,50 @@ export default function DashboardPage() {
           <div className="empty-icon">🚀</div>
           <h3>Welcome to ChattyBot!</h3>
           <p>Create your first client to get started with AI-powered chat.</p>
+          <Link href="/sites/new" className="btn btn-primary" style={{ marginTop: 16 }}>
+            + Create Client
+          </Link>
         </div>
       )}
 
       <style jsx>{`
         .dashboard-page {
-          max-width: 1200px;
+          max-width: 1100px;
         }
         
         .header-actions {
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
+        }
+        
+        .summary-row {
+          display: flex;
+          gap: 16px;
+          margin-bottom: 24px;
+          flex-wrap: wrap;
+        }
+        
+        .summary-stat {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          padding: 16px 24px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        
+        .stat-num {
+          font-size: 28px;
+          font-weight: 700;
+          color: var(--primary);
+        }
+        
+        .stat-label {
+          font-size: 13px;
+          color: var(--muted);
+          font-weight: 500;
         }
         
         .loading-state {
@@ -170,7 +238,7 @@ export default function DashboardPage() {
         
         .client-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
           gap: 20px;
         }
         
@@ -184,13 +252,12 @@ export default function DashboardPage() {
           transition: all 0.2s ease;
           display: flex;
           flex-direction: column;
-          min-height: 180px;
         }
         
         .client-card:hover {
           border-color: var(--primary);
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
-          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
+          transform: translateY(-3px);
         }
         
         .add-card {
@@ -198,11 +265,12 @@ export default function DashboardPage() {
           align-items: center;
           justify-content: center;
           background: transparent;
+          min-height: 200px;
         }
         
         .add-card:hover {
           border-color: var(--primary);
-          background: rgba(99, 102, 241, 0.05);
+          background: rgba(99, 102, 241, 0.03);
         }
         
         .add-icon {
@@ -216,28 +284,37 @@ export default function DashboardPage() {
         .add-text {
           font-weight: 600;
           color: var(--primary);
+          font-size: 15px;
         }
         
         .client-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
+          align-items: flex-start;
           margin-bottom: 16px;
         }
         
         .client-color {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          width: 48px;
+          height: 48px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .color-icon {
+          font-size: 24px;
+          filter: grayscale(1) brightness(10);
         }
         
         .delete-btn {
-          width: 28px;
-          height: 28px;
+          width: 32px;
+          height: 32px;
           border-radius: 8px;
-          border: none;
-          background: transparent;
+          border: 1px solid var(--border);
+          background: var(--surface);
           color: var(--muted);
           cursor: pointer;
           font-size: 18px;
@@ -254,6 +331,7 @@ export default function DashboardPage() {
         
         .delete-btn:hover {
           background: var(--danger);
+          border-color: var(--danger);
           color: white;
         }
         
@@ -261,30 +339,56 @@ export default function DashboardPage() {
           font-weight: 700;
           font-size: 18px;
           margin-bottom: 4px;
+          color: var(--text);
         }
         
         .client-domain {
           color: var(--muted);
-          font-size: 14px;
-          margin-bottom: 8px;
+          font-size: 13px;
+          margin-bottom: 16px;
+        }
+        
+        .client-stats {
+          display: flex;
+          gap: 16px;
+          padding: 16px 0;
+          border-top: 1px solid var(--border);
+          border-bottom: 1px solid var(--border);
+          margin-bottom: 16px;
+        }
+        
+        .mini-stat {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        
+        .mini-num {
+          font-size: 20px;
+          font-weight: 700;
+          color: var(--text);
+        }
+        
+        .mini-label {
+          font-size: 12px;
+          color: var(--muted);
+        }
+        
+        .client-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
         
         .client-date {
           color: var(--muted);
           font-size: 12px;
-          margin-top: auto;
-        }
-        
-        .client-actions {
-          margin-top: 12px;
-          padding-top: 12px;
-          border-top: 1px solid var(--border);
         }
         
         .action-hint {
           font-size: 13px;
           color: var(--primary);
-          font-weight: 500;
+          font-weight: 600;
         }
         
         .empty-state {
@@ -293,7 +397,6 @@ export default function DashboardPage() {
           background: var(--surface);
           border-radius: 16px;
           border: 1px solid var(--border);
-          margin-top: 20px;
         }
         
         .empty-icon {
@@ -322,6 +425,14 @@ export default function DashboardPage() {
           .header-actions .btn {
             flex: 1;
             justify-content: center;
+          }
+          
+          .summary-row {
+            flex-direction: column;
+          }
+          
+          .summary-stat {
+            flex: 1;
           }
         }
       `}</style>

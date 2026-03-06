@@ -69,6 +69,37 @@ router.post(
 );
 
 /**
+ * GET /lead/debug/all
+ * Debug: List ALL leads across all sites (admin only)
+ */
+router.get('/debug/all', adminAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        l.id,
+        l.site_id,
+        s.company_name as site_name,
+        l.name,
+        l.email,
+        l.phone,
+        l.lead_rating,
+        l.created_at
+      FROM leads l
+      LEFT JOIN sites s ON l.site_id = s.id
+      ORDER BY l.created_at DESC
+      LIMIT 100
+    `);
+    return res.json({ 
+      total: result.rows.length,
+      leads: result.rows 
+    });
+  } catch (err) {
+    console.error('Debug leads error:', err);
+    return res.status(500).json({ error: 'Failed to fetch leads' });
+  }
+});
+
+/**
  * GET /lead/:site_id
  * List leads for a site (admin only).
  * Returns enhanced lead data including phone, issue, scoring.
