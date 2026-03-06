@@ -8,7 +8,7 @@
 const pool = require('../config/database');
 const { scoreLead } = require('./leadScore');
 const { buildTranscript } = require('./transcript');
-const { isConfigured, getTransport } = require('./mailer');
+const { sendLeadEmail, isConfigured } = require('./emailService');
 
 /**
  * Send lead notification email
@@ -29,8 +29,8 @@ async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUr
   }
 
   if (!isConfigured()) {
-    console.log('[LeadNotifier] SMTP not configured, skipping');
-    return { success: false, reason: 'SMTP not configured' };
+    console.log('[LeadNotifier] Email not configured, skipping');
+    return { success: false, reason: 'Email not configured' };
   }
 
   // Build transcript
@@ -44,54 +44,47 @@ async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUr
     ? '🔄  RETURNING CONTACT - New Conversation'
     : `🔔  NEW ${lead.lead_rating} LEAD`;
   
-  const body = [
-    `═══════════════════════════════════════════════════════`,
-    headerText,
-    `═══════════════════════════════════════════════════════`,
-    '',
-    `CONTACT INFORMATION`,
-    `───────────────────────────────────────────────────────`,
-    `Name:           ${lead.name || '(not provided)'}`,
-    `Email:          ${lead.email || '(not provided)'}`,
-    `Phone:          ${lead.phone || '(not provided)'}`,
-    `Location:       ${lead.location || '(not provided)'}`,
-    '',
-    `LEAD DETAILS`,
-    `───────────────────────────────────────────────────────`,
-    `Issue:          ${lead.issue || '(not specified)'}`,
-    `Urgency:        ${formatUrgency(lead.extraction_json?.urgency)}`,
-    `Lead Score:     ${lead.lead_score} / 100`,
-    `Lead Rating:    ${lead.lead_rating}`,
-    '',
-    `SITE INFORMATION`,
-    `───────────────────────────────────────────────────────`,
-    `Company:        ${siteName}`,
-    `Timestamp:      ${new Date(lead.created_at).toLocaleString()}`,
-    `Visitor ID:     ${conversation.visitor_id || '(anonymous)'}`,
-    '',
-    adminUrl ? `VIEW CONVERSATION: ${adminUrl}` : '',
-    '',
-    `═══════════════════════════════════════════════════════`,
-    `CONVERSATION TRANSCRIPT`,
-    `═══════════════════════════════════════════════════════`,
-    '',
-    transcript,
-    '',
-    `═══════════════════════════════════════════════════════`,
-    `End of Lead Alert`,
-    '',
-  ].filter(Boolean).join('\n');
+  const urgency = lead.extraction_json?.urgency ? formatUrgency(lead.extraction_json.urgency) : 'Unknown';
+  const html = `
+    <h2>${escapeHtml(headerText)}</h2>
+    <h3>Contact</h3>
+    <ul>
+      <li><b>Name:</b> ${escapeHtml(lead.name || 'Unknown')}</li>
+      <li><b>Email:</b> ${escapeHtml(lead.email || 'Unknown')}</li>
+      <li><b>Phone:</b> ${escapeHtml(lead.phone || 'Unknown')}</li>
+      <li><b>Location:</b> ${escapeHtml(lead.location || 'Unknown')}</li>
+    </ul>
+    <h3>Lead</h3>
+    <ul>
+      <li><b>Issue:</b> ${escapeHtml(lead.issue || 'Not specified')}</li>
+      <li><b>Urgency:</b> ${escapeHtml(urgency)}</li>
+      <li><b>Score:</b> ${escapeHtml(String(lead.lead_score ?? ''))}</li>
+      <li><b>Rating:</b> ${escapeHtml(lead.lead_rating || '')}</li>
+    </ul>
+    <h3>Site</h3>
+    <ul>
+      <li><b>Company:</b> ${escapeHtml(siteName)}</li>
+      <li><b>Time:</b> ${escapeHtml(new Date(lead.created_at).toLocaleString())}</li>
+      <li><b>Visitor ID:</b> ${escapeHtml(conversation.visitor_id || '(anonymous)')}</li>
+    </ul>
+    ${adminUrl ? `<p><a href="${escapeAttr(adminUrl)}">View conversation</a></p>` : ''}
+    <h3>Transcript</h3>
+    <pre style="white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${escapeHtml(transcript)}</pre>
+  `;
 
   try {
     console.log(`[LeadNotifier] Sending ${lead.lead_rating} lead email...`);
-    
-    const transport = getTransport();
-    await transport.sendMail({
-      from: process.env.SMTP_FROM,
+
+    const result = await sendLeadEmail({
       to: notificationEmail,
       subject,
-      text: body,
+      html,
     });
+
+    if (!result?.success) {
+      console.error('[LeadNotifier] Email send failed:', result?.reason || 'Unknown error');
+      return { success: false, reason: result?.reason || 'Email failed' };
+    }
 
     console.log(`[LeadNotifier] Email sent successfully`);
     return { success: true };
@@ -134,8 +127,8 @@ async function notifyOwnerOfLead({ conversationId, siteId, intent }) {
     }
 
     if (!isConfigured()) {
-      console.log('[LeadNotifier] SMTP not configured, skipping notification');
-      return { success: false, reason: 'SMTP not configured' };
+      console.log('[LeadNotifier] Email not configured, skipping notification');
+      return { success: false, reason: 'Email not configured' };
     }
 
     // Fetch conversation with messages
@@ -201,13 +194,15 @@ async function notifyOwnerOfLead({ conversationId, siteId, intent }) {
     ].join('\n');
 
     // Send email
-    const transport = getTransport();
-    await transport.sendMail({
-      from: process.env.SMTP_FROM,
+    const result = await sendLeadEmail({
       to: notificationEmail,
       subject,
-      text: body,
+      html: `<pre style="white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${escapeHtml(body)}</pre>`,
     });
+    if (!result?.success) {
+      console.error('[LeadNotifier] Email send failed:', result?.reason || 'Unknown error');
+      return { success: false, reason: result?.reason || 'Email failed' };
+    }
 
     console.log(`[LeadNotifier] Sent ${rating} lead notification for conversation ${conversationId}`);
 
@@ -224,6 +219,19 @@ async function notifyOwnerOfLead({ conversationId, siteId, intent }) {
     console.error('[LeadNotifier] Failed to send lead notification:', err);
     return { success: false, reason: err.message };
   }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/"/g, '&quot;');
 }
 
 module.exports = { 

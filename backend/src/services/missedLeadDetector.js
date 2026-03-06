@@ -6,7 +6,7 @@
  */
 
 const pool = require('../config/database');
-const { isConfigured, getTransport } = require('./mailer');
+const { sendLeadEmail, isConfigured } = require('./emailService');
 
 const LEAD_KEYWORDS = [
   'leak', 'leaking', 'repair', 'fix', 'broken',
@@ -171,7 +171,7 @@ async function sendMissedLeadAlert(missedLead) {
   }
 
   if (!isConfigured()) {
-    console.log('[MissedLeadDetector] SMTP not configured');
+    console.log('[MissedLeadDetector] Email not configured');
     return false;
   }
 
@@ -206,13 +206,15 @@ Consider following up or improving lead capture prompts.
   try {
     console.log(`[MissedLeadDetector] Sending alert to ${email}...`);
 
-    const transport = getTransport();
-    await transport.sendMail({
-      from: process.env.SMTP_FROM,
+    const result = await sendLeadEmail({
       to: email,
       subject: `⚠️ Potential Missed Lead – ${missedLead.companyName}`,
-      text: body,
+      html: `<pre style="white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${escapeHtml(body)}</pre>`,
     });
+    if (!result?.success) {
+      console.error('[MissedLeadDetector] Email send failed:', result?.reason || 'Unknown error');
+      return false;
+    }
 
     // Mark as notified
     await pool.query(
@@ -226,6 +228,15 @@ Consider following up or improving lead capture prompts.
     console.error('[MissedLeadDetector] Email send failed:', err);
     return false;
   }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 module.exports = {

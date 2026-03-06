@@ -5,36 +5,20 @@
  * Workers should import from here instead of duplicating logic.
  */
 
-const nodemailer = require('nodemailer');
+const { sendLeadEmail, isConfigured } = require('../services/emailService');
 
 /**
  * Check if SMTP is configured
  * @returns {boolean}
  */
 function isSmtpConfigured() {
-  return Boolean(
-    process.env.SMTP_HOST &&
-    process.env.SMTP_PORT &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS &&
-    process.env.SMTP_FROM
-  );
+  // Back-compat name; now checks Resend configuration.
+  return isConfigured();
 }
 
-/**
- * Get configured nodemailer transport
- * @returns {nodemailer.Transporter}
- */
 function getTransport() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  // Back-compat shim; nodemailer transport no longer exists.
+  return null;
 }
 
 /**
@@ -44,21 +28,30 @@ function getTransport() {
  */
 async function sendEmail(options) {
   if (!isSmtpConfigured()) {
-    console.log('[Email] SMTP not configured, skipping');
+    console.log('[Email] Email not configured, skipping');
     return false;
   }
 
   try {
-    const transport = getTransport();
-    await transport.sendMail({
-      from: process.env.SMTP_FROM,
-      ...options,
+    const res = await sendLeadEmail({
+      to: options.to,
+      subject: options.subject,
+      html: options.html || (options.text ? `<pre style="white-space:pre-wrap;">${escapeHtml(options.text)}</pre>` : ''),
     });
-    return true;
+    return Boolean(res?.success);
   } catch (err) {
     console.error('[Email] Send failed:', err.message);
     return false;
   }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**

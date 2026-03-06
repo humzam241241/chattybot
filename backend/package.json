@@ -24,11 +24,11 @@
     "mammoth": "^1.11.0",
     "multer": "^2.1.0",
     "node-cron": "^3.0.3",
-    "nodemailer": "^8.0.1",
     "openai": "^4.28.4",
     "pdf-parse": "^2.4.5",
     "pg": "^8.11.3",
     "playwright": "^1.43.0",
+    "resend": "^5.0.0",
     "uuid": "^9.0.1",
     "xlsx": "^0.18.5"
   },

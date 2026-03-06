@@ -13,11 +13,8 @@ const OPTIONAL_VARS = [
   'NODE_ENV',
   'PORT',
   'ADMIN_SECRET',
-  'SMTP_HOST',
-  'SMTP_PORT',
-  'SMTP_USER',
-  'SMTP_PASS',
-  'SMTP_FROM',
+  'RESEND_API_KEY',
+  'EMAIL_FROM',
   'LEAD_NOTIFICATION_EMAIL',
   'ADMIN_DASHBOARD_URL',
   'SUPABASE_URL',
@@ -79,13 +76,12 @@ function logEnvironmentStatus() {
   console.log(`  Optional: ${result.optional.length}/${OPTIONAL_VARS.length} configured`);
   
   // Check specific features
-  const hasSmtp = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM']
-    .every(k => process.env[k]);
+  const hasEmail = ['RESEND_API_KEY', 'EMAIL_FROM'].every((k) => process.env[k]);
   const hasSupabase = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY']
     .every(k => process.env[k]);
   
   console.log(`  Features:`);
-  console.log(`    - Email notifications: ${hasSmtp ? '✓' : '○'}`);
+  console.log(`    - Email notifications: ${hasEmail ? '✓' : '○'}`);
   console.log(`    - Supabase storage: ${hasSupabase ? '✓' : '○'}`);
   console.log(`    - Admin dashboard URL: ${process.env.ADMIN_DASHBOARD_URL ? '✓' : '○'}`);
   
