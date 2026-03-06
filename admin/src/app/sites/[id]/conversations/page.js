@@ -3,25 +3,61 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { listConversations, getSite } from '../../../../lib/api';
+import { getSite } from '../../../../lib/api';
 import SiteLayout from '../../../../components/SiteLayout';
 
 export default function SiteConversationsPage() {
-  const { id } = useParams();
+  const params = useParams();
+  const siteId = params?.id;
   const [site, setSite] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    Promise.all([getSite(id), listConversations(id)])
-      .then(([siteData, convoData]) => {
-        setSite(siteData.site);
-        setConversations(convoData.conversations || []);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [id]);
+    if (!siteId) {
+      setLoading(false);
+      setError('Missing site ID');
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadConversations() {
+      try {
+        const res = await fetch(`/api/conversations/site/${siteId}`);
+        if (!res.ok) {
+          throw new Error('Failed to load conversations');
+        }
+        const data = await res.json();
+        if (!cancelled) {
+          setConversations(data?.conversations ?? []);
+        }
+      } catch (err) {
+        console.error('Conversation load error:', err);
+        if (!cancelled) {
+          setError(err?.message || 'Failed to load conversations');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadConversations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [siteId]);
+
+  useEffect(() => {
+    if (!siteId) return;
+    getSite(siteId)
+      .then((data) => setSite(data?.site ?? null))
+      .catch(() => setSite(null));
+  }, [siteId]);
 
   return (
     <SiteLayout siteName={site?.company_name || 'Loading...'}>
@@ -32,10 +68,15 @@ export default function SiteConversationsPage() {
         </div>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
+      {error && (
+        <div className="alert alert-error">
+          <h2 style={{ margin: '0 0 8px 0', fontSize: 16 }}>Failed to load conversations</h2>
+          <p style={{ margin: 0 }}>{error}</p>
+        </div>
+      )}
       {loading && <p className="text-muted">Loading...</p>}
 
-      {!loading && (
+      {!loading && !error && (
         <div className="card" style={{ padding: 0 }}>
           <div className="table-wrap">
             <table>
@@ -91,7 +132,7 @@ export default function SiteConversationsPage() {
                         {c.summary ? (c.summary.length > 120 ? c.summary.slice(0, 120) + '…' : c.summary) : '—'}
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
-                        <Link href={`/sites/${id}/conversations/${c.id}`} className="btn btn-secondary btn-sm">
+                        <Link href={`/sites/${siteId}/conversations/${c.id}`} className="btn btn-secondary btn-sm">
                           View
                         </Link>
                       </td>
