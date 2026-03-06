@@ -22,6 +22,8 @@ function getTransport() {
     host: process.env.SMTP_HOST,
     port,
     secure: port === 465,
+    // Force IPv4 (Render often has no IPv6 egress)
+    family: 4,
     // Fail fast (otherwise sendMail can appear to "hang" in logs)
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
@@ -32,6 +34,9 @@ function getTransport() {
     },
     // Office365 requires STARTTLS on 587; nodemailer will upgrade automatically.
     requireTLS: port === 587,
+    // Some SMTP providers require relaxed TLS in certain environments.
+    // (Requested for Render ENETUNREACH diagnosis / compatibility.)
+    tls: { rejectUnauthorized: false },
   });
 }
 
