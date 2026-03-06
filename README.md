@@ -19,10 +19,12 @@ A production-ready, **white-label** SaaS platform for embedding customizable AI 
 
 | Area | Capabilities |
 |------|--------------|
-| **Chat** | RAG-powered responses, streaming (SSE), multi-turn context, intent classification (kb/booking/escalation/emergency) |
+| **Chat** | RAG-powered responses, streaming (SSE), multi-turn context, intent classification (kb/booking/escalation/emergency), proactive lead capture prompts |
 | **Knowledge Base** | Website ingestion (Playwright), file upload (PDF/DOCX/XLSX), pgvector embeddings, chunking |
-| **Lead Intelligence** | Automatic scoring (HOT/WARM/COLD), owner email notifications, lead capture form, CSV export |
-| **Admin Dashboard** | Site CRUD, conversations list with two-panel chat viewer, leads, files, RAG evaluation, widget settings |
+| **Lead Intelligence** | Automatic scoring (HOT/WARM/COLD), email/phone detection, AI extraction, webhook integration, owner notifications, CSV export |
+| **Missed Opportunities** | Detect conversations with lead signals but no contact info captured, automatic alerts |
+| **Weekly Reports** | Automated email reports with conversation stats, lead breakdown, top questions |
+| **Admin Dashboard** | Site CRUD, conversations list with two-panel chat viewer + summaries, leads, missed leads, files, RAG evaluation, widget settings |
 | **Analytics** | AI summaries, lead extraction worker, stats dashboard (React app), transcript viewer |
 | **Widget** | Floating bubble, streaming responses, quick reply chips, booking CTA, lead form, Shadow DOM isolation |
 | **Security** | Domain verification, rate limiting, tenant isolation, Bearer auth, input validation |
@@ -82,6 +84,8 @@ Run migrations in Supabase SQL editor (in order):
 - `backend/migrations/002_files_conversations_settings.sql`
 - `backend/migrations/003_lead_scoring.sql`
 - `backend/migrations/004_conversation_overview_view.sql`
+- `backend/migrations/005_enhanced_leads.sql`
+- `backend/migrations/006_agency_features.sql`
 
 Enable pgvector: Dashboard → Database → Extensions → search "vector" → Enable
 
@@ -215,6 +219,8 @@ Env vars: `API_URL`, `ADMIN_SECRET`, `NEXT_PUBLIC_WIDGET_URL`, `NEXT_PUBLIC_API_
 | GET | `/api/admin/files/:site_id` | List files |
 | POST | `/api/admin/files/upload` | Upload file |
 | POST | `/api/admin/rag-eval/:site_id` | Run RAG evaluation |
+| GET | `/api/admin/missed-leads/:site_id` | List missed lead opportunities |
+| GET | `/api/admin/missed-leads/:site_id/stats` | Missed lead statistics |
 
 ---
 
@@ -228,16 +234,77 @@ Env vars: `API_URL`, `ADMIN_SECRET`, `NEXT_PUBLIC_WIDGET_URL`, `NEXT_PUBLIC_API_
 
 ---
 
-## Conversation Analytics
+## Background Workers
 
-- **AI Summaries** — `summarizeWorker.js` (run every 5 min)
-- **Lead Extraction** — `leadExtractor.js` (run every 10 min)
-- **Analytics Dashboard** — `admin-dashboard/` (React + Chart.js)
+ChattyBot runs several background workers for automated tasks:
 
-Deploy workers with PM2:
+| Worker | Schedule | Purpose |
+|--------|----------|---------|
+| `summarizeWorker.js` | Every 5 min | AI summaries for idle conversations |
+| `leadExtractor.js` | Every 10 min | Extract structured lead data from conversations |
+| `missedLeadWorker.js` | Every 5 min | Detect missed opportunities (lead signals without contact) |
+| `weeklyReportWorker.js` | Sundays midnight | Send weekly performance reports to site owners |
+
+### Running Workers
+
+**Option 1: PM2 (Production)**
 ```bash
 pm2 start ecosystem.config.js
 ```
+
+**Option 2: Node-cron Scheduler**
+```bash
+cd backend
+node workers/index.js
+```
+
+**Option 3: External Cron**
+```bash
+*/5 * * * * cd /app/backend && node workers/summarizeWorker.js
+*/5 * * * * cd /app/backend && node workers/missedLeadWorker.js
+*/10 * * * * cd /app/backend && node workers/leadExtractor.js
+0 0 * * 0 cd /app/backend && node workers/weeklyReportWorker.js
+```
+
+## Agency Features
+
+### Weekly Lead Reports
+
+Automated email reports sent to site owners every Sunday:
+
+```
+📊 WEEKLY CHATBOT REPORT
+═══════════════════════════════════════════
+
+Conversations: 42
+Leads: 9
+  🔴 HOT: 4
+  🟡 WARM: 3
+  ⚪ COLD: 2
+  ⚠️ Missed: 5
+
+TOP QUESTIONS:
+1. Do you repair roof leaks?
+2. How much does replacement cost?
+```
+
+Configure `report_email` per site, or use `LEAD_NOTIFICATION_EMAIL` as fallback.
+
+### Missed Opportunity Detection
+
+Automatically detects conversations where:
+- User discussed service keywords (repair, quote, leak, damage, etc.)
+- No email or phone was captured
+- Conversation went idle
+
+Sends alerts: "⚠️ Potential Missed Lead – Customer asked about repair but didn't leave contact info"
+
+### AI Conversation Summaries
+
+After a conversation is idle for 5+ minutes:
+- AI generates a 2-sentence summary
+- Includes: main topic, urgency, whether contact was provided
+- Displayed under visitor ID in admin dashboard
 
 **Docs:** [ANALYTICS_SETUP.md](./ANALYTICS_SETUP.md), [README_ANALYTICS.md](./README_ANALYTICS.md), [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)
 
@@ -287,6 +354,10 @@ pm2 start ecosystem.config.js
 - [x] Two-panel conversation viewer
 - [x] AI summaries & lead extraction
 - [x] RAG evaluation
+- [x] Automatic lead capture pipeline
+- [x] Webhook on lead capture
+- [x] Weekly performance reports
+- [x] Missed opportunity detection
 - [ ] JWT auth for admin
-- [ ] Webhook on lead capture
 - [ ] Multi-language support
+- [ ] Custom webhook integrations
