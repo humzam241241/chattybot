@@ -8,7 +8,8 @@
 const pool = require('../config/database');
 const { scoreLead } = require('./leadScore');
 const { buildTranscript } = require('./transcript');
-const { sendLeadEmail, isConfigured } = require('./emailService');
+const { isConfigured } = require('./emailService');
+const { sendEmail, sendSMS, sendWhatsApp } = require('./notificationService');
 
 /**
  * Send lead notification email
@@ -75,18 +76,46 @@ async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUr
   try {
     console.log(`[LeadNotifier] Sending ${lead.lead_rating} lead email...`);
 
-    const result = await sendLeadEmail({
-      to: notificationEmail,
-      subject,
-      html,
-    });
-
-    if (!result?.success) {
-      console.error('[LeadNotifier] Email send failed:', result?.reason || 'Unknown error');
-      return { success: false, reason: result?.reason || 'Email failed' };
-    }
+    // 1) Notify owner (all HOT/WARM notifications go here)
+    await sendEmail(notificationEmail, subject, html);
 
     console.log(`[LeadNotifier] Email sent successfully`);
+
+    // 2–4) Multi-channel follow-up for HOT leads only
+    if (String(lead.lead_rating || '').toUpperCase() === 'HOT') {
+      const bookingLink = process.env.CALENDLY_LINK;
+      const followupMessage = [
+        `Thanks for contacting ${siteName}.`,
+        '',
+        `We've received your request regarding:`,
+        `${lead.issue || 'your inquiry'}.`,
+        '',
+        `A technician will contact you shortly.`,
+        bookingLink ? '' : null,
+        bookingLink ? `If you'd like to schedule an inspection now:` : null,
+        bookingLink ? bookingLink : null,
+      ].filter(Boolean).join('\n');
+
+      // 2) Send confirmation email to customer
+      if (lead.email) {
+        await sendEmail(
+          lead.email,
+          `${siteName} received your request`,
+          `<pre style="white-space:pre-wrap;">${escapeHtml(followupMessage)}</pre>`
+        );
+      }
+
+      // 3) Send SMS confirmation
+      if (lead.phone) {
+        await sendSMS(lead.phone, followupMessage);
+      }
+
+      // 4) Send WhatsApp confirmation
+      if (lead.phone) {
+        await sendWhatsApp(lead.phone, followupMessage);
+      }
+    }
+
     return { success: true };
   } catch (err) {
     console.error('[LeadNotifier] Email send failed:', err.message);
@@ -193,16 +222,13 @@ async function notifyOwnerOfLead({ conversationId, siteId, intent }) {
       '',
     ].join('\n');
 
-    // Send email
-    const result = await sendLeadEmail({
-      to: notificationEmail,
+    // Send email (legacy path)
+    console.log(`[LeadNotifier] Sending ${rating} lead email...`);
+    await sendEmail(
+      notificationEmail,
       subject,
-      html: `<pre style="white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${escapeHtml(body)}</pre>`,
-    });
-    if (!result?.success) {
-      console.error('[LeadNotifier] Email send failed:', result?.reason || 'Unknown error');
-      return { success: false, reason: result?.reason || 'Email failed' };
-    }
+      `<pre style="white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${escapeHtml(body)}</pre>`
+    );
 
     console.log(`[LeadNotifier] Sent ${rating} lead notification for conversation ${conversationId}`);
 
