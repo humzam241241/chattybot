@@ -109,7 +109,7 @@ router.get('/:site_id', async (req, res) => {
       top_intents: topIntents.rows,
     });
   } catch (err) {
-    console.error('[Analytics API] Error:', err);
+    console.error('[AnalyticsAPI] Error:', err);
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });

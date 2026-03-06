@@ -84,11 +84,12 @@ for (const [name, config] of Object.entries(workers)) {
   });
 }
 
-console.log('[Scheduler] Workers scheduled:');
+console.log('[WorkerScheduler] Workers scheduled:');
 for (const [name, config] of Object.entries(workers)) {
   console.log(`  - ${name}: ${config.description}`);
 }
-console.log('[Scheduler] Scheduler running. Workers are independent of Express.');
+console.log('[WorkerScheduler] initialized');
+console.log('[WorkerScheduler] Scheduler running. Workers are independent of Express.');
 
 process.on('SIGINT', () => {
   console.log('[Scheduler] Shutting down...');

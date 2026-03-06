@@ -33,6 +33,16 @@ function sanitizeConnectionString(url) {
 
 const connectionString = sanitizeConnectionString(process.env.DATABASE_URL);
 
+// Log masked connection info at startup
+if (connectionString) {
+  try {
+    const dbUrl = new URL(connectionString);
+    console.log(`[DB] Connecting to: ${dbUrl.host} (database: ${dbUrl.pathname.slice(1) || 'default'})`);
+  } catch {
+    console.log('[DB] Connecting to database...');
+  }
+}
+
 const pool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false },
@@ -43,7 +53,7 @@ const pool = new Pool({
 });
 
 pool.on('connect', () => {
-  console.log('[DB] Client connected to Supabase');
+  console.log('[DB] Client connected');
 });
 
 pool.on('error', (err) => {

@@ -46,7 +46,7 @@ router.get('/:site_id', async (req, res) => {
       total: result.rows.length,
     });
   } catch (err) {
-    console.error('[Reports API] Error:', err);
+    console.error('[ReportsAPI] Error:', err);
     res.status(500).json({ error: 'Failed to fetch reports' });
   }
 });
