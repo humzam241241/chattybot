@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { deleteConversation } from "@/lib/api";
+import { deleteConversation } from '../../../../lib/api';
 
 export default function ConversationsPage() {
   const params = useParams();
