@@ -43,6 +43,8 @@ export const getIngestStatus = (siteId) => apiFetch(`/api/ingest/${siteId}`);
 
 export const getLeads = (siteId) => apiFetch(`/api/leads/${siteId}`);
 export const rescoreLeads = (siteId) => apiFetch(`/api/leads/${siteId}/rescore`, { method: 'POST' });
+export const deleteLead = (siteId, leadId) => apiFetch(`/api/leads/${siteId}/${leadId}`, { method: 'DELETE' });
+export const clearLeads = (siteId) => apiFetch(`/api/leads/${siteId}/clear`, { method: 'DELETE' });
 
 // Files
 export const listFiles = (siteId) => apiFetch(`/api/files/site/${siteId}`);

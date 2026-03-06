@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getLeads, getSite, rescoreLeads } from '../../../../lib/api';
+import { clearLeads, deleteLead, getLeads, getSite, rescoreLeads } from '../../../../lib/api';
 import SiteLayout from '../../../../components/SiteLayout';
 
 const RATING_COLORS = {
@@ -20,6 +20,8 @@ export default function LeadsPage() {
   const [error, setError] = useState('');
   const [counts, setCounts] = useState({ hot: 0, warm: 0, cold: 0 });
   const [rescoring, setRescoring] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [clearing, setClearing] = useState(false);
 
   async function loadData() {
     try {
@@ -55,6 +57,34 @@ export default function LeadsPage() {
       alert('Failed to rescore: ' + err.message);
     } finally {
       setRescoring(false);
+    }
+  }
+
+  async function handleDeleteLead(leadId) {
+    if (!confirm('Delete this lead?')) return;
+    setDeletingId(leadId);
+    try {
+      await deleteLead(id, leadId);
+      await loadData();
+    } catch (err) {
+      alert('Failed to delete lead: ' + err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function handleClearLeads() {
+    const ok = prompt('Type DELETE to remove ALL leads for this client.');
+    if (ok !== 'DELETE') return;
+    setClearing(true);
+    try {
+      const res = await clearLeads(id);
+      alert(`Deleted ${res.deleted || 0} leads.`);
+      await loadData();
+    } catch (err) {
+      alert('Failed to clear leads: ' + err.message);
+    } finally {
+      setClearing(false);
     }
   }
 
@@ -97,6 +127,9 @@ export default function LeadsPage() {
           <button className="btn btn-secondary" onClick={handleRescore} disabled={rescoring || loading}>
             {rescoring ? '...' : '⚡ Re-score'}
           </button>
+          <button className="btn btn-danger" onClick={handleClearLeads} disabled={clearing || loading}>
+            {clearing ? '...' : '🗑️ Clear Leads'}
+          </button>
           {leads.length > 0 && (
             <button className="btn btn-secondary" onClick={exportCSV}>
               ↓ Export CSV
@@ -137,6 +170,7 @@ export default function LeadsPage() {
                     <th>Issue</th>
                     <th>Date</th>
                     <th>Chat</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -199,6 +233,16 @@ export default function LeadsPage() {
                               View
                             </Link>
                           )}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleDeleteLead(lead.id)}
+                            disabled={deletingId === lead.id}
+                            title="Delete lead"
+                          >
+                            {deletingId === lead.id ? '...' : 'Delete'}
+                          </button>
                         </td>
                       </tr>
                     );

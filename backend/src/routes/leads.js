@@ -114,6 +114,46 @@ router.get('/debug/all', adminAuth, async (req, res) => {
 });
 
 /**
+ * DELETE /lead/:site_id/:lead_id
+ * Delete a single lead (admin only).
+ */
+router.delete('/:site_id/:lead_id', adminAuth, async (req, res) => {
+  const { site_id, lead_id } = req.params;
+  try {
+    const del = await pool.query(
+      `DELETE FROM leads
+       WHERE id = $1 AND site_id = $2
+       RETURNING id`,
+      [lead_id, site_id]
+    );
+    if (del.rows.length === 0) return res.status(404).json({ error: 'Lead not found' });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Delete lead error:', err);
+    return res.status(500).json({ error: 'Failed to delete lead' });
+  }
+});
+
+/**
+ * DELETE /lead/:site_id/clear
+ * Delete ALL leads for a site (admin only).
+ * Use carefully — intended for testing/cleanup.
+ */
+router.delete('/:site_id/clear', adminAuth, async (req, res) => {
+  const { site_id } = req.params;
+  try {
+    const del = await pool.query(
+      `DELETE FROM leads WHERE site_id = $1`,
+      [site_id]
+    );
+    return res.json({ success: true, deleted: del.rowCount || 0 });
+  } catch (err) {
+    console.error('Clear leads error:', err);
+    return res.status(500).json({ error: 'Failed to clear leads' });
+  }
+});
+
+/**
  * GET /lead/:site_id
  * List leads for a site (admin only).
  * Returns enhanced lead data including phone, issue, scoring.
