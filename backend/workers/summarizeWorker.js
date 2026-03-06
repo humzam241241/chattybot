@@ -6,7 +6,7 @@
  * 2. Auto-summarize idle conversations (idle for 5+ minutes)
  * 
  * Run with: node workers/summarizeWorker.js
- * Or deploy as a cron job: */5 * * * *
+ * Runs every 5 minutes via the worker scheduler.
  */
 
 require('dotenv').config();

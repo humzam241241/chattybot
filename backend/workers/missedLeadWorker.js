@@ -4,7 +4,7 @@
  * Detects conversations with potential leads where no contact info was captured.
  * Sends alerts for missed opportunities.
  * 
- * Run every 5 minutes via cron: */5 * * * *
+ * Runs every 5 minutes via the worker scheduler.
  * Run manually: node workers/missedLeadWorker.js
  */
 
