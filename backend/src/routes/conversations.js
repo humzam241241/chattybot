@@ -14,7 +14,7 @@ router.get('/site/:site_id', async (req, res) => {
        FROM conversations
        WHERE site_id = $1
        ORDER BY updated_at DESC
-       LIMIT 200`,
+       LIMIT 500`,
       [site_id]
     );
     console.log(`[Conversations] Fetched ${result.rows.length} conversations for site ${site_id}`);
