@@ -6,6 +6,7 @@ const { retrieveContext, buildSystemPrompt } = require('../services/rag');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { getOrCreateConversation, appendMessage, getRecentMessages, updateConversationSummary } = require('../services/conversationLog');
 const { notifyOwnerOfLead } = require('../services/leadNotifier');
+const { processConversationForLead } = require('../services/leadPipeline');
 const { chatLimiter } = require('../middleware/rateLimiter');
 const domainVerify = require('../middleware/domainVerify');
 
@@ -190,7 +191,18 @@ router.post(
         if (newSummary) await updateConversationSummary(convoId, newSummary);
       }
 
-      // Trigger lead notification for high-value intents (non-blocking)
+      // ─── Lead Pipeline: Automatic lead capture ───────────────────────
+      // Process conversation for lead extraction (non-blocking)
+      processConversationForLead({
+        conversationId: convoId,
+        siteId: site_id,
+        userMessage: user_message,
+        intent,
+      }).catch((err) => {
+        console.warn('[Chat] Lead pipeline failed (non-fatal):', err.message);
+      });
+
+      // Legacy: Trigger lead notification for high-value intents (backup)
       if (intent === 'booking' || intent === 'emergency' || intent === 'escalation') {
         notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent }).catch((err) => {
           console.warn('[Chat] Lead notification failed (non-fatal):', err.message);
@@ -391,7 +403,17 @@ router.post(
           }
         }
         
-        // Trigger lead notification for high-value intents (non-blocking)
+        // ─── Lead Pipeline: Automatic lead capture ───────────────────────
+        processConversationForLead({
+          conversationId: convoId,
+          siteId: site_id,
+          userMessage: user_message,
+          intent,
+        }).catch((err) => {
+          console.warn('[Chat/Stream] Lead pipeline failed (non-fatal):', err.message);
+        });
+
+        // Legacy: Trigger lead notification for high-value intents (backup)
         if (intent === 'booking' || intent === 'emergency' || intent === 'escalation') {
           notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent }).catch((err) => {
             console.warn('[Chat/Stream] Lead notification failed (non-fatal):', err.message);

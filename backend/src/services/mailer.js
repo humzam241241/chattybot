@@ -44,5 +44,5 @@ async function sendLeadEmail({ to, siteName, lead }) {
   return { skipped: false };
 }
 
-module.exports = { isConfigured, sendLeadEmail };
+module.exports = { isConfigured, getTransport, sendLeadEmail };
 

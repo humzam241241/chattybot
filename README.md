@@ -7,16 +7,44 @@ A production-ready, **white-label** SaaS platform for embedding customizable AI 
 - 💼 **SaaS Businesses** — Embed AI chat on customer websites
 - 🎨 **White-Label Solutions** — Each client gets their own bot name, personality, and branding
 
-**Key Features:**
-- 🎨 **Fully Customizable** — Each site configures its own bot name (Sarah, Alex, etc.), personality, tone, and visual branding
-- 🏢 **Multi-Tenant** — Manage unlimited client sites from a single dashboard
-- 🧠 **RAG-Powered** — Automatic website ingestion + vector search for accurate, contextual responses
-- 📊 **Lead Intelligence** — Automatic lead scoring and owner notifications
-- 🎯 **RAG Evaluation** — Built-in accuracy testing system
-- 📈 **Conversation Analytics** — Complete analytics dashboard with AI summaries and lead extraction
-- 🚀 **Production-Ready** — Full deployment guides for Render + Vercel
+> **Note**: "Raffy" in code variable names is historical naming. The actual chatbot name, personality, and behavior are 100% configurable per site.
 
-> **Note**: "Raffy" in code variable names is just historical naming. The actual chatbot name, personality, and behavior are 100% configurable per site.
+---
+
+## Current State & Capabilities
+
+**Status:** Production-ready, fully functional multi-tenant platform.
+
+### What's Implemented
+
+| Area | Capabilities |
+|------|--------------|
+| **Chat** | RAG-powered responses, streaming (SSE), multi-turn context, intent classification (kb/booking/escalation/emergency) |
+| **Knowledge Base** | Website ingestion (Playwright), file upload (PDF/DOCX/XLSX), pgvector embeddings, chunking |
+| **Lead Intelligence** | Automatic scoring (HOT/WARM/COLD), owner email notifications, lead capture form, CSV export |
+| **Admin Dashboard** | Site CRUD, conversations list with two-panel chat viewer, leads, files, RAG evaluation, widget settings |
+| **Analytics** | AI summaries, lead extraction worker, stats dashboard (React app), transcript viewer |
+| **Widget** | Floating bubble, streaming responses, quick reply chips, booking CTA, lead form, Shadow DOM isolation |
+| **Security** | Domain verification, rate limiting, tenant isolation, Bearer auth, input validation |
+
+### Admin Dashboard Features
+
+- **Sites** — Create, edit, delete sites; configure color, tone, domain, system prompt
+- **Conversations** — Two-panel layout: left = conversation list (visitor_id, message count, timestamp, lead rating); right = full chat transcript
+- **Leads** — List, export CSV
+- **Files** — Upload PDF/DOCX/XLSX, reprocess, delete
+- **RAG Evaluation** — Run accuracy tests on knowledge base
+- **Settings** — Intro message, suggested questions, booking URL, lead email
+
+### Tech Stack
+
+| Component | Stack |
+|-----------|-------|
+| Backend | Node.js, Express, pg, OpenAI, Playwright |
+| Widget | React, Vite (IIFE bundle) |
+| Admin | Next.js 14, React |
+| Analytics | React, Chart.js, Tailwind |
+| Database | Supabase (PostgreSQL + pgvector) |
 
 ---
 
@@ -25,9 +53,9 @@ A production-ready, **white-label** SaaS platform for embedding customizable AI 
 ```
 chattybot/
 ├── backend/          Node.js + Express API (deploy to Render)
-├── widget/           React chat widget, built as single JS file (deploy to Vercel)
+├── widget/           React chat widget → single widget.js (deploy to Vercel)
 ├── admin/            Next.js admin dashboard (deploy to Vercel)
-└── admin-dashboard/  React analytics dashboard (NEW - deploy to Vercel)
+└── admin-dashboard/  React analytics dashboard (deploy to Vercel)
 ```
 
 **Data flow:**
@@ -35,7 +63,7 @@ chattybot/
 Customer site
   └── <script data-site-id="...">
         └── widget.js fetches /site-config → renders branded chat
-              └── POST /chat → backend embeds query → pgvector search → GPT-4o-mini → answer
+              └── POST /chat or /chat/stream → backend embeds query → pgvector search → GPT-4o-mini → answer
 ```
 
 ---
@@ -44,18 +72,18 @@ Customer site
 
 ### Prerequisites
 - Node.js 18+
-- A Supabase project with pgvector enabled
+- Supabase project with pgvector enabled
 - OpenAI API key
 
 ### 1. Database Setup
 
-In your Supabase SQL editor, run:
-```sql
--- contents of backend/migrations/001_initial.sql
-```
+Run migrations in Supabase SQL editor (in order):
+- `backend/migrations/001_initial.sql`
+- `backend/migrations/002_files_conversations_settings.sql`
+- `backend/migrations/003_lead_scoring.sql`
+- `backend/migrations/004_conversation_overview_view.sql`
 
-Enable the pgvector extension in Supabase:
-> Dashboard → Database → Extensions → search "vector" → Enable
+Enable pgvector: Dashboard → Database → Extensions → search "vector" → Enable
 
 ### 2. Backend
 
@@ -63,7 +91,7 @@ Enable the pgvector extension in Supabase:
 cd backend
 npm install
 cp .env.example .env
-# Edit .env with your DATABASE_URL, OPENAI_API_KEY, ADMIN_SECRET
+# Edit .env: DATABASE_URL, OPENAI_API_KEY, ADMIN_SECRET
 npm run dev
 # Runs on http://localhost:3001
 ```
@@ -75,12 +103,7 @@ cd widget
 npm install
 npm run build
 # Output: dist/widget.js
-# Serve dist/ folder statically
-```
-
-For local testing, serve the dist folder:
-```bash
-npx serve widget/dist
+npx serve widget/dist   # Local testing
 ```
 
 ### 4. Admin Dashboard
@@ -89,10 +112,18 @@ npx serve widget/dist
 cd admin
 npm install
 cp .env.example .env
-# Set NEXT_PUBLIC_API_URL=http://localhost:3001
-# Set NEXT_PUBLIC_ADMIN_SECRET=same-as-backend-ADMIN_SECRET
+# Set API_URL, ADMIN_SECRET, NEXT_PUBLIC_WIDGET_URL, NEXT_PUBLIC_API_URL
 npm run dev
 # Runs on http://localhost:3000
+```
+
+### 5. Analytics Dashboard (Optional)
+
+```bash
+cd admin-dashboard
+npm install
+# Set REACT_APP_API_URL, REACT_APP_ADMIN_SECRET in .env
+npm start
 ```
 
 ---
@@ -101,43 +132,33 @@ npm run dev
 
 ### Backend → Render
 
-1. Push code to GitHub
-2. Create a new **Web Service** on [render.com](https://render.com)
-3. Settings:
-   - **Root directory:** `backend`
-   - **Build command:** `npm install`
-   - **Start command:** `npm start`
-4. Add environment variables (from `backend/.env.example`)
-5. Deploy
+1. Create Web Service on [render.com](https://render.com)
+2. Root directory: `backend`
+3. Build: `npm install`
+4. Start: `npm start`
+5. Add env vars from `backend/.env.example`
 
-Render-specific notes for ingestion (Playwright):
-- Set `PLAYWRIGHT_BROWSERS_PATH=0` (ensures browsers install into `node_modules`)
-- Set `NODE_OPTIONS=--max-old-space-size=512` (matches Render's memory limits and avoids unexpected heap growth)
-- Optional: set `INGEST_MAX_PAGES=10` (or lower) to cap crawl size per ingestion job
+Render notes for Playwright ingestion:
+- `PLAYWRIGHT_BROWSERS_PATH=0`
+- `NODE_OPTIONS=--max-old-space-size=512`
+- `INGEST_MAX_PAGES=10` (optional, cap crawl size)
 
-Note: Free Render tier spins down after 15 min idle. Upgrade to Starter ($7/mo) for production.
+### Widget → Vercel
 
-### Widget → Vercel (Static)
+```bash
+cd widget && npm run build
+npx vercel --prod
+# Set output directory: dist
+```
 
-1. Build the widget: `cd widget && npm run build`
-2. Deploy `widget/dist/` as a static site on Vercel:
-   ```bash
-   cd widget
-   npx vercel --prod
-   # Set output directory to: dist
-   ```
-3. Note the deployed URL (e.g. `https://chattybot-widget.vercel.app`)
-4. Update the embed code in your admin dashboard to point to this URL
+### Admin → Vercel
 
-### Admin Dashboard → Vercel
+```bash
+cd admin
+npx vercel --prod
+```
 
-1. ```bash
-   cd admin
-   npx vercel --prod
-   ```
-2. Add environment variables in Vercel dashboard:
-   - `NEXT_PUBLIC_API_URL` → your Render backend URL
-   - `NEXT_PUBLIC_ADMIN_SECRET` → your admin secret
+Env vars: `API_URL`, `ADMIN_SECRET`, `NEXT_PUBLIC_WIDGET_URL`, `NEXT_PUBLIC_API_URL`
 
 ---
 
@@ -145,12 +166,10 @@ Note: Free Render tier spins down after 15 min idle. Upgrade to Starter ($7/mo) 
 
 ### Creating Your First Site
 
-1. Open the admin dashboard
-2. Click **+ New Site**
-3. Fill in company name, domain, color, tone
-4. Click **Create Site**
-5. Click **Re-ingest Site** to crawl and embed your website content
-6. Copy the **Embed Code** and paste it before `</body>` on your website
+1. Admin → **+ New Site**
+2. Fill company name, domain, color, tone
+3. **Create Site** → **Re-ingest Site** (crawl website)
+4. Copy **Embed Code** → paste before `</body>` on your site
 
 ### Embed Code
 
@@ -162,9 +181,10 @@ Note: Free Render tier spins down after 15 min idle. Upgrade to Starter ($7/mo) 
 </script>
 ```
 
-### Viewing Leads
+### Viewing Conversations & Leads
 
-Admin Dashboard → Sites → [Site Name] → View Leads → Export CSV
+- **Conversations:** Sites → [Site] → Conversations → click any row to view full transcript
+- **Leads:** Sites → [Site] → Leads → Export CSV
 
 ---
 
@@ -174,107 +194,76 @@ Admin Dashboard → Sites → [Site Name] → View Leads → Export CSV
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/site-config/:site_id` | Fetch widget branding config |
+| GET | `/site-config/:site_id` | Widget branding config |
 | POST | `/chat` | Send message, get AI response |
-| POST | `/lead` | Submit a lead capture form |
+| POST | `/chat/stream` | Streaming response (SSE) |
+| POST | `/lead` | Lead capture form |
 
-### Admin Endpoints (Bearer token required)
+### Admin Endpoints (Bearer token)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/sites` | List all sites |
+| GET | `/sites` | List sites |
 | POST | `/sites` | Create site |
 | GET | `/sites/:id` | Get site |
 | PUT | `/sites/:id` | Update site |
 | DELETE | `/sites/:id` | Delete site |
-| POST | `/ingest/:site_id` | Trigger content ingestion |
-| GET | `/lead/:site_id` | List leads for a site |
+| POST | `/ingest/:site_id` | Trigger ingestion |
+| GET | `/lead/:site_id` | List leads |
+| GET | `/api/admin/conversations/site/:site_id` | List conversations |
+| GET | `/api/admin/conversations/:conversation_id` | Conversation + messages |
+| GET | `/api/admin/files/:site_id` | List files |
+| POST | `/api/admin/files/upload` | Upload file |
+| POST | `/api/admin/rag-eval/:site_id` | Run RAG evaluation |
 
 ---
 
 ## Security
 
-- **Domain verification:** Widget requests validated against registered domain in production
-- **Rate limiting:** Chat (30/min), Ingest (10/hr), API (60/min)
-- **Tenant isolation:** Every DB query is scoped by `site_id`
-- **Input sanitization:** `express-validator` on all endpoints
-- **Admin auth:** Bearer token (swap for proper JWT auth in v2)
+- **Domain verification** — Widget validated against registered domain
+- **Rate limiting** — Chat 30/min, Ingest 10/hr, API 60/min
+- **Tenant isolation** — All queries scoped by `site_id`
+- **Input sanitization** — `express-validator` on endpoints
+- **Admin auth** — Bearer token (API_URL + ADMIN_SECRET server-side only in Next.js)
 
 ---
 
-## 📊 Conversation Analytics System (NEW)
+## Conversation Analytics
 
-ChattyBot now includes a **complete conversation analytics dashboard** with AI-powered insights.
+- **AI Summaries** — `summarizeWorker.js` (run every 5 min)
+- **Lead Extraction** — `leadExtractor.js` (run every 10 min)
+- **Analytics Dashboard** — `admin-dashboard/` (React + Chart.js)
 
-### Features
-- 🤖 **AI Summaries** — Automatic 1-sentence conversation summaries
-- 📇 **Lead Extraction** — Structured data extraction (name, phone, email, service, urgency)
-- 📈 **Analytics Dashboard** — Real-time metrics, charts, and conversation tracking
-- 💬 **Transcript Viewer** — Chat-style message display with full context
-- 🎯 **Lead Intelligence** — Emergency detection, quote tracking, conversion rates
-
-### Quick Setup
-
-**Automated:**
-```bash
-# Windows
-setup-analytics.bat
-
-# Linux/Mac
-chmod +x setup-analytics.sh
-./setup-analytics.sh
-```
-
-**Manual:**
-```bash
-cd backend && npm install
-cd ../admin-dashboard && npm install
-node backend/scripts/createIndexes.js
-```
-
-### Documentation
-- **[ANALYTICS_SETUP.md](./ANALYTICS_SETUP.md)** — Complete deployment guide
-- **[ANALYTICS_IMPLEMENTATION.md](./ANALYTICS_IMPLEMENTATION.md)** — Technical overview
-- **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** — Pre-launch verification
-- **[README_ANALYTICS.md](./README_ANALYTICS.md)** — Full feature documentation
-
-### Background Workers
-- `summarizeWorker.js` — Generates AI summaries (run every 5 min)
-- `leadExtractor.js` — Extracts structured leads (run every 10 min)
-
-Deploy with cron jobs or PM2:
+Deploy workers with PM2:
 ```bash
 pm2 start ecosystem.config.js
 ```
+
+**Docs:** [ANALYTICS_SETUP.md](./ANALYTICS_SETUP.md), [README_ANALYTICS.md](./README_ANALYTICS.md), [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)
 
 ---
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+### Backend
 
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | Supabase PostgreSQL connection string |
 | `OPENAI_API_KEY` | OpenAI API key |
-| `PORT` | Server port (default: 3001) |
-| `NODE_ENV` | `production` or `development` |
-| `ALLOWED_ORIGINS` | Comma-separated CORS origins |
-| `ADMIN_SECRET` | Bearer token for admin endpoints |
+| `ADMIN_SECRET` | Bearer token for admin |
+| `INGEST_MAX_PAGES` | Max pages to crawl (default 150) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | File storage |
+| `SMTP_*` | Optional email notifications |
 
-### Admin (`admin/.env`)
-
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Backend API URL |
-| `NEXT_PUBLIC_ADMIN_SECRET` | Must match backend `ADMIN_SECRET` |
-
-### Analytics Dashboard (`admin-dashboard/.env`)
+### Admin (Next.js)
 
 | Variable | Description |
 |----------|-------------|
-| `REACT_APP_API_URL` | Backend API URL |
-| `REACT_APP_ADMIN_SECRET` | Must match backend `ADMIN_SECRET` |
+| `API_URL` | Backend URL (server-side) |
+| `ADMIN_SECRET` | Must match backend |
+| `NEXT_PUBLIC_WIDGET_URL` | Widget JS URL for embed code |
+| `NEXT_PUBLIC_API_URL` | Backend URL for embed code |
 
 ---
 
@@ -282,22 +271,22 @@ pm2 start ecosystem.config.js
 
 | Decision | Reasoning |
 |----------|-----------|
-| `gpt-4o-mini` for chat | Fast, cheap, sufficient quality for RAG answers |
+| `gpt-4o-mini` | Fast, cheap, sufficient for RAG |
 | `text-embedding-3-small` | Best cost/quality for embeddings |
-| `pgvector` on Supabase | Simplest path to production vector search |
-| Shadow DOM for widget | CSS isolation — won't conflict with host site styles |
-| IIFE bundle | One `<script>` tag, no module system required on host site |
-| No streaming | Simpler for MVP; add SSE streaming in v2 |
+| pgvector on Supabase | Simple production vector search |
+| Shadow DOM | Widget CSS isolation |
+| IIFE bundle | Single `<script>` tag, no module system |
+| SSE streaming | Real-time response feel |
 
 ---
 
-## Next Steps (Post-MVP)
+## Roadmap
 
-- [x] Streaming responses (SSE) ✅
-- [x] Conversation history (multi-turn context) ✅
-- [x] Conversation analytics dashboard ✅
-- [x] AI-powered lead extraction ✅
-- [ ] Proper JWT auth for admin
+- [x] Streaming responses (SSE)
+- [x] Conversation history
+- [x] Two-panel conversation viewer
+- [x] AI summaries & lead extraction
+- [x] RAG evaluation
+- [ ] JWT auth for admin
 - [ ] Webhook on lead capture
 - [ ] Multi-language support
-- [ ] White-label reseller mode

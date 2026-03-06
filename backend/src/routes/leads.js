@@ -71,21 +71,82 @@ router.post(
 /**
  * GET /lead/:site_id
  * List leads for a site (admin only).
+ * Returns enhanced lead data including phone, issue, scoring.
  */
 router.get('/:site_id', adminAuth, async (req, res) => {
   const { site_id } = req.params;
+  const { rating, limit = 200 } = req.query;
 
   try {
-    const result = await pool.query(
-      `SELECT id, name, email, message, created_at
+    let query = `
+      SELECT 
+        l.id,
+        l.name,
+        l.email,
+        l.phone,
+        l.message,
+        l.issue,
+        l.location,
+        l.lead_score,
+        l.lead_rating,
+        l.conversation_id,
+        l.extraction_json,
+        l.extracted_at,
+        l.created_at,
+        c.visitor_id,
+        c.summary as conversation_summary
+      FROM leads l
+      LEFT JOIN conversations c ON l.conversation_id = c.id
+      WHERE l.site_id = $1
+    `;
+
+    const params = [site_id];
+
+    // Optional filter by rating
+    if (rating && ['HOT', 'WARM', 'COLD'].includes(rating.toUpperCase())) {
+      params.push(rating.toUpperCase());
+      query += ` AND l.lead_rating = $${params.length}`;
+    }
+
+    // Sort: HOT first, then by created_at
+    query += `
+      ORDER BY 
+        CASE l.lead_rating 
+          WHEN 'HOT' THEN 1 
+          WHEN 'WARM' THEN 2 
+          WHEN 'COLD' THEN 3 
+          ELSE 4 
+        END,
+        l.created_at DESC
+      LIMIT $${params.length + 1}
+    `;
+    params.push(parseInt(limit));
+
+    const result = await pool.query(query, params);
+
+    // Get counts by rating
+    const countResult = await pool.query(
+      `SELECT 
+        COUNT(*) FILTER (WHERE lead_rating = 'HOT') as hot_count,
+        COUNT(*) FILTER (WHERE lead_rating = 'WARM') as warm_count,
+        COUNT(*) FILTER (WHERE lead_rating = 'COLD') as cold_count,
+        COUNT(*) as total_count
        FROM leads
-       WHERE site_id = $1
-       ORDER BY created_at DESC
-       LIMIT 200`,
+       WHERE site_id = $1`,
       [site_id]
     );
 
-    return res.json({ leads: result.rows });
+    const counts = countResult.rows[0] || {};
+
+    return res.json({
+      leads: result.rows,
+      counts: {
+        hot: parseInt(counts.hot_count) || 0,
+        warm: parseInt(counts.warm_count) || 0,
+        cold: parseInt(counts.cold_count) || 0,
+        total: parseInt(counts.total_count) || 0,
+      },
+    });
   } catch (err) {
     console.error('Get leads error:', err);
     return res.status(500).json({ error: 'Failed to fetch leads' });
