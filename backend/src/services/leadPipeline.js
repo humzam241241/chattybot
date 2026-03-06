@@ -114,25 +114,62 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
       ).catch(() => {});
 
       // Update existing lead with new conversation_id so it links to latest chat
-      await pool.query(
-        `UPDATE leads 
-         SET conversation_id = $1,
-             lead_score = $2,
-             lead_rating = $3,
-             extracted_at = NOW()
-         WHERE site_id = $2 
-         AND (email = $3 OR phone = $4) 
-         AND created_at > $5`,
-        [
-          conversationId,
-          siteId,
-          score,
-          rating,
-          extracted.email,
-          extracted.phone,
-          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        ]
-      ).catch(() => {});
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      await pool
+        .query(
+          `SELECT id
+           FROM leads
+           WHERE site_id = $1
+             AND created_at > $4
+             AND (
+               ($2 IS NOT NULL AND email = $2)
+               OR
+               ($3 IS NOT NULL AND phone = $3)
+             )
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [siteId, extracted.email || null, extracted.phone || null, cutoff]
+        )
+        .then(async (dupRes) => {
+          const existingLeadId = dupRes.rows?.[0]?.id;
+          if (!existingLeadId) return;
+
+          const dupExtractionJson = {
+            ...extracted,
+            factors,
+            intent,
+            is_duplicate: true,
+            latest_conversation_id: conversationId,
+          };
+
+          await pool.query(
+            `UPDATE leads
+             SET conversation_id = $2,
+                 name = COALESCE($3, name),
+                 email = COALESCE($4, email),
+                 phone = COALESCE($5, phone),
+                 issue = COALESCE($6, issue),
+                 location = COALESCE($7, location),
+                 lead_score = $8,
+                 lead_rating = $9,
+                 extracted_at = NOW(),
+                 extraction_json = COALESCE(extraction_json, '{}'::jsonb) || $10::jsonb
+             WHERE id = $1`,
+            [
+              existingLeadId,
+              conversationId,
+              extracted.name || null,
+              extracted.email || null,
+              extracted.phone || null,
+              extracted.issue || extracted.service_requested || null,
+              extracted.location || extracted.address || null,
+              score,
+              rating,
+              JSON.stringify(dupExtractionJson),
+            ]
+          );
+        })
+        .catch(() => {});
 
       // Still send notification email for returning contact
       const adminUrl = process.env.ADMIN_DASHBOARD_URL
