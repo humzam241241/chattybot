@@ -112,30 +112,36 @@ Example: {"name": "John Smith", "phone": "555-1234", "email": "john@example.com"
       return;
     }
 
-    // Insert or update lead
-    const leadId = uuidv4();
+    // Insert or update lead using conversation_id unique constraint
     await pool.query(
-      `INSERT INTO leads (id, site_id, conversation_id, name, email, phone, message, extracted_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-       ON CONFLICT (conversation_id) 
-       DO UPDATE SET 
-         name = COALESCE(EXCLUDED.name, leads.name),
-         email = COALESCE(EXCLUDED.email, leads.email),
-         phone = COALESCE(EXCLUDED.phone, leads.phone),
-         message = COALESCE(EXCLUDED.message, leads.message),
-         extracted_at = NOW()`,
-      [
-        leadId,
+      `INSERT INTO leads (
+        conversation_id,
         site_id,
+        name,
+        email,
+        phone,
+        issue,
+        location,
+        extracted_at,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      ON CONFLICT (conversation_id)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        email = EXCLUDED.email,
+        phone = EXCLUDED.phone,
+        issue = EXCLUDED.issue,
+        location = EXCLUDED.location,
+        extracted_at = NOW()`,
+      [
         conversationId,
+        site_id,
         extracted.name || null,
         extracted.email || null,
         extracted.phone || null,
-        JSON.stringify({
-          service_requested: extracted.service_requested,
-          urgency: extracted.urgency,
-          address: extracted.address,
-        }),
+        extracted.service_requested || null,
+        extracted.address || null,
       ]
     );
 
