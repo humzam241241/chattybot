@@ -36,6 +36,7 @@ router.get('/conversations', async (req, res) => {
         message_count,
         summary,
         lead_score,
+        lead_rating,
         created_at,
         updated_at
       FROM conversations

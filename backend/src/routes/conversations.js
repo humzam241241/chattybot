@@ -10,7 +10,7 @@ router.get('/site/:site_id', async (req, res) => {
   const { site_id } = req.params;
   try {
     const result = await pool.query(
-      `SELECT id, visitor_id, current_page_url, summary, message_count, created_at, updated_at
+      `SELECT id, visitor_id, current_page_url, summary, message_count, lead_score, lead_rating, created_at, updated_at
        FROM conversations
        WHERE site_id = $1
        ORDER BY updated_at DESC
