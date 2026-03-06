@@ -1,13 +1,19 @@
 const nodemailer = require('nodemailer');
 
+const SMTP_KEYS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'];
+
 function isConfigured() {
-  return Boolean(
-    process.env.SMTP_HOST &&
-    process.env.SMTP_PORT &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS &&
-    process.env.SMTP_FROM
-  );
+  const ok = SMTP_KEYS.every(k => {
+    const v = process.env[k];
+    return v != null && String(v).trim() !== '';
+  });
+  if (!ok) {
+    const missing = SMTP_KEYS.filter(k => !process.env[k] || String(process.env[k]).trim() === '');
+    if (missing.length > 0) {
+      console.log(`[Mailer] SMTP not configured - missing or empty: ${missing.join(', ')}`);
+    }
+  }
+  return ok;
 }
 
 function getTransport() {
