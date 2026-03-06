@@ -142,6 +142,13 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
             latest_conversation_id: conversationId,
           };
 
+          // Log what's being updated
+          console.log(`[LeadPipeline] Updating existing lead ${existingLeadId}:`);
+          if (extracted.name) console.log(`  → Name: ${extracted.name}`);
+          if (extracted.email) console.log(`  → Email: ${extracted.email}`);
+          if (extracted.phone) console.log(`  → Phone: ${extracted.phone}`);
+          if (extracted.issue) console.log(`  → Issue: ${extracted.issue}`);
+          
           await pool.query(
             `UPDATE leads
              SET conversation_id = $2,
@@ -168,6 +175,8 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
               JSON.stringify(dupExtractionJson),
             ]
           );
+          
+          console.log(`[LeadPipeline] Lead ${existingLeadId} updated successfully`);
         })
         .catch(() => {});
 
@@ -176,7 +185,7 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
         ? `${process.env.ADMIN_DASHBOARD_URL}/sites/${siteId}/conversations/${conversationId}`
         : null;
 
-      sendLeadNotificationEmail({
+      const emailResult = await sendLeadNotificationEmail({
         lead: {
           name: extracted.name,
           email: extracted.email,
@@ -191,8 +200,11 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
         adminUrl,
         isDuplicate: true,
       }).catch(err => {
-        console.warn('[LeadPipeline] Duplicate notification email failed (non-fatal):', err.message);
+        console.error('[LeadPipeline] Duplicate notification email failed:', err);
+        return { success: false, reason: err.message };
       });
+      
+      console.log(`[LeadPipeline] Email notification result:`, emailResult);
 
       return { processed: true, reason: 'Duplicate lead - notification sent' };
     }
@@ -255,14 +267,17 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
         ? `${process.env.ADMIN_DASHBOARD_URL}/sites/${siteId}/conversations/${conversationId}`
         : null;
 
-      sendLeadNotificationEmail({
+      const emailResult = await sendLeadNotificationEmail({
         lead,
         conversation,
         siteName: conversation.company_name,
         adminUrl,
       }).catch(err => {
-        console.warn('[LeadPipeline] Email notification failed (non-fatal):', err.message);
+        console.error('[LeadPipeline] Email notification failed:', err);
+        return { success: false, reason: err.message };
       });
+      
+      console.log(`[LeadPipeline] Email notification result:`, emailResult);
     }
 
     // ─── Step 8: Trigger webhook if configured ────────────────────────
