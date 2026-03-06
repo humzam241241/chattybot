@@ -71,9 +71,9 @@ CREATE TABLE IF NOT EXISTS global_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ensure singleton row exists
+-- Ensure singleton row exists (dollar-quoting avoids escaping apostrophes in JSON)
 INSERT INTO global_settings (id, settings)
-VALUES (1, '{
+VALUES (1, $json${
   "name": "Raffy",
   "role": "AI receptionist",
   "tone": "friendly, confident, never cocky",
@@ -90,7 +90,7 @@ VALUES (1, '{
   },
   "emergency": {
     "keywords": ["fire", "gas leak", "injury", "accident", "electrical shock", "bleeding"],
-    "response": "If this is an emergency, please call your local emergency number immediately. If you’d like, I can connect you with our team right after you’re safe."
+    "response": "If this is an emergency, please call your local emergency number immediately. If you'd like, I can connect you with our team right after you're safe."
   },
   "sales_prompts": {
     "cta": "If you'd like, I can help you get a quick quote—what type of project is this and when are you looking to start?"
@@ -99,9 +99,8 @@ VALUES (1, '{
     "enabled": true,
     "guidelines": "Light, professional humor only. No sarcasm. No jokes about safety, money, or protected classes."
   }
-}'::jsonb)
+}$json$::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE sites
   ADD COLUMN IF NOT EXISTS raffy_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
-

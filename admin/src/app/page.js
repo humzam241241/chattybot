@@ -8,23 +8,40 @@ export default function DashboardPage() {
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  async function loadSites() {
+    try {
+      const data = await getSites();
+      setSites(data.sites || []);
+    } catch {
+      setSites([]);
+    }
+  }
+
   useEffect(() => {
-    getSites()
-      .then((data) => setSites(data.sites || []))
-      .catch(() => setSites([]))
-      .finally(() => setLoading(false));
+    loadSites().finally(() => setLoading(false));
   }, []);
+
+  async function handleRefresh() {
+    setLoading(true);
+    await loadSites();
+    setLoading(false);
+  }
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Overview of your chatbot sites</p>
+          <p className="page-subtitle">Overview of your chatbot clients</p>
         </div>
-        <Link href="/sites/new" className="btn btn-primary">
-          + New Site
-        </Link>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
+            {loading ? '...' : 'Refresh'}
+          </button>
+          <Link href="/sites/new" className="btn btn-primary">
+            + New Client
+          </Link>
+        </div>
       </div>
 
       {loading && <p className="text-muted">Loading...</p>}

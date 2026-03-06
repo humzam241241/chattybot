@@ -17,9 +17,10 @@ const { isConfigured, getTransport } = require('./mailer');
  * @param {Object} params.conversation - Conversation data with messages
  * @param {string} params.siteName - Company name
  * @param {string} [params.adminUrl] - Admin dashboard URL for conversation
+ * @param {boolean} [params.isDuplicate] - Whether this is a returning contact
  * @returns {Promise<{success: boolean, reason?: string}>}
  */
-async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUrl }) {
+async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUrl, isDuplicate = false }) {
   const notificationEmail = process.env.LEAD_NOTIFICATION_EMAIL;
   
   if (!notificationEmail) {
@@ -36,11 +37,16 @@ async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUr
   const transcript = buildTranscript(conversation);
 
   // Build email
-  const subject = `[${lead.lead_rating} LEAD] ${siteName} - ${lead.name || 'New Lead'}`;
+  const subjectPrefix = isDuplicate ? 'RETURNING CONTACT' : `${lead.lead_rating} LEAD`;
+  const subject = `[${subjectPrefix}] ${siteName} - ${lead.name || 'New Lead'}`;
+  
+  const headerText = isDuplicate 
+    ? '🔄  RETURNING CONTACT - New Conversation'
+    : `🔔  NEW ${lead.lead_rating} LEAD`;
   
   const body = [
     `═══════════════════════════════════════════════════════`,
-    `🔔  NEW ${lead.lead_rating} LEAD`,
+    headerText,
     `═══════════════════════════════════════════════════════`,
     '',
     `CONTACT INFORMATION`,

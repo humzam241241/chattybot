@@ -14,16 +14,29 @@ export default function MissedLeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  async function loadData() {
+    try {
+      const [siteData, leadsData, statsData] = await Promise.all([
+        getSite(id), getMissedLeads(id), getMissedLeadStats(id)
+      ]);
+      setSite(siteData.site);
+      setMissedLeads(leadsData.missed_leads || []);
+      setStats(statsData);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   useEffect(() => {
-    Promise.all([getSite(id), getMissedLeads(id), getMissedLeadStats(id)])
-      .then(([siteData, leadsData, statsData]) => {
-        setSite(siteData.site);
-        setMissedLeads(leadsData.missed_leads || []);
-        setStats(statsData);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    loadData().finally(() => setLoading(false));
   }, [id]);
+
+  async function handleRefresh() {
+    setLoading(true);
+    setError('');
+    await loadData();
+    setLoading(false);
+  }
 
   return (
     <SiteLayout siteName={site?.company_name || 'Loading...'}>
@@ -32,6 +45,9 @@ export default function MissedLeadsPage() {
           <h1 className="page-title">Missed Opportunities</h1>
           <p className="page-subtitle">Conversations with lead signals but no contact captured</p>
         </div>
+        <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
+          {loading ? '...' : 'Refresh'}
+        </button>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}

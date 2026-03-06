@@ -20,16 +20,27 @@ export default function LeadsPage() {
   const [error, setError] = useState('');
   const [counts, setCounts] = useState({ hot: 0, warm: 0, cold: 0 });
 
+  async function loadData() {
+    try {
+      const [siteData, leadsData] = await Promise.all([getSite(id), getLeads(id)]);
+      setSite(siteData.site);
+      setLeads(leadsData.leads || []);
+      setCounts(leadsData.counts || { hot: 0, warm: 0, cold: 0 });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   useEffect(() => {
-    Promise.all([getSite(id), getLeads(id)])
-      .then(([siteData, leadsData]) => {
-        setSite(siteData.site);
-        setLeads(leadsData.leads || []);
-        setCounts(leadsData.counts || { hot: 0, warm: 0, cold: 0 });
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    loadData().finally(() => setLoading(false));
   }, [id]);
+
+  async function handleRefresh() {
+    setLoading(true);
+    setError('');
+    await loadData();
+    setLoading(false);
+  }
 
   function exportCSV() {
     const header = 'Name,Email,Phone,Issue,Rating,Date\n';
@@ -64,6 +75,9 @@ export default function LeadsPage() {
           <p className="page-subtitle">Captured contacts from your chatbot</p>
         </div>
         <div className="flex gap-2">
+          <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
+            {loading ? '...' : 'Refresh'}
+          </button>
           {leads.length > 0 && (
             <button className="btn btn-secondary" onClick={exportCSV}>
               ↓ Export CSV

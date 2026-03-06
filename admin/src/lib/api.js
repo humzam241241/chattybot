@@ -63,6 +63,7 @@ export async function uploadFiles(siteId, files) {
 // Conversations
 export const listConversations = (siteId) => apiFetch(`/api/conversations/site/${siteId}`);
 export const getConversation = (conversationId) => apiFetch(`/api/conversations/${conversationId}`);
+export const deleteConversation = (conversationId) => apiFetch(`/api/conversations/${conversationId}`, { method: 'DELETE' });
 
 // Missed Leads
 export const getMissedLeads = (siteId) => apiFetch(`/api/missed-leads/${siteId}`);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { deleteConversation } from "@/lib/api";
 
 export default function ConversationsPage() {
   const params = useParams();
@@ -13,26 +14,26 @@ export default function ConversationsPage() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [showMessages, setShowMessages] = useState(false);
+
+  async function loadConversations() {
+    try {
+      const res = await fetch(`/api/conversations/site/${siteId}`);
+      if (!res.ok) throw new Error("Failed to load conversations");
+      const data = await res.json();
+      setConversations(data?.conversations ?? []);
+    } catch (err) {
+      console.error("Conversation load error:", err);
+    }
+  }
 
   useEffect(() => {
     if (!siteId) return;
 
     async function load() {
-      try {
-        const res = await fetch(`/api/conversations/site/${siteId}`);
-
-        if (!res.ok) {
-          throw new Error("Failed to load conversations");
-        }
-
-        const data = await res.json();
-
-        setConversations(data?.conversations ?? []);
-      } catch (err) {
-        console.error("Conversation load error:", err);
-      } finally {
-        setLoading(false);
-      }
+      await loadConversations();
+      setLoading(false);
     }
 
     load();
@@ -41,6 +42,7 @@ export default function ConversationsPage() {
   async function loadMessages(conversationId) {
     setMessagesLoading(true);
     setSelectedConversation(conversationId);
+    setShowMessages(true);
     try {
       const res = await fetch(`/api/conversations/${conversationId}`);
       if (!res.ok) throw new Error("Failed to load messages");
@@ -54,15 +56,68 @@ export default function ConversationsPage() {
     }
   }
 
+  function handleBack() {
+    setShowMessages(false);
+    setSelectedConversation(null);
+  }
+
+  async function handleDelete(conversationId, e) {
+    e.stopPropagation();
+    if (!confirm("Delete this conversation and all its messages?")) return;
+    
+    setDeleting(conversationId);
+    try {
+      await deleteConversation(conversationId);
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (selectedConversation === conversationId) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert("Failed to delete conversation");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  async function handleRefresh() {
+    setLoading(true);
+    await loadConversations();
+    setLoading(false);
+  }
+
   if (loading) {
     return <p style={{ padding: 20 }}>Loading...</p>;
   }
 
   return (
-    <div style={styles.container}>
+    <>
+    <style jsx global>{`
+      @media (max-width: 768px) {
+        .conversations-container {
+          grid-template-columns: 1fr !important;
+        }
+        .conversations-list {
+          display: ${showMessages ? 'none' : 'block'} !important;
+        }
+        .chat-panel {
+          display: ${showMessages ? 'flex' : 'none'} !important;
+        }
+        .mobile-back-btn {
+          display: flex !important;
+        }
+      }
+    `}</style>
+    <div style={styles.container} className="conversations-container">
       {/* Left Panel - Conversation List */}
-      <div style={styles.conversationList}>
-        <h2 style={styles.panelTitle}>Conversations</h2>
+      <div style={styles.conversationList} className="conversations-list">
+        <div style={styles.panelHeader}>
+          <h2 style={styles.panelTitle}>Conversations</h2>
+          <button onClick={handleRefresh} style={styles.refreshBtn} disabled={loading}>
+            {loading ? "..." : "Refresh"}
+          </button>
+        </div>
         {conversations.length === 0 ? (
           <p style={styles.emptyState}>No conversations yet.</p>
         ) : (
@@ -75,7 +130,17 @@ export default function ConversationsPage() {
               }}
               onClick={() => loadMessages(c.id)}
             >
-              <div style={styles.visitorId}>{c.visitor_id}</div>
+              <div style={styles.itemHeader}>
+                <div style={styles.visitorId}>{c.visitor_id}</div>
+                <button
+                  onClick={(e) => handleDelete(c.id, e)}
+                  style={styles.deleteBtn}
+                  disabled={deleting === c.id}
+                  title="Delete conversation"
+                >
+                  {deleting === c.id ? "..." : "×"}
+                </button>
+              </div>
               <div style={styles.conversationMeta}>
                 <span style={styles.messageCount}>
                   {c.message_count || 0} messages
@@ -102,7 +167,28 @@ export default function ConversationsPage() {
       </div>
 
       {/* Right Panel - Chat Messages */}
-      <div style={styles.chatPanel}>
+      <div style={styles.chatPanel} className="chat-panel">
+        {selectedConversation && (
+          <button
+            onClick={handleBack}
+            className="mobile-back-btn"
+            style={{
+              display: 'none',
+              alignItems: 'center',
+              gap: 8,
+              padding: '12px 16px',
+              background: '#fff',
+              border: 'none',
+              borderBottom: '1px solid #e5e7eb',
+              cursor: 'pointer',
+              fontSize: 14,
+              color: '#3b82f6',
+              fontWeight: 500,
+            }}
+          >
+            ← Back to list
+          </button>
+        )}
         {!selectedConversation ? (
           <div style={styles.placeholder}>
             <p>Select a conversation to view messages</p>
@@ -136,6 +222,7 @@ export default function ConversationsPage() {
         )}
       </div>
     </div>
+    </>
   );
 }
 
@@ -151,15 +238,29 @@ const styles = {
     overflowY: 'auto',
     backgroundColor: '#f9fafb',
   },
-  panelTitle: {
-    padding: '16px 20px',
-    margin: 0,
-    fontSize: 18,
-    fontWeight: 600,
+  panelHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 20px',
     borderBottom: '1px solid #e5e7eb',
     backgroundColor: '#fff',
     position: 'sticky',
     top: 0,
+    zIndex: 1,
+  },
+  panelTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 600,
+  },
+  refreshBtn: {
+    padding: '6px 12px',
+    fontSize: 13,
+    backgroundColor: '#f3f4f6',
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    cursor: 'pointer',
   },
   conversationItem: {
     padding: '14px 20px',
@@ -172,13 +273,31 @@ const styles = {
     backgroundColor: '#eff6ff',
     borderLeft: '3px solid #3b82f6',
   },
+  itemHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
   visitorId: {
     fontSize: 13,
     fontWeight: 500,
     color: '#1f2937',
-    marginBottom: 6,
     fontFamily: 'monospace',
     wordBreak: 'break-all',
+    flex: 1,
+  },
+  deleteBtn: {
+    padding: '2px 8px',
+    fontSize: 16,
+    fontWeight: 'bold',
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: '#9ca3af',
+    cursor: 'pointer',
+    borderRadius: 4,
+    marginLeft: 8,
+    lineHeight: 1,
   },
   conversationMeta: {
     display: 'flex',

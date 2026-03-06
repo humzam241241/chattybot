@@ -40,7 +40,7 @@ async function detectMissedLeads() {
       FROM conversations c
       JOIN sites s ON c.site_id = s.id
       WHERE c.message_count >= 3
-      AND c.updated_at >= NOW() - INTERVAL '30 minutes'
+      AND c.updated_at >= NOW() - INTERVAL '7 days'
       AND c.updated_at <= NOW() - INTERVAL '5 minutes'
       AND NOT EXISTS (
         SELECT 1 FROM leads l WHERE l.conversation_id = c.id

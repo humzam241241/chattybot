@@ -13,19 +13,30 @@ export default function AnalyticsPage() {
   const [error, setError] = useState('');
   const [days, setDays] = useState(30);
 
+  async function loadData() {
+    try {
+      const [siteData, analyticsData] = await Promise.all([
+        getSite(id), 
+        fetch(`/api/analytics/${id}?days=${days}`).then(r => r.json())
+      ]);
+      setSite(siteData.site);
+      setAnalytics(analyticsData);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      getSite(id), 
-      fetch(`/api/analytics/${id}?days=${days}`).then(r => r.json())
-    ])
-      .then(([siteData, analyticsData]) => {
-        setSite(siteData.site);
-        setAnalytics(analyticsData);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    loadData().finally(() => setLoading(false));
   }, [id, days]);
+
+  async function handleRefresh() {
+    setLoading(true);
+    setError('');
+    await loadData();
+    setLoading(false);
+  }
 
   return (
     <SiteLayout siteName={site?.company_name || 'Loading...'}>
@@ -34,7 +45,10 @@ export default function AnalyticsPage() {
           <h1 className="page-title">Analytics</h1>
           <p className="page-subtitle">Chatbot performance metrics and insights</p>
         </div>
-        <div>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
+            {loading ? '...' : 'Refresh'}
+          </button>
           <select 
             value={days} 
             onChange={(e) => setDays(Number(e.target.value))}

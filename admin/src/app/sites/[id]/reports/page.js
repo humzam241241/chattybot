@@ -13,15 +13,26 @@ export default function ReportsPage() {
   const [error, setError] = useState('');
   const [expandedReport, setExpandedReport] = useState(null);
 
+  async function loadData() {
+    try {
+      const [siteData, reportsData] = await Promise.all([getSite(id), getWeeklyReports(id)]);
+      setSite(siteData.site);
+      setReports(reportsData.reports || []);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   useEffect(() => {
-    Promise.all([getSite(id), getWeeklyReports(id)])
-      .then(([siteData, reportsData]) => {
-        setSite(siteData.site);
-        setReports(reportsData.reports || []);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    loadData().finally(() => setLoading(false));
   }, [id]);
+
+  async function handleRefresh() {
+    setLoading(true);
+    setError('');
+    await loadData();
+    setLoading(false);
+  }
 
   return (
     <SiteLayout siteName={site?.company_name || 'Loading...'}>
@@ -30,6 +41,9 @@ export default function ReportsPage() {
           <h1 className="page-title">Weekly Reports</h1>
           <p className="page-subtitle">Historical performance reports sent to your team</p>
         </div>
+        <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
+          {loading ? '...' : 'Refresh'}
+        </button>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}

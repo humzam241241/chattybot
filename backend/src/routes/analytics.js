@@ -67,22 +67,6 @@ router.get('/:site_id', async (req, res) => {
       ORDER BY date DESC
     `, [site_id]);
 
-    // Top intents
-    const topIntents = await pool.query(`
-      SELECT 
-        intent,
-        COUNT(*) as count
-      FROM messages
-      WHERE conversation_id IN (
-        SELECT id FROM conversations WHERE site_id = $1
-      )
-      AND intent IS NOT NULL
-      AND created_at >= NOW() - INTERVAL '${days} days'
-      GROUP BY intent
-      ORDER BY count DESC
-      LIMIT 5
-    `, [site_id]);
-
     // Conversion rate (leads / conversations)
     const conversionRate = conversationStats.rows[0].total > 0
       ? (leadStats.rows[0].total / conversationStats.rows[0].total * 100).toFixed(1)
@@ -106,7 +90,7 @@ router.get('/:site_id', async (req, res) => {
       },
       missed_leads: parseInt(missedStats.rows[0].total),
       daily_breakdown: dailyBreakdown.rows,
-      top_intents: topIntents.rows,
+      top_intents: [],
     });
   } catch (err) {
     console.error('[AnalyticsAPI] Error:', err);

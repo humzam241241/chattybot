@@ -15,6 +15,7 @@ const {
   createPool,
   log,
   logError,
+  detectContactInfo,
 } = require('../src/utils/workerUtils');
 
 const pool = createPool();
@@ -95,8 +96,27 @@ async function extractLead(conversation) {
       temperature: 0.2,
     });
 
-    const extracted = JSON.parse(completion.choices[0].message.content || '{}');
-    log(WORKER_NAME, 'Extracted:', extracted);
+    let extracted = JSON.parse(completion.choices[0].message.content || '{}');
+    log(WORKER_NAME, 'OpenAI extracted:', extracted);
+
+    // Regex fallback: if OpenAI returned no email/phone, try regex on user messages
+    if (!extracted.email && !extracted.phone) {
+      const userText = messages.rows
+        .filter(m => m.role === 'user')
+        .map(m => m.content)
+        .join(' ');
+      
+      const regexResult = detectContactInfo(userText);
+      
+      if (regexResult.hasEmail || regexResult.hasPhone) {
+        log(WORKER_NAME, 'Regex fallback found contact info:', regexResult);
+        extracted = {
+          ...extracted,
+          email: regexResult.emails[0] || extracted.email,
+          phone: regexResult.phones[0] || extracted.phone,
+        };
+      }
+    }
 
     const hasData = extracted.name || extracted.phone || extracted.email;
     

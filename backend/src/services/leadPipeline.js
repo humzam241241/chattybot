@@ -105,13 +105,48 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
     });
 
     if (isDuplicate) {
-      console.log('[LeadPipeline] Duplicate lead detected, skipping storage');
-      // Still update conversation scoring
+      console.log('[LeadPipeline] Duplicate lead detected - sending notification for existing contact');
+      
+      // Update conversation scoring
       await pool.query(
         `UPDATE conversations SET lead_score = $1, lead_rating = $2, updated_at = NOW() WHERE id = $3`,
         [score, rating, conversationId]
       ).catch(() => {});
-      return { processed: false, reason: 'Duplicate lead' };
+
+      // Update existing lead with new conversation_id so it links to latest chat
+      await pool.query(
+        `UPDATE leads 
+         SET conversation_id = $1, updated_at = NOW() 
+         WHERE site_id = $2 
+         AND (email = $3 OR phone = $4) 
+         AND created_at > $5`,
+        [conversationId, siteId, extracted.email, extracted.phone, new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()]
+      ).catch(() => {});
+
+      // Still send notification email for returning contact
+      const adminUrl = process.env.ADMIN_DASHBOARD_URL
+        ? `${process.env.ADMIN_DASHBOARD_URL}/sites/${siteId}/conversations/${conversationId}`
+        : null;
+
+      sendLeadNotificationEmail({
+        lead: {
+          name: extracted.name,
+          email: extracted.email,
+          phone: extracted.phone,
+          issue: extracted.issue,
+          location: extracted.location,
+          lead_score: score,
+          lead_rating: rating,
+        },
+        conversation,
+        siteName: conversation.company_name,
+        adminUrl,
+        isDuplicate: true,
+      }).catch(err => {
+        console.warn('[LeadPipeline] Duplicate notification email failed (non-fatal):', err.message);
+      });
+
+      return { processed: true, reason: 'Duplicate lead - notification sent' };
     }
 
     // ─── Step 6: Store lead in database ───────────────────────────────

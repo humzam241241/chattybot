@@ -10,16 +10,22 @@ export default function SitesPage() {
   const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
-    fetchSites();
+    fetchSites().finally(() => setLoading(false));
   }, []);
 
   async function fetchSites() {
     try {
       const data = await getSites();
       setSites(data.sites || []);
-    } finally {
-      setLoading(false);
+    } catch {
+      setSites([]);
     }
+  }
+
+  async function handleRefresh() {
+    setLoading(true);
+    await fetchSites();
+    setLoading(false);
   }
 
   async function handleDelete(id, name) {
@@ -39,10 +45,15 @@ export default function SitesPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Sites</h1>
-          <p className="page-subtitle">All registered chatbot sites</p>
+          <h1 className="page-title">Clients</h1>
+          <p className="page-subtitle">All registered chatbot clients</p>
         </div>
-        <Link href="/sites/new" className="btn btn-primary">+ New Site</Link>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
+            {loading ? '...' : 'Refresh'}
+          </button>
+          <Link href="/sites/new" className="btn btn-primary">+ New Client</Link>
+        </div>
       </div>
 
       {loading && <p className="text-muted">Loading...</p>}

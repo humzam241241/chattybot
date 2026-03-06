@@ -11,3 +11,11 @@ export async function GET(request, { params }) {
   return NextResponse.json(data, { status: res.status });
 }
 
+export async function DELETE(request, { params }) {
+  const res = await fetch(`${API_URL}/api/admin/conversations/conversations/${params.conversation_id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${ADMIN_SECRET}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  return NextResponse.json(data, { status: res.status });
+}
