@@ -116,11 +116,22 @@ async function processConversationForLead({ conversationId, siteId, userMessage,
       // Update existing lead with new conversation_id so it links to latest chat
       await pool.query(
         `UPDATE leads 
-         SET conversation_id = $1, updated_at = NOW() 
+         SET conversation_id = $1,
+             lead_score = $2,
+             lead_rating = $3,
+             extracted_at = NOW()
          WHERE site_id = $2 
          AND (email = $3 OR phone = $4) 
          AND created_at > $5`,
-        [conversationId, siteId, extracted.email, extracted.phone, new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()]
+        [
+          conversationId,
+          siteId,
+          score,
+          rating,
+          extracted.email,
+          extracted.phone,
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        ]
       ).catch(() => {});
 
       // Still send notification email for returning contact

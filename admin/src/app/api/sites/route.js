@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 const API_URL = process.env.API_URL;
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function backendHeaders() {
   return {
     'Content-Type': 'application/json',
@@ -11,7 +14,7 @@ function backendHeaders() {
 }
 
 export async function GET() {
-  const res = await fetch(`${API_URL}/sites`, { headers: backendHeaders() });
+  const res = await fetch(`${API_URL}/sites`, { headers: backendHeaders(), cache: 'no-store' });
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }

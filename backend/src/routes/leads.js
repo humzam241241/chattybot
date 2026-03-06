@@ -162,7 +162,7 @@ router.get('/:site_id', adminAuth, async (req, res) => {
       query += ` AND l.lead_rating = $${params.length}`;
     }
 
-    // Sort: HOT first, then by created_at
+    // Sort: HOT first, then by most recently extracted/created
     query += `
       ORDER BY 
         CASE l.lead_rating 
@@ -171,7 +171,7 @@ router.get('/:site_id', adminAuth, async (req, res) => {
           WHEN 'COLD' THEN 3 
           ELSE 4 
         END,
-        l.created_at DESC
+        COALESCE(l.extracted_at, l.created_at) DESC
       LIMIT $${params.length + 1}
     `;
     params.push(parseInt(limit));
