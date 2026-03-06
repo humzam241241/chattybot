@@ -31,6 +31,7 @@ router.post(
     const { site_id, name, email, message } = req.body;
 
     try {
+      console.log(`[LeadForm] Capturing lead from form for site ${site_id}: ${String(email || '').toLowerCase()}`);
       // Verify site exists (tenant isolation)
       const siteCheck = await pool.query('SELECT id, company_name FROM sites WHERE id = $1', [site_id]);
       const siteRow = siteCheck.rows[0];
@@ -45,19 +46,25 @@ router.post(
         [leadId, site_id, name || null, email, message || null]
       );
 
-      // Optional: email notification (SMTP), configured per-site via raffy_overrides.notifications.lead_email
+      // Email notification (SMTP): per-site override first, otherwise fallback to global LEAD_NOTIFICATION_EMAIL
+      // Lead form submission is explicit intent, so we always attempt to notify.
       try {
         const settings = await getEffectiveRaffySettings(site_id);
-        const to = settings?.raffy?.notifications?.lead_email ? String(settings.raffy.notifications.lead_email) : '';
+        const perSiteTo = settings?.raffy?.notifications?.lead_email ? String(settings.raffy.notifications.lead_email) : '';
+        const globalTo = process.env.LEAD_NOTIFICATION_EMAIL ? String(process.env.LEAD_NOTIFICATION_EMAIL) : '';
+        const to = (perSiteTo || globalTo).trim();
         if (to) {
           await sendLeadEmail({
             to,
             siteName: siteRow.company_name,
             lead: { id: leadId, name, email, message },
           });
+          console.log(`[LeadForm] Notification email attempted to: ${to}`);
+        } else {
+          console.log('[LeadForm] No notification recipient configured (raffy.notifications.lead_email or LEAD_NOTIFICATION_EMAIL).');
         }
       } catch (e) {
-        console.warn('Lead email notification failed (non-fatal):', e.message);
+        console.warn('[LeadForm] Lead email notification failed (non-fatal):', e.message);
       }
 
       return res.json({ success: true });

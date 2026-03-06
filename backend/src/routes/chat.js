@@ -43,6 +43,37 @@ function detectLeadCaptureOpportunity(message, raffy) {
   return keywords.some((kw) => lower.includes(String(kw).toLowerCase()));
 }
 
+function parseYesNo(message) {
+  const t = String(message || '').trim().toLowerCase();
+  if (!t) return null;
+  if (/^(y|yes|yeah|yep|ok|okay|sure|sounds good|please do)\b/.test(t)) return 'yes';
+  if (/^(n|no|nope|nah|dont|don't|do not)\b/.test(t)) return 'no';
+  return null;
+}
+
+async function getConversationConsent(conversationId) {
+  const r = await pool.query(
+    `SELECT email_consent_status, email_consent_email
+     FROM conversations
+     WHERE id = $1`,
+    [conversationId]
+  );
+  return r.rows?.[0] || { email_consent_status: 'unknown', email_consent_email: null };
+}
+
+async function setConversationConsent(conversationId, status, email = null) {
+  await pool.query(
+    `UPDATE conversations
+     SET email_consent_status = $2::text,
+         email_consent_email = $3::text,
+         email_consent_updated_at = NOW(),
+         email_consent_requested_at = CASE WHEN $2::text = 'pending' THEN NOW() ELSE email_consent_requested_at END,
+         updated_at = NOW()
+     WHERE id = $1::uuid`,
+    [conversationId, status, email]
+  );
+}
+
 router.post(
   '/',
   chatLimiter,
@@ -84,6 +115,41 @@ router.post(
       console.log(`[Chat] Conversation: ${convoId}, Site: ${site_id}, Visitor: ${visitor_id}`);
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
+
+      // ─── Consent handling ────────────────────────────────────────────────
+      // If the user provided an email in chat, we must ask explicit permission
+      // before claiming we will email them. We track consent per-conversation.
+      let consentState = await getConversationConsent(convoId);
+
+      // Resolve pending consent if user replied yes/no
+      if (consentState.email_consent_status === 'pending' && consentState.email_consent_email) {
+        const yn = parseYesNo(user_message);
+        if (yn === 'yes') {
+          await setConversationConsent(convoId, 'granted', consentState.email_consent_email);
+          console.log(`[Consent] Email consent granted for ${consentState.email_consent_email} (conversation ${convoId})`);
+          consentState = { email_consent_status: 'granted', email_consent_email: consentState.email_consent_email };
+        } else if (yn === 'no') {
+          await setConversationConsent(convoId, 'denied', consentState.email_consent_email);
+          console.log(`[Consent] Email consent denied for ${consentState.email_consent_email} (conversation ${convoId})`);
+          consentState = { email_consent_status: 'denied', email_consent_email: consentState.email_consent_email };
+        }
+      }
+
+      const contactInMessage = detectContactInfo(user_message);
+      const emailInMessage = contactInMessage?.emails?.[0] || null;
+      let mustAskConsentNow = false;
+      if (emailInMessage) {
+        const isNewEmailForConversation = consentState.email_consent_email !== emailInMessage;
+        const alreadyGrantedForThisEmail =
+          consentState.email_consent_status === 'granted' && consentState.email_consent_email === emailInMessage;
+
+        if (!alreadyGrantedForThisEmail || isNewEmailForConversation) {
+          // New email typed in chat → log + mark consent pending (so the bot asks).
+          await setConversationConsent(convoId, 'pending', emailInMessage);
+          console.log(`[Consent] New email provided in chat: ${emailInMessage} (conversation ${convoId}) → consent pending`);
+          mustAskConsentNow = true;
+        }
+      }
 
       // Emergency handling (keyword-based MVP) - only for life-threatening emergencies
       const emergencyKeywords = raffy?.emergency?.keywords || [];
@@ -127,10 +193,9 @@ router.post(
         ? `\n\nLEAD CAPTURE: When the user expresses interest in services (repair, inspection, quote, leak, damage, pricing), after answering their question, offer to have someone reach out. Ask for their email or phone number in a friendly, non-pushy way. Example: "${raffy?.lead_capture?.prompt || "Would you like someone from our team to reach out? I'd just need your email or phone number."}"`
         : '';
 
-      // Consent guardrail: if user provides an email in chat, ask permission to email them.
-      const contactInMessage = detectContactInfo(user_message);
-      const consentPrompt = contactInMessage?.emails?.length
-        ? `\n\nCONSENT (EMAIL): The user included an email address in their message. Before you confirm follow-up or say you'll email them, ask explicit permission in a simple yes/no question, e.g. "Is it okay if we email you at ${contactInMessage.emails[0]} about this?" If they say no, acknowledge and offer an alternative (phone call or booking link). If they already granted permission earlier in the conversation, you may proceed without asking again.`
+      // Consent guardrail for the model (we ALSO enforce by appending a consent question below when needed).
+      const consentPrompt = emailInMessage
+        ? `\n\nCONSENT (EMAIL): The user included an email address in their message. Do not promise you will email them without explicit permission. Ask a clear yes/no question first.`
         : '';
 
       const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${leadCapturePrompt}${consentPrompt}${humor}`;
@@ -166,6 +231,13 @@ router.post(
           temperature: 0.3, // Low temp = more factual, less hallucination
         });
         answer = completion.choices[0].message.content;
+      }
+
+      if (mustAskConsentNow && emailInMessage) {
+        const consentLine = `\n\nBefore we reach out, is it okay if we email you at ${emailInMessage}? Reply YES or NO.`;
+        if (!answer.toLowerCase().includes('reply yes or no') && !answer.toLowerCase().includes('is it okay if we email')) {
+          answer += consentLine;
+        }
       }
 
       const escalationKeywords = raffy?.escalation_triggers?.keywords || [];
@@ -298,6 +370,35 @@ router.post(
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 
+      // ─── Consent handling (stream) ────────────────────────────────────────
+      let consentState = await getConversationConsent(convoId);
+      if (consentState.email_consent_status === 'pending' && consentState.email_consent_email) {
+        const yn = parseYesNo(user_message);
+        if (yn === 'yes') {
+          await setConversationConsent(convoId, 'granted', consentState.email_consent_email);
+          console.log(`[Consent] Email consent granted for ${consentState.email_consent_email} (conversation ${convoId})`);
+          consentState = { email_consent_status: 'granted', email_consent_email: consentState.email_consent_email };
+        } else if (yn === 'no') {
+          await setConversationConsent(convoId, 'denied', consentState.email_consent_email);
+          console.log(`[Consent] Email consent denied for ${consentState.email_consent_email} (conversation ${convoId})`);
+          consentState = { email_consent_status: 'denied', email_consent_email: consentState.email_consent_email };
+        }
+      }
+
+      const contactInMessage = detectContactInfo(user_message);
+      const emailInMessage = contactInMessage?.emails?.[0] || null;
+      let mustAskConsentNow = false;
+      if (emailInMessage) {
+        const isNewEmailForConversation = consentState.email_consent_email !== emailInMessage;
+        const alreadyGrantedForThisEmail =
+          consentState.email_consent_status === 'granted' && consentState.email_consent_email === emailInMessage;
+        if (!alreadyGrantedForThisEmail || isNewEmailForConversation) {
+          await setConversationConsent(convoId, 'pending', emailInMessage);
+          console.log(`[Consent] New email provided in chat: ${emailInMessage} (conversation ${convoId}) → consent pending`);
+          mustAskConsentNow = true;
+        }
+      }
+
       const emergencyKeywords = raffy?.emergency?.keywords || [];
       const emergencyResponse = raffy?.emergency?.response;
       const msgLower = String(user_message || '').toLowerCase();
@@ -344,10 +445,8 @@ router.post(
         ? `\n\nLEAD CAPTURE: When the user expresses interest in services (repair, inspection, quote, leak, damage, pricing), after answering their question, offer to have someone reach out. Ask for their email or phone number in a friendly, non-pushy way. Example: "${raffy?.lead_capture?.prompt || "Would you like someone from our team to reach out? I'd just need your email or phone number."}"`
         : '';
 
-      // Consent guardrail: if user provides an email in chat, ask permission to email them.
-      const contactInMessage = detectContactInfo(user_message);
-      const consentPrompt = contactInMessage?.emails?.length
-        ? `\n\nCONSENT (EMAIL): The user included an email address in their message. Before you confirm follow-up or say you'll email them, ask explicit permission in a simple yes/no question, e.g. "Is it okay if we email you at ${contactInMessage.emails[0]} about this?" If they say no, acknowledge and offer an alternative (phone call or booking link). If they already granted permission earlier in the conversation, you may proceed without asking again.`
+      const consentPrompt = emailInMessage
+        ? `\n\nCONSENT (EMAIL): The user included an email address in their message. Do not promise you will email them without explicit permission. Ask a clear yes/no question first.`
         : '';
 
       const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${leadCapturePrompt}${consentPrompt}${humor}`;
@@ -404,6 +503,14 @@ router.post(
       }
 
       if (!closed) {
+        if (mustAskConsentNow && emailInMessage) {
+          const consentLine = `\n\nBefore we reach out, is it okay if we email you at ${emailInMessage}? Reply YES or NO.`;
+          if (!answer.toLowerCase().includes('reply yes or no') && !answer.toLowerCase().includes('is it okay if we email')) {
+            answer += consentLine;
+            res.write(`event: token\ndata: ${JSON.stringify({ token: consentLine })}\n\n`);
+          }
+        }
+
         const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer);
         const afterAssistant = await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
         console.log(`[Chat/Stream] Assistant response saved to conversation ${convoId}. Total messages: ${afterAssistant.message_count}`);
