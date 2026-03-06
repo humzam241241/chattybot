@@ -7,6 +7,7 @@ const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { getOrCreateConversation, appendMessage, getRecentMessages, updateConversationSummary } = require('../services/conversationLog');
 const { notifyOwnerOfLead } = require('../services/leadNotifier');
 const { processConversationForLead } = require('../services/leadPipeline');
+const { detectContactInfo } = require('../services/leadDetector');
 const { chatLimiter } = require('../middleware/rateLimiter');
 const domainVerify = require('../middleware/domainVerify');
 
@@ -126,7 +127,13 @@ router.post(
         ? `\n\nLEAD CAPTURE: When the user expresses interest in services (repair, inspection, quote, leak, damage, pricing), after answering their question, offer to have someone reach out. Ask for their email or phone number in a friendly, non-pushy way. Example: "${raffy?.lead_capture?.prompt || "Would you like someone from our team to reach out? I'd just need your email or phone number."}"`
         : '';
 
-      const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${leadCapturePrompt}${humor}`;
+      // Consent guardrail: if user provides an email in chat, ask permission to email them.
+      const contactInMessage = detectContactInfo(user_message);
+      const consentPrompt = contactInMessage?.emails?.length
+        ? `\n\nCONSENT (EMAIL): The user included an email address in their message. Before you confirm follow-up or say you'll email them, ask explicit permission in a simple yes/no question, e.g. "Is it okay if we email you at ${contactInMessage.emails[0]} about this?" If they say no, acknowledge and offer an alternative (phone call or booking link). If they already granted permission earlier in the conversation, you may proceed without asking again.`
+        : '';
+
+      const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${leadCapturePrompt}${consentPrompt}${humor}`;
       
       console.log(`[Chat] SYSTEM PROMPT USED (first 200 chars):\n${systemPrompt.substring(0, 200)}...`);
 
@@ -337,7 +344,13 @@ router.post(
         ? `\n\nLEAD CAPTURE: When the user expresses interest in services (repair, inspection, quote, leak, damage, pricing), after answering their question, offer to have someone reach out. Ask for their email or phone number in a friendly, non-pushy way. Example: "${raffy?.lead_capture?.prompt || "Would you like someone from our team to reach out? I'd just need your email or phone number."}"`
         : '';
 
-      const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${leadCapturePrompt}${humor}`;
+      // Consent guardrail: if user provides an email in chat, ask permission to email them.
+      const contactInMessage = detectContactInfo(user_message);
+      const consentPrompt = contactInMessage?.emails?.length
+        ? `\n\nCONSENT (EMAIL): The user included an email address in their message. Before you confirm follow-up or say you'll email them, ask explicit permission in a simple yes/no question, e.g. "Is it okay if we email you at ${contactInMessage.emails[0]} about this?" If they say no, acknowledge and offer an alternative (phone call or booking link). If they already granted permission earlier in the conversation, you may proceed without asking again.`
+        : '';
+
+      const systemPrompt = `${identity}\n\n${basePrompt}${tone}${guardrails}${emergency}${sales}${leadCapturePrompt}${consentPrompt}${humor}`;
       
       console.log(`[Chat/Stream] SYSTEM PROMPT (first 200 chars):\n${systemPrompt.substring(0, 200)}...`);
 
