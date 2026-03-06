@@ -10,11 +10,10 @@ router.get('/site/:site_id', async (req, res) => {
   const { site_id } = req.params;
   try {
     const result = await pool.query(
-      `SELECT id, visitor_id, current_page_url, summary, message_count, lead_score, lead_rating, created_at, updated_at
+      `SELECT *
        FROM conversations
        WHERE site_id = $1
-       ORDER BY updated_at DESC
-       LIMIT 500`,
+       ORDER BY updated_at DESC`,
       [site_id]
     );
     console.log(`[Conversations] Fetched ${result.rows.length} conversations for site ${site_id}`);
