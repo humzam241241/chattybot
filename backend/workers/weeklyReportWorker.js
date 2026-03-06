@@ -2,69 +2,49 @@
  * Weekly Report Worker
  * 
  * Generates and sends weekly lead reports for each site.
- * Run weekly via cron: 0 0 * * 0 (Sunday midnight)
+ * Runs weekly on Sundays at midnight via the worker scheduler.
  * 
  * Run manually: node workers/weeklyReportWorker.js
  */
 
 require('dotenv').config();
-const { Pool } = require('pg');
+
 const OpenAI = require('openai');
-const nodemailer = require('nodemailer');
+const {
+  createPool,
+  sendEmail,
+  getAdminUrl,
+  log,
+  logError,
+} = require('../src/utils/workerUtils');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
-
+const pool = createPool();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-function getTransport() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-}
-
-function isSmtpConfigured() {
-  return Boolean(
-    process.env.SMTP_HOST &&
-    process.env.SMTP_PORT &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS &&
-    process.env.SMTP_FROM
-  );
-}
+const WORKER_NAME = 'WeeklyReport';
 
 async function generateWeeklyReports() {
-  console.log('[WeeklyReport] Starting weekly report generation...');
+  log(WORKER_NAME, 'Starting weekly report generation...');
 
   try {
-    // Get all sites with a report_email or LEAD_NOTIFICATION_EMAIL fallback
     const sites = await pool.query(`
       SELECT id, company_name, report_email
       FROM sites
     `);
 
     if (sites.rows.length === 0) {
-      console.log('[WeeklyReport] No sites found');
+      log(WORKER_NAME, 'No sites found');
       return;
     }
 
-    console.log(`[WeeklyReport] Processing ${sites.rows.length} sites`);
+    log(WORKER_NAME, `Processing ${sites.rows.length} sites`);
 
     for (const site of sites.rows) {
       await generateSiteReport(site);
     }
 
-    console.log('[WeeklyReport] All reports generated');
+    log(WORKER_NAME, 'All reports generated');
   } catch (err) {
-    console.error('[WeeklyReport] Error:', err);
+    logError(WORKER_NAME, 'Report generation failed', err);
   }
 }
 
@@ -72,10 +52,9 @@ async function generateSiteReport(site) {
   const { id: siteId, company_name, report_email } = site;
   const email = report_email || process.env.LEAD_NOTIFICATION_EMAIL;
 
-  console.log(`[WeeklyReport] Generating report for ${company_name}...`);
+  log(WORKER_NAME, `Generating report for ${company_name}...`);
 
   try {
-    // Get conversation stats for last 7 days
     const conversationStats = await pool.query(`
       SELECT COUNT(*) as total
       FROM conversations
@@ -85,7 +64,6 @@ async function generateSiteReport(site) {
 
     const totalConversations = parseInt(conversationStats.rows[0]?.total || 0);
 
-    // Get lead stats with ratings
     const leadStats = await pool.query(`
       SELECT 
         COUNT(*) as total,
@@ -102,7 +80,6 @@ async function generateSiteReport(site) {
     const warmLeads = parseInt(leadStats.rows[0]?.warm || 0);
     const coldLeads = parseInt(leadStats.rows[0]?.cold || 0);
 
-    // Get missed leads count
     const missedStats = await pool.query(`
       SELECT COUNT(*) as total
       FROM missed_leads
@@ -111,11 +88,8 @@ async function generateSiteReport(site) {
     `, [siteId]);
 
     const missedLeads = parseInt(missedStats.rows[0]?.total || 0);
-
-    // Get top user questions for summary
     const topQuestions = await getTopQuestions(siteId);
 
-    // Store report in database
     const reportDate = new Date().toISOString().split('T')[0];
     await pool.query(`
       INSERT INTO weekly_reports (site_id, report_date, total_conversations, total_leads, hot_leads, warm_leads, cold_leads, missed_leads, top_questions)
@@ -130,36 +104,27 @@ async function generateSiteReport(site) {
         top_questions = EXCLUDED.top_questions
     `, [siteId, reportDate, totalConversations, totalLeads, hotLeads, warmLeads, coldLeads, missedLeads, JSON.stringify(topQuestions)]);
 
-    console.log(`[WeeklyReport] Report generated for ${company_name}`);
+    log(WORKER_NAME, `Report generated for ${company_name}`);
 
-    // Send email if configured
-    if (email && isSmtpConfigured()) {
+    if (email) {
       await sendReportEmail({
         to: email,
         companyName: company_name,
         siteId,
-        stats: {
-          totalConversations,
-          totalLeads,
-          hotLeads,
-          warmLeads,
-          coldLeads,
-          missedLeads,
-        },
+        stats: { totalConversations, totalLeads, hotLeads, warmLeads, coldLeads, missedLeads },
         topQuestions,
       });
     } else {
-      console.log(`[WeeklyReport] No email sent (email: ${email ? 'set' : 'not set'}, SMTP: ${isSmtpConfigured() ? 'configured' : 'not configured'})`);
+      log(WORKER_NAME, 'No email configured, skipping send');
     }
 
   } catch (err) {
-    console.error(`[WeeklyReport] Failed to generate report for ${company_name}:`, err);
+    logError(WORKER_NAME, `Failed to generate report for ${company_name}`, err);
   }
 }
 
 async function getTopQuestions(siteId) {
   try {
-    // Get recent user messages
     const messages = await pool.query(`
       SELECT m.content
       FROM messages m
@@ -175,7 +140,6 @@ async function getTopQuestions(siteId) {
       return [];
     }
 
-    // Use OpenAI to summarize top questions
     const userMessages = messages.rows.map(m => m.content).join('\n---\n');
 
     const completion = await openai.chat.completions.create({
@@ -198,17 +162,15 @@ async function getTopQuestions(siteId) {
     const result = JSON.parse(completion.choices[0].message.content || '{}');
     return result.questions || result.topics || [];
   } catch (err) {
-    console.error('[WeeklyReport] Error getting top questions:', err);
+    logError(WORKER_NAME, 'Error getting top questions', err);
     return [];
   }
 }
 
 async function sendReportEmail({ to, companyName, siteId, stats, topQuestions }) {
-  console.log(`[WeeklyReport] Sending email to ${to}...`);
+  log(WORKER_NAME, `Sending email to ${to}...`);
 
-  const adminUrl = process.env.ADMIN_DASHBOARD_URL
-    ? `${process.env.ADMIN_DASHBOARD_URL}/sites/${siteId}`
-    : null;
+  const adminUrl = getAdminUrl(`sites/${siteId}`);
 
   const questionsText = topQuestions.length > 0
     ? topQuestions.map((q, i) => `  ${i + 1}. ${q}`).join('\n')
@@ -242,41 +204,34 @@ ${adminUrl ? `VIEW DASHBOARD: ${adminUrl}` : ''}
 This is an automated report from ChattyBot.
 `.trim();
 
-  try {
-    const transport = getTransport();
-    await transport.sendMail({
-      from: process.env.SMTP_FROM,
-      to,
-      subject: `📊 Weekly Chatbot Report – ${companyName}`,
-      text: body,
-    });
+  const sent = await sendEmail({
+    to,
+    subject: `📊 Weekly Chatbot Report – ${companyName}`,
+    text: body,
+  });
 
-    // Update report as sent
+  if (sent) {
     const reportDate = new Date().toISOString().split('T')[0];
     await pool.query(
       `UPDATE weekly_reports SET sent_at = NOW() WHERE site_id = $1 AND report_date = $2`,
       [siteId, reportDate]
     );
-
-    console.log(`[WeeklyReport] Email sent to ${to}`);
-  } catch (err) {
-    console.error('[WeeklyReport] Email send failed:', err);
+    log(WORKER_NAME, `Email sent to ${to}`);
   }
 }
 
-// Main
 async function run() {
-  console.log('[WeeklyReport] Starting weekly report worker...');
+  log(WORKER_NAME, 'Starting weekly report worker...');
   
   await generateWeeklyReports();
   
   await pool.end();
-  console.log('[WeeklyReport] Done');
+  log(WORKER_NAME, 'Done');
   process.exit(0);
 }
 
 process.on('unhandledRejection', (err) => {
-  console.error('[WeeklyReport] Unhandled rejection:', err);
+  logError(WORKER_NAME, 'Unhandled rejection', err);
   process.exit(1);
 });
 

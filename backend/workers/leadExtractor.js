@@ -4,28 +4,34 @@
  * Analyzes conversation transcripts and extracts structured lead data
  * (name, phone, email, service requested, urgency, address).
  * 
- * Run with: node workers/leadExtractor.js
+ * Runs every 10 minutes via the worker scheduler.
+ * Run manually: node workers/leadExtractor.js
  */
 
 require('dotenv').config();
-const { Pool } = require('pg');
+
 const OpenAI = require('openai');
-const { v4: uuidv4 } = require('uuid');
+const {
+  createPool,
+  log,
+  logError,
+} = require('../src/utils/workerUtils');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
-
+const pool = createPool();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const WORKER_NAME = 'LeadExtractor';
 
 const BATCH_SIZE = 10;
 
+const EXTRACTION_PROMPT = `You are a lead extraction system. Extract customer information from conversations.
+Return ONLY valid JSON with these fields: name, phone, email, service_requested, urgency, address.
+If a field is not mentioned, use null. Urgency should be "low", "medium", "high", or "emergency".
+Example: {"name": "John Smith", "phone": "555-1234", "email": "john@example.com", "service_requested": "roof repair", "urgency": "high", "address": "123 Main St"}`;
+
 async function pollConversations() {
-  console.log('[LeadExtractor] Polling for conversations needing lead extraction...');
+  log(WORKER_NAME, 'Polling for conversations needing lead extraction...');
   
   try {
-    // Find conversations with 4+ messages that don't have extracted leads yet
     const conversations = await pool.query(
       `SELECT c.id, c.site_id, c.message_count
        FROM conversations c
@@ -41,28 +47,27 @@ async function pollConversations() {
     );
 
     if (conversations.rows.length === 0) {
-      console.log('[LeadExtractor] No conversations need processing');
+      log(WORKER_NAME, 'No conversations need processing');
       return;
     }
 
-    console.log(`[LeadExtractor] Processing ${conversations.rows.length} conversations`);
+    log(WORKER_NAME, `Processing ${conversations.rows.length} conversations`);
 
     for (const convo of conversations.rows) {
       await extractLead(convo);
     }
 
   } catch (err) {
-    console.error('[LeadExtractor] Poll error:', err);
+    logError(WORKER_NAME, 'Poll error', err);
   }
 }
 
 async function extractLead(conversation) {
   const { id: conversationId, site_id } = conversation;
   
-  console.log(`[LeadExtractor] Extracting lead from conversation: ${conversationId}`);
+  log(WORKER_NAME, `Extracting lead from conversation: ${conversationId}`);
 
   try {
-    // Fetch messages
     const messages = await pool.query(
       `SELECT role, content FROM messages 
        WHERE conversation_id = $1 
@@ -71,30 +76,19 @@ async function extractLead(conversation) {
     );
 
     if (messages.rows.length === 0) {
-      console.log(`[LeadExtractor] No messages found`);
+      log(WORKER_NAME, 'No messages found');
       return;
     }
 
-    // Build transcript
     const transcript = messages.rows
       .map(m => `${m.role}: ${m.content}`)
       .join('\n');
 
-    // Extract structured data with OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        {
-          role: 'system',
-          content: `You are a lead extraction system. Extract customer information from conversations.
-Return ONLY valid JSON with these fields: name, phone, email, service_requested, urgency, address.
-If a field is not mentioned, use null. Urgency should be "low", "medium", "high", or "emergency".
-Example: {"name": "John Smith", "phone": "555-1234", "email": "john@example.com", "service_requested": "roof repair", "urgency": "high", "address": "123 Main St"}`,
-        },
-        {
-          role: 'user',
-          content: `Extract lead information from this conversation:\n\n${transcript}`,
-        },
+        { role: 'system', content: EXTRACTION_PROMPT },
+        { role: 'user', content: `Extract lead information from this conversation:\n\n${transcript}` },
       ],
       response_format: { type: 'json_object' },
       max_tokens: 300,
@@ -102,17 +96,15 @@ Example: {"name": "John Smith", "phone": "555-1234", "email": "john@example.com"
     });
 
     const extracted = JSON.parse(completion.choices[0].message.content || '{}');
-    console.log(`[LeadExtractor] Extracted:`, extracted);
+    log(WORKER_NAME, 'Extracted:', extracted);
 
-    // Check if we found any useful data
     const hasData = extracted.name || extracted.phone || extracted.email;
     
     if (!hasData) {
-      console.log(`[LeadExtractor] No lead data found in conversation ${conversationId}`);
+      log(WORKER_NAME, `No lead data found in conversation ${conversationId}`);
       return;
     }
 
-    // Insert or update lead using conversation_id unique constraint
     await pool.query(
       `INSERT INTO leads (
         conversation_id,
@@ -145,25 +137,25 @@ Example: {"name": "John Smith", "phone": "555-1234", "email": "john@example.com"
       ]
     );
 
-    console.log(`[LeadExtractor] ✓ Lead extracted for conversation ${conversationId}`);
+    log(WORKER_NAME, `✓ Lead extracted for conversation ${conversationId}`);
 
   } catch (err) {
-    console.error(`[LeadExtractor] Failed to extract lead:`, err);
+    logError(WORKER_NAME, 'Failed to extract lead', err);
   }
 }
 
-// Main loop
 async function run() {
-  console.log('[LeadExtractor] Starting lead extraction worker...');
+  log(WORKER_NAME, 'Starting lead extraction worker...');
   
   await pollConversations();
   
   await pool.end();
+  log(WORKER_NAME, 'Done');
   process.exit(0);
 }
 
 process.on('unhandledRejection', (err) => {
-  console.error('[LeadExtractor] Unhandled rejection:', err);
+  logError(WORKER_NAME, 'Unhandled rejection', err);
   process.exit(1);
 });
 

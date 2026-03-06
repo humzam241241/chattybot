@@ -1,5 +1,9 @@
 require('dotenv').config();
 
+// Validate environment on startup
+const { logEnvironmentStatus } = require('./config/env');
+logEnvironmentStatus();
+
 // Force Node.js DNS to resolve IPv4 first.
 // Render's free tier only has IPv4 outbound — without this, DNS resolves
 // Supabase's hostname to an IPv6 address and the connection fails with ENETUNREACH.
@@ -21,6 +25,8 @@ const filesRouter = require('./routes/files');
 const conversationsRouter = require('./routes/conversations');
 const adminAnalyticsRouter = require('./routes/adminAnalytics');
 const missedLeadsRouter = require('./routes/missedLeads');
+const reportsRouter = require('./routes/reports');
+const analyticsRouter = require('./routes/analytics');
 const adminAuth = require('./middleware/adminAuth');
 
 const app = express();
@@ -101,6 +107,8 @@ adminApi.use('/transcript', adminAnalyticsRouter);
 adminApi.use('/stats', adminAnalyticsRouter);
 adminApi.use('/debug', adminAnalyticsRouter);
 adminApi.use('/missed-leads', missedLeadsRouter);
+adminApi.use('/reports', reportsRouter);
+adminApi.use('/analytics', analyticsRouter);
 app.use('/api/admin', adminApi);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

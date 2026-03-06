@@ -5,20 +5,22 @@
  * 1. Process pending summary jobs from conversation_summary_jobs table
  * 2. Auto-summarize idle conversations (idle for 5+ minutes)
  * 
- * Run with: node workers/summarizeWorker.js
  * Runs every 5 minutes via the worker scheduler.
+ * Run manually: node workers/summarizeWorker.js
  */
 
 require('dotenv').config();
-const { Pool } = require('pg');
+
 const OpenAI = require('openai');
+const {
+  createPool,
+  log,
+  logError,
+} = require('../src/utils/workerUtils');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
-
+const pool = createPool();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const WORKER_NAME = 'SummaryWorker';
 
 const BATCH_SIZE = 10;
 const IDLE_MINUTES = 5;
@@ -36,10 +38,9 @@ Example:
 "Customer reported roof leak after storm and asked about repair options. They requested someone to inspect the roof but did not provide contact info."`;
 
 async function pollJobs() {
-  console.log('[SummaryWorker] Polling for pending jobs...');
+  log(WORKER_NAME, 'Polling for pending jobs...');
   
   try {
-    // Fetch pending jobs
     const jobs = await pool.query(
       `SELECT id, conversation_id, site_id, created_at
        FROM conversation_summary_jobs
@@ -50,20 +51,19 @@ async function pollJobs() {
     );
 
     if (jobs.rows.length === 0) {
-      console.log('[SummaryWorker] No pending jobs');
+      log(WORKER_NAME, 'No pending jobs');
       return 0;
     }
 
-    console.log(`[SummaryWorker] Processing ${jobs.rows.length} jobs`);
+    log(WORKER_NAME, `Processing ${jobs.rows.length} jobs`);
 
-    // Process each job
     for (const job of jobs.rows) {
       await processJob(job);
     }
 
     return jobs.rows.length;
   } catch (err) {
-    console.error('[SummaryWorker] Poll error:', err);
+    logError(WORKER_NAME, 'Poll error', err);
     return 0;
   }
 }
@@ -71,10 +71,9 @@ async function pollJobs() {
 async function processJob(job) {
   const { id: jobId, conversation_id } = job;
   
-  console.log(`[SummaryWorker] Summarizing conversation: ${conversation_id}`);
+  log(WORKER_NAME, `Summarizing conversation: ${conversation_id}`);
 
   try {
-    // Mark job as processing
     await pool.query(
       'UPDATE conversation_summary_jobs SET status = $1, updated_at = NOW() WHERE id = $2',
       ['processing', jobId]
@@ -82,15 +81,20 @@ async function processJob(job) {
 
     const summary = await generateSummary(conversation_id);
 
-    // Mark job as done
-    await markJobDone(jobId, summary);
+    await pool.query(
+      `UPDATE conversation_summary_jobs 
+       SET status = 'done', 
+           result = $1, 
+           updated_at = NOW() 
+       WHERE id = $2`,
+      [summary ? JSON.stringify({ summary }) : null, jobId]
+    );
 
-    console.log(`[SummaryWorker] ✓ Completed job ${jobId}`);
+    log(WORKER_NAME, `✓ Completed job ${jobId}`);
 
   } catch (err) {
-    console.error(`[SummaryWorker] Job ${jobId} failed:`, err);
+    logError(WORKER_NAME, `Job ${jobId} failed`, err);
     
-    // Mark job as failed
     await pool.query(
       `UPDATE conversation_summary_jobs 
        SET status = 'failed', 
@@ -103,7 +107,6 @@ async function processJob(job) {
 }
 
 async function generateSummary(conversationId) {
-  // Fetch all messages for the conversation
   const messages = await pool.query(
     `SELECT role, content, created_at
      FROM messages
@@ -113,18 +116,16 @@ async function generateSummary(conversationId) {
   );
 
   if (messages.rows.length === 0) {
-    console.log(`[SummaryWorker] No messages found for conversation ${conversationId}`);
+    log(WORKER_NAME, `No messages found for conversation ${conversationId}`);
     return null;
   }
 
-  // Build transcript
   const transcript = messages.rows
     .map(m => `${m.role.toUpperCase()}: ${m.content}`)
     .join('\n');
 
-  console.log(`[SummaryWorker] Transcript: ${transcript.length} chars`);
+  log(WORKER_NAME, `Transcript: ${transcript.length} chars`);
 
-  // Generate summary with OpenAI
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
@@ -136,9 +137,8 @@ async function generateSummary(conversationId) {
   });
 
   const summary = completion.choices[0].message.content?.trim() || 'No summary generated';
-  console.log(`[SummaryWorker] Summary: ${summary}`);
+  log(WORKER_NAME, `Summary: ${summary}`);
 
-  // Update conversations table
   await pool.query(
     'UPDATE conversations SET summary = $1, last_summary_at = NOW(), updated_at = NOW() WHERE id = $2',
     [summary, conversationId]
@@ -147,22 +147,10 @@ async function generateSummary(conversationId) {
   return summary;
 }
 
-async function markJobDone(jobId, summary) {
-  await pool.query(
-    `UPDATE conversation_summary_jobs 
-     SET status = 'done', 
-         result = $1, 
-         updated_at = NOW() 
-     WHERE id = $2`,
-    [summary ? JSON.stringify({ summary }) : null, jobId]
-  );
-}
-
 async function summarizeIdleConversations() {
-  console.log(`[SummaryWorker] Finding conversations idle for ${IDLE_MINUTES}+ minutes...`);
+  log(WORKER_NAME, `Finding conversations idle for ${IDLE_MINUTES}+ minutes...`);
 
   try {
-    // Find idle conversations without recent summary
     const conversations = await pool.query(`
       SELECT c.id
       FROM conversations c
@@ -177,11 +165,11 @@ async function summarizeIdleConversations() {
     `, [BATCH_SIZE]);
 
     if (conversations.rows.length === 0) {
-      console.log('[SummaryWorker] No idle conversations need summarizing');
+      log(WORKER_NAME, 'No idle conversations need summarizing');
       return 0;
     }
 
-    console.log(`[SummaryWorker] Processing ${conversations.rows.length} idle conversations`);
+    log(WORKER_NAME, `Processing ${conversations.rows.length} idle conversations`);
 
     let count = 0;
     for (const row of conversations.rows) {
@@ -189,40 +177,33 @@ async function summarizeIdleConversations() {
         await generateSummary(row.id);
         count++;
       } catch (err) {
-        console.error(`[SummaryWorker] Failed to summarize ${row.id}:`, err.message);
+        logError(WORKER_NAME, `Failed to summarize ${row.id}`, err);
       }
     }
 
-    console.log(`[SummaryWorker] Summarized ${count} idle conversations`);
+    log(WORKER_NAME, `Summarized ${count} idle conversations`);
     return count;
 
   } catch (err) {
-    console.error('[SummaryWorker] Error finding idle conversations:', err);
+    logError(WORKER_NAME, 'Error finding idle conversations', err);
     return 0;
   }
 }
 
-// Main loop
 async function run() {
-  console.log('[SummaryWorker] Starting conversation summary worker...');
+  log(WORKER_NAME, 'Starting conversation summary worker...');
   
-  // Process pending jobs first
   await pollJobs();
-  
-  // Then summarize idle conversations
   await summarizeIdleConversations();
   
-  // Exit after one run (for cron-style execution)
   await pool.end();
-  console.log('[SummaryWorker] Done');
+  log(WORKER_NAME, 'Done');
   process.exit(0);
 }
 
-// Handle errors
 process.on('unhandledRejection', (err) => {
-  console.error('[SummaryWorker] Unhandled rejection:', err);
+  logError(WORKER_NAME, 'Unhandled rejection', err);
   process.exit(1);
 });
 
-// Run
 run();

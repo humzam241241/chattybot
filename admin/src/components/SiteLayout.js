@@ -11,6 +11,9 @@ export default function SiteLayout({ children, siteName = 'Site' }) {
     { href: `/sites/${id}`, label: '⚙️ Chatbot Settings', icon: '⚙️' },
     { href: `/sites/${id}/conversations`, label: '💬 Conversations', icon: '💬' },
     { href: `/sites/${id}/leads`, label: '👥 Leads', icon: '👥' },
+    { href: `/sites/${id}/missed-leads`, label: '⚠️ Missed Leads', icon: '⚠️' },
+    { href: `/sites/${id}/analytics`, label: '📊 Analytics', icon: '📊' },
+    { href: `/sites/${id}/reports`, label: '📈 Reports', icon: '📈' },
     { href: `/sites/${id}/files`, label: '📁 Files', icon: '📁' },
     { href: `/sites/${id}/rag-eval`, label: '🎯 RAG Evaluation', icon: '🎯' },
   ];

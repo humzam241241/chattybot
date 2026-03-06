@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { getLeads, getSite } from '../../../../lib/api';
 import SiteLayout from '../../../../components/SiteLayout';
+
+const RATING_COLORS = {
+  HOT: { bg: '#fee2e2', color: '#dc2626' },
+  WARM: { bg: '#fef3c7', color: '#d97706' },
+  COLD: { bg: '#e5e7eb', color: '#6b7280' },
+};
 
 export default function LeadsPage() {
   const { id } = useParams();
@@ -11,23 +18,32 @@ export default function LeadsPage() {
   const [site, setSite] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [counts, setCounts] = useState({ hot: 0, warm: 0, cold: 0 });
 
   useEffect(() => {
     Promise.all([getSite(id), getLeads(id)])
       .then(([siteData, leadsData]) => {
         setSite(siteData.site);
         setLeads(leadsData.leads || []);
+        setCounts(leadsData.counts || { hot: 0, warm: 0, cold: 0 });
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
 
   function exportCSV() {
-    const header = 'Name,Email,Message,Date\n';
+    const header = 'Name,Email,Phone,Issue,Rating,Date\n';
     const rows = leads
       .map((l) =>
-        [l.name || '', l.email, (l.message || '').replace(/\n/g, ' '), new Date(l.created_at).toLocaleString()]
-          .map((v) => `"${v.replace(/"/g, '""')}"`)
+        [
+          l.name || '', 
+          l.email || '', 
+          l.phone || '',
+          (l.issue || '').replace(/\n/g, ' '), 
+          l.lead_rating || '',
+          new Date(l.created_at).toLocaleString()
+        ]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
           .join(',')
       )
       .join('\n');
@@ -60,50 +76,105 @@ export default function LeadsPage() {
       {loading && <p className="text-muted">Loading leads...</p>}
 
       {!loading && (
-        <div className="card" style={{ padding: 0 }}>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Message</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.length === 0 && (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
-                      No leads captured yet.
-                    </td>
-                  </tr>
-                )}
-                {leads.map((lead) => (
-                  <tr key={lead.id}>
-                    <td>{lead.name || <span className="text-muted">—</span>}</td>
-                    <td>
-                      <a href={`mailto:${lead.email}`} style={{ color: 'var(--primary)' }}>
-                        {lead.email}
-                      </a>
-                    </td>
-                    <td style={{ maxWidth: 280, color: 'var(--muted)' }}>
-                      {lead.message
-                        ? lead.message.length > 120
-                          ? lead.message.slice(0, 120) + '...'
-                          : lead.message
-                        : '—'}
-                    </td>
-                    <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>
-                      {new Date(lead.created_at).toLocaleDateString()}{' '}
-                      {new Date(lead.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <>
+          {/* Lead Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+            <div className="card" style={{ padding: '16px', textAlign: 'center', background: RATING_COLORS.HOT.bg }}>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: RATING_COLORS.HOT.color }}>{counts.hot || 0}</div>
+              <div style={{ color: RATING_COLORS.HOT.color }}>HOT</div>
+            </div>
+            <div className="card" style={{ padding: '16px', textAlign: 'center', background: RATING_COLORS.WARM.bg }}>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: RATING_COLORS.WARM.color }}>{counts.warm || 0}</div>
+              <div style={{ color: RATING_COLORS.WARM.color }}>WARM</div>
+            </div>
+            <div className="card" style={{ padding: '16px', textAlign: 'center', background: RATING_COLORS.COLD.bg }}>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: RATING_COLORS.COLD.color }}>{counts.cold || 0}</div>
+              <div style={{ color: RATING_COLORS.COLD.color }}>COLD</div>
+            </div>
           </div>
-        </div>
+
+          <div className="card" style={{ padding: 0 }}>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rating</th>
+                    <th>Name</th>
+                    <th>Contact</th>
+                    <th>Issue</th>
+                    <th>Date</th>
+                    <th>Chat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
+                        No leads captured yet.
+                      </td>
+                    </tr>
+                  )}
+                  {leads.map((lead) => {
+                    const ratingStyle = RATING_COLORS[lead.lead_rating] || RATING_COLORS.COLD;
+                    return (
+                      <tr key={lead.id}>
+                        <td>
+                          <span style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            background: ratingStyle.bg,
+                            color: ratingStyle.color,
+                          }}>
+                            {lead.lead_rating || '—'}
+                          </span>
+                        </td>
+                        <td>{lead.name || <span className="text-muted">—</span>}</td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            {lead.email && (
+                              <a href={`mailto:${lead.email}`} style={{ color: 'var(--primary)', fontSize: '13px' }}>
+                                {lead.email}
+                              </a>
+                            )}
+                            {lead.phone && (
+                              <a href={`tel:${lead.phone}`} style={{ color: 'var(--muted)', fontSize: '12px' }}>
+                                {lead.phone}
+                              </a>
+                            )}
+                            {!lead.email && !lead.phone && <span className="text-muted">—</span>}
+                          </div>
+                        </td>
+                        <td style={{ maxWidth: 200, color: 'var(--muted)', fontSize: '13px' }}>
+                          {lead.issue
+                            ? lead.issue.length > 60
+                              ? lead.issue.slice(0, 60) + '...'
+                              : lead.issue
+                            : '—'}
+                        </td>
+                        <td className="text-muted" style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
+                          {new Date(lead.created_at).toLocaleDateString()}
+                        </td>
+                        <td>
+                          {lead.conversation_id && (
+                            <Link 
+                              href={`/sites/${id}/conversations/${lead.conversation_id}`}
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                            >
+                              View
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </SiteLayout>
   );
