@@ -28,6 +28,7 @@ const missedLeadsRouter = require('./routes/missedLeads');
 const reportsRouter = require('./routes/reports');
 const analyticsRouter = require('./routes/analytics');
 const adminReconcileRouter = require('./routes/adminReconcile');
+const twilioWebhookRouter = require('./routes/twilioWebhook');
 const adminAuth = require('./middleware/adminAuth');
 
 const app = express();
@@ -98,6 +99,9 @@ app.use('/sites', sitesRouter);
 app.use('/site-config', siteConfigRouter);
 app.use('/api/site-config', siteConfigRouter);
 app.use('/api/sites', siteConfigRouter); // public alias: /api/sites/:siteId
+
+// Twilio webhooks (public, no auth required)
+app.use('/webhooks', twilioWebhookRouter);
 
 // Protected admin API namespace (auth required)
 const adminApi = express.Router();
