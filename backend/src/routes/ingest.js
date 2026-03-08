@@ -3,6 +3,7 @@ const pool = require('../config/database');
 const { runIngestion } = require('../ingest/ingestRunner');
 const { ingestLimiter } = require('../middleware/rateLimiter');
 const adminAuth = require('../middleware/adminAuth');
+const { trackApiUsage } = require('../middleware/usageTracking');
 
 const router = express.Router();
 
@@ -42,6 +43,8 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
     }
 
     const startUrl = site.domain.startsWith('http') ? site.domain : `https://${site.domain}`;
+
+    trackApiUsage(site_id, 'ingest').catch(() => {});
 
     console.log(`[Ingest] Request received for site ${site.company_name} (${site_id})`);
 

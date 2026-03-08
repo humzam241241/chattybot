@@ -6,6 +6,7 @@ const { apiLimiter } = require('../middleware/rateLimiter');
 const adminAuth = require('../middleware/adminAuth');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { sendLeadEmail } = require('../services/mailer');
+const { trackApiUsage } = require('../middleware/usageTracking');
 
 const router = express.Router();
 
@@ -29,6 +30,8 @@ router.post(
     }
 
     const { site_id, name, email, message } = req.body;
+
+    trackApiUsage(site_id, 'lead').catch(() => {});
 
     try {
       console.log(`[LeadForm] Capturing lead from form for site ${site_id}: ${String(email || '').toLowerCase()}`);

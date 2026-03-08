@@ -10,6 +10,7 @@ const { processConversationForLead } = require('../services/leadPipeline');
 const { detectContactInfo } = require('../services/leadDetector');
 const { chatLimiter } = require('../middleware/rateLimiter');
 const domainVerify = require('../middleware/domainVerify');
+const { trackApiUsage } = require('../middleware/usageTracking');
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -92,6 +93,8 @@ router.post(
     }
 
     const { site_id, user_message, current_page_url, conversation_id, visitor_id } = req.body;
+
+    trackApiUsage(site_id, 'chat').catch(() => {});
 
     try {
       console.log(`[Chat] Processing message for site ${site_id}`);

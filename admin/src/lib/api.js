@@ -7,11 +7,16 @@
  * Flow: Browser → /api/sites (Next.js server) → backend (with secret header)
  */
 
+import { getAccessToken } from './supabase';
+
 async function apiFetch(path, options = {}) {
+  const accessToken = await getAccessToken();
+  
   const res = await fetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(accessToken && { 'X-Supabase-Token': accessToken }),
       ...options.headers,
     },
   });
@@ -80,4 +85,19 @@ export const getAnalytics = (siteId) => apiFetch(`/api/analytics/${siteId}`);
 
 // Data Reconciliation
 export const triggerReconciliation = () => apiFetch('/api/reconcile', { method: 'POST' });
+
+// Admin Overview
+export const getAdminOverview = (days = 30) => apiFetch(`/api/admin/overview?days=${days}`);
+export const getAdminUsers = () => apiFetch('/api/admin/users');
+export const updateUserPricing = (userId, customPricing) => 
+  apiFetch(`/api/admin/users/${userId}/pricing`, { method: 'PUT', body: JSON.stringify({ custom_pricing: customPricing }) });
+export const getLeadsBySite = (days = 30) => apiFetch(`/api/admin/leads-by-site?days=${days}`);
+export const getApiUsageBySite = (days = 30) => apiFetch(`/api/admin/api-usage-by-site?days=${days}`);
+export const getSmsUsageBySite = (days = 30) => apiFetch(`/api/admin/sms-usage-by-site?days=${days}`);
+
+// Stripe
+export const createCheckoutSession = (plan) => 
+  apiFetch('/api/stripe/checkout', { method: 'POST', body: JSON.stringify({ plan }) });
+export const getPortalUrl = () => apiFetch('/api/stripe/portal', { method: 'POST' });
+export const getSubscriptionStatus = () => apiFetch('/api/stripe/subscription');
 

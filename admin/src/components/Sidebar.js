@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Sidebar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const { user, isAdmin, signOut } = useAuth();
 
   useEffect(() => {
     setOpen(false);
@@ -20,7 +22,7 @@ export function Sidebar() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isActive = (href) => pathname === href;
+  const isActive = (href) => pathname === href || pathname.startsWith(href + '/');
 
   return (
     <>
@@ -39,19 +41,30 @@ export function Sidebar() {
       
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-logo">
-          <span className="logo-icon">🤖</span>
-          <span className="logo-text">ChattyBot</span>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit' }}>
+            <span className="logo-icon">🤖</span>
+            <span className="logo-text">ChattyBot</span>
+          </Link>
         </div>
         <nav className="sidebar-nav">
           <Link 
-            href="/" 
-            className={`nav-item ${isActive('/') ? 'active' : ''}`}
+            href="/dashboard" 
+            className={`nav-item ${isActive('/dashboard') && !pathname.includes('/admin') ? 'active' : ''}`}
             onClick={() => setOpen(false)}
           >
             📊 Dashboard
           </Link>
+          {isAdmin && (
+            <Link 
+              href="/dashboard/admin" 
+              className={`nav-item ${isActive('/dashboard/admin') ? 'active' : ''}`}
+              onClick={() => setOpen(false)}
+            >
+              👑 Admin Overview
+            </Link>
+          )}
           <Link 
-            href="/sites/new" 
+            href="/dashboard/sites/new" 
             className="nav-item nav-cta" 
             onClick={() => setOpen(false)}
           >
@@ -60,7 +73,13 @@ export function Sidebar() {
         </nav>
         
         <div className="sidebar-footer">
-          <div className="footer-text">Manage AI Chatbots</div>
+          {user && (
+            <div className="user-info">
+              <div className="user-email">{user.email}</div>
+              {isAdmin && <div className="admin-badge">Admin</div>}
+              <button onClick={signOut} className="sign-out-btn">Sign Out</button>
+            </div>
+          )}
         </div>
       </aside>
       
@@ -71,9 +90,43 @@ export function Sidebar() {
           border-top: 1px solid var(--border);
         }
         
-        .footer-text {
-          font-size: 12px;
+        .user-info {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        
+        .user-email {
+          font-size: 13px;
+          color: var(--text);
+          word-break: break-all;
+        }
+        
+        .admin-badge {
+          display: inline-block;
+          background: var(--primary);
+          color: white;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          width: fit-content;
+        }
+        
+        .sign-out-btn {
+          background: none;
+          border: 1px solid var(--border);
+          padding: 6px 12px;
+          border-radius: 6px;
           color: var(--muted);
+          cursor: pointer;
+          font-size: 13px;
+          transition: all 0.2s;
+        }
+        
+        .sign-out-btn:hover {
+          border-color: var(--danger);
+          color: var(--danger);
         }
         
         .nav-item.active {

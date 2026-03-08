@@ -3,18 +3,26 @@ const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
 const { apiLimiter } = require('../middleware/rateLimiter');
-const adminAuth = require('../middleware/adminAuth');
+const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
 const { clearSettingsCache } = require('../services/raffySettings');
 
 const router = express.Router();
 
-// All site management routes require admin auth
-router.use(adminAuth);
+router.use(userAuth);
+router.use(requirePaidOrTrial);
 router.use(apiLimiter);
 
-/** GET /sites — list all sites with lead/conversation counts */
+/** GET /sites — list sites (all for admin, owned for users) */
 router.get('/', async (req, res) => {
   try {
+    const params = [];
+    let whereClause = '';
+    
+    if (!req.isAdmin && req.ownerId) {
+      params.push(req.ownerId);
+      whereClause = `WHERE s.owner_id = $${params.length}`;
+    }
+    
     const result = await pool.query(`
       SELECT 
         s.id, 
@@ -22,6 +30,7 @@ router.get('/', async (req, res) => {
         s.domain, 
         s.primary_color, 
         s.tone, 
+        s.owner_id,
         s.created_at,
         COALESCE(l.lead_count, 0)::int as lead_count,
         COALESCE(c.conversation_count, 0)::int as conversation_count
@@ -36,8 +45,9 @@ router.get('/', async (req, res) => {
         FROM conversations 
         GROUP BY site_id
       ) c ON s.id = c.site_id
+      ${whereClause}
       ORDER BY s.created_at DESC
-    `);
+    `, params);
     return res.json({ sites: result.rows });
   } catch (err) {
     console.error(err);
@@ -45,10 +55,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-/** GET /sites/:id — get single site */
+/** GET /sites/:id — get single site (owned check for non-admins) */
 router.get('/:id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM sites WHERE id = $1', [req.params.id]);
+    const params = [req.params.id];
+    let query = 'SELECT * FROM sites WHERE id = $1';
+    
+    if (!req.isAdmin && req.ownerId) {
+      params.push(req.ownerId);
+      query += ` AND owner_id = $${params.length}`;
+    }
+    
+    const result = await pool.query(query, params);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     return res.json({ site: result.rows[0] });
   } catch (err) {
@@ -75,11 +93,12 @@ router.post(
 
     try {
       const id = uuidv4();
+      const ownerId = req.ownerId || null;
       const result = await pool.query(
-        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, owner_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
          RETURNING *`,
-        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null, raffy_overrides || {}]
+        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null, raffy_overrides || {}, ownerId]
       );
       return res.status(201).json({ site: result.rows[0] });
     } catch (err) {
@@ -107,6 +126,14 @@ router.put(
     const { company_name, domain, primary_color, tone, system_prompt, raffy_overrides } = req.body;
 
     try {
+      const params = [company_name, domain, primary_color, tone, system_prompt, raffy_overrides, req.params.id];
+      let ownerCheck = '';
+      
+      if (!req.isAdmin && req.ownerId) {
+        params.push(req.ownerId);
+        ownerCheck = ` AND owner_id = $${params.length}`;
+      }
+      
       const result = await pool.query(
         `UPDATE sites
          SET company_name = COALESCE($1, company_name),
@@ -115,13 +142,12 @@ router.put(
              tone = COALESCE($4, tone),
              system_prompt = COALESCE($5, system_prompt),
              raffy_overrides = COALESCE($6, raffy_overrides)
-         WHERE id = $7
+         WHERE id = $7${ownerCheck}
          RETURNING *`,
-        [company_name, domain, primary_color, tone, system_prompt, raffy_overrides, req.params.id]
+        params
       );
       if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
       
-      // Clear cache when settings are updated
       clearSettingsCache(req.params.id);
       
       return res.json({ site: result.rows[0] });
@@ -135,7 +161,15 @@ router.put(
 /** DELETE /sites/:id */
 router.delete('/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM sites WHERE id = $1', [req.params.id]);
+    const params = [req.params.id];
+    let ownerCheck = '';
+    
+    if (!req.isAdmin && req.ownerId) {
+      params.push(req.ownerId);
+      ownerCheck = ` AND owner_id = $${params.length}`;
+    }
+    
+    await pool.query(`DELETE FROM sites WHERE id = $1${ownerCheck}`, params);
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to delete site' });

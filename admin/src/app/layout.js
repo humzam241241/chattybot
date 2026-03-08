@@ -1,19 +1,18 @@
 import './globals.css';
-import { Sidebar } from '../components/Sidebar';
+import { AuthProvider } from '../contexts/AuthContext';
 
 export const metadata = {
-  title: 'ChattyBot Admin',
-  description: 'Manage your AI chatbot clients',
+  title: 'ChattyBot',
+  description: 'AI-powered chatbots that convert visitors to leads',
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <div className="layout">
-          <Sidebar />
-          <main className="main-content">{children}</main>
-        </div>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

@@ -1,438 +1,389 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getSites, deleteSite, triggerReconciliation } from '../lib/api';
 import Link from 'next/link';
+import { useAuth } from '../contexts/AuthContext';
 
-export default function DashboardPage() {
-  const [sites, setSites] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [reconciling, setReconciling] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-
-  async function loadSites() {
-    try {
-      const data = await getSites();
-      setSites(data.sites || []);
-    } catch {
-      setSites([]);
-    }
-  }
-
-  useEffect(() => {
-    loadSites().finally(() => setLoading(false));
-  }, []);
-
-  async function handleRefresh() {
-    setLoading(true);
-    await loadSites();
-    setLoading(false);
-  }
-
-  async function handleReconcile() {
-    if (!confirm('Scan the database for missed lead data? This may take a few minutes.')) return;
-    
-    setReconciling(true);
-    try {
-      await triggerReconciliation();
-      alert('Data reconciliation started. Check backend logs for results. Refresh in a minute to see recovered leads.');
-    } catch (err) {
-      alert(`Failed to start reconciliation: ${err.message}`);
-    } finally {
-      setReconciling(false);
-    }
-  }
-
-  async function handleDelete(e, id, name) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!confirm(`Delete "${name}"? This will remove all documents and leads.`)) return;
-    setDeletingId(id);
-    try {
-      await deleteSite(id);
-      setSites((prev) => prev.filter((s) => s.id !== id));
-    } catch (err) {
-      alert('Failed to delete: ' + err.message);
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  const totalLeads = sites.reduce((sum, s) => sum + (s.lead_count || 0), 0);
-  const totalChats = sites.reduce((sum, s) => sum + (s.conversation_count || 0), 0);
+export default function LandingPage() {
+  const { user } = useAuth();
 
   return (
-    <div className="dashboard-page">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Manage your chatbot clients</p>
-        </div>
-        <div className="header-actions">
-          <button 
-            className="btn btn-primary" 
-            onClick={handleReconcile} 
-            disabled={reconciling}
-            title="Scan database to recover missed lead data"
-          >
-            {reconciling ? 'Scanning...' : '🔄 Recover Data'}
-          </button>
-          <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
-            {loading ? '...' : '↻ Refresh'}
-          </button>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      {!loading && sites.length > 0 && (
-        <div className="summary-row">
-          <div className="summary-stat">
-            <span className="stat-num">{sites.length}</span>
-            <span className="stat-label">Clients</span>
-          </div>
-          <div className="summary-stat">
-            <span className="stat-num">{totalLeads}</span>
-            <span className="stat-label">Total Leads</span>
-          </div>
-          <div className="summary-stat">
-            <span className="stat-num">{totalChats}</span>
-            <span className="stat-label">Total Chats</span>
-          </div>
-        </div>
-      )}
-
-      {loading && (
-        <div className="loading-state">
-          <div className="spinner"></div>
-          <p>Loading clients...</p>
-        </div>
-      )}
-
-      {!loading && (
-        <div className="client-grid">
-          {/* Add Client Card */}
-          <Link href="/sites/new" className="client-card add-card">
-            <div className="add-icon">+</div>
-            <div className="add-text">Add New Client</div>
+    <div className="landing-page">
+      <header className="landing-header">
+        <div className="header-container">
+          <Link href="/" className="logo">
+            <span className="logo-icon">🤖</span>
+            <span className="logo-text">ChattyBot</span>
           </Link>
-
-          {/* Client Cards */}
-          {sites.map((site) => (
-            <Link 
-              key={site.id} 
-              href={`/sites/${site.id}/leads`} 
-              className="client-card"
-            >
-              <div className="client-header">
-                <div
-                  className="client-color"
-                  style={{ background: site.primary_color || '#6366f1' }}
-                >
-                  <span className="color-icon">💬</span>
-                </div>
-                <button
-                  className="delete-btn"
-                  onClick={(e) => handleDelete(e, site.id, site.company_name)}
-                  disabled={deletingId === site.id}
-                  title="Delete client"
-                >
-                  {deletingId === site.id ? '...' : '×'}
-                </button>
-              </div>
-              
-              <div className="client-name">{site.company_name}</div>
-              <div className="client-domain">{site.domain || 'No domain set'}</div>
-              
-              <div className="client-stats">
-                <div className="mini-stat">
-                  <span className="mini-num">{site.lead_count || 0}</span>
-                  <span className="mini-label">Leads</span>
-                </div>
-                <div className="mini-stat">
-                  <span className="mini-num">{site.conversation_count || 0}</span>
-                  <span className="mini-label">Chats</span>
-                </div>
-              </div>
-              
-              <div className="client-footer">
-                <span className="client-date">
-                  Created {new Date(site.created_at).toLocaleDateString()}
-                </span>
-                <span className="action-hint">Manage →</span>
-              </div>
-            </Link>
-          ))}
+          <nav className="header-nav">
+            <Link href="/about">About</Link>
+            <Link href="/pricing">Pricing</Link>
+            <Link href="/contact">Contact</Link>
+          </nav>
+          <div className="header-actions">
+            {user ? (
+              <Link href="/dashboard" className="btn btn-primary">Dashboard</Link>
+            ) : (
+              <>
+                <Link href="/sign-in" className="btn btn-secondary">Sign In</Link>
+                <Link href="/sign-up" className="btn btn-primary">Get Started</Link>
+              </>
+            )}
+          </div>
         </div>
-      )}
+      </header>
 
-      {!loading && sites.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-icon">🚀</div>
-          <h3>Welcome to ChattyBot!</h3>
-          <p>Create your first client to get started with AI-powered chat.</p>
-          <Link href="/sites/new" className="btn btn-primary" style={{ marginTop: 16 }}>
-            + Create Client
+      <main>
+        <section className="hero">
+          <div className="hero-content">
+            <h1 className="hero-title">
+              AI-Powered Chatbots<br />
+              <span className="gradient-text">That Convert Visitors to Leads</span>
+            </h1>
+            <p className="hero-subtitle">
+              Deploy intelligent chatbots on your website in minutes. 
+              Capture leads 24/7, answer questions instantly, and never miss an opportunity.
+            </p>
+            <div className="hero-cta">
+              <Link href="/sign-up" className="btn btn-primary btn-lg">
+                Start Free Trial
+              </Link>
+              <Link href="/pricing" className="btn btn-secondary btn-lg">
+                View Pricing
+              </Link>
+            </div>
+            <p className="hero-note">14-day free trial. No credit card required.</p>
+          </div>
+        </section>
+
+        <section className="features">
+          <h2 className="section-title">Everything You Need</h2>
+          <div className="features-grid">
+            <div className="feature-card">
+              <div className="feature-icon">💬</div>
+              <h3>Smart AI Conversations</h3>
+              <p>Powered by GPT-4, your chatbot understands context and provides accurate, helpful responses.</p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">📊</div>
+              <h3>Lead Capture & Scoring</h3>
+              <p>Automatically capture leads and score them as Hot, Warm, or Cold based on conversation intent.</p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">📱</div>
+              <h3>SMS & WhatsApp</h3>
+              <p>Extend your reach with text message support. Same AI, different channels.</p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">📈</div>
+              <h3>Analytics Dashboard</h3>
+              <p>Track conversations, leads, conversion rates, and more with detailed analytics.</p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">🎨</div>
+              <h3>Fully Customizable</h3>
+              <p>Match your brand with custom colors, personality settings, and guardrails.</p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">⚡</div>
+              <h3>Easy Integration</h3>
+              <p>Add to any website with a single script tag. Works with WordPress, Shopify, and more.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="cta-section">
+          <h2>Ready to Get Started?</h2>
+          <p>Join hundreds of businesses using ChattyBot to capture more leads.</p>
+          <Link href="/sign-up" className="btn btn-primary btn-lg">
+            Start Your Free Trial
           </Link>
+        </section>
+      </main>
+
+      <footer className="landing-footer">
+        <div className="footer-container">
+          <div className="footer-brand">
+            <span className="logo-icon">🤖</span>
+            <span className="logo-text">ChattyBot</span>
+            <p className="footer-tagline">AI chatbots that convert.</p>
+          </div>
+          <div className="footer-links">
+            <div className="footer-col">
+              <h4>Product</h4>
+              <Link href="/pricing">Pricing</Link>
+              <Link href="/about">About</Link>
+              <Link href="/contact">Contact</Link>
+            </div>
+            <div className="footer-col">
+              <h4>Account</h4>
+              <Link href="/sign-in">Sign In</Link>
+              <Link href="/sign-up">Sign Up</Link>
+              <Link href="/dashboard">Dashboard</Link>
+            </div>
+          </div>
         </div>
-      )}
+        <div className="footer-bottom">
+          <p>&copy; {new Date().getFullYear()} ChattyBot. All rights reserved.</p>
+        </div>
+      </footer>
 
       <style jsx>{`
-        .dashboard-page {
-          max-width: 1100px;
+        .landing-page {
+          min-height: 100vh;
+          background: var(--bg);
         }
-        
-        .header-actions {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
+
+        .landing-header {
+          position: sticky;
+          top: 0;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(10px);
+          border-bottom: 1px solid var(--border);
+          z-index: 100;
         }
-        
-        .summary-row {
-          display: flex;
-          gap: 16px;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-        }
-        
-        .summary-stat {
-          background: var(--surface);
-          border: 1px solid var(--border);
-          border-radius: 12px;
+
+        .header-container {
+          max-width: 1200px;
+          margin: 0 auto;
           padding: 16px 24px;
           display: flex;
           align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+        }
+
+        .logo {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          text-decoration: none;
+          font-weight: 700;
+          font-size: 20px;
+          color: var(--text);
+        }
+
+        .logo-icon {
+          font-size: 28px;
+        }
+
+        .header-nav {
+          display: flex;
+          gap: 32px;
+        }
+
+        .header-nav a {
+          color: var(--muted);
+          text-decoration: none;
+          font-weight: 500;
+          transition: color 0.2s;
+        }
+
+        .header-nav a:hover {
+          color: var(--text);
+        }
+
+        .header-actions {
+          display: flex;
           gap: 12px;
         }
-        
-        .stat-num {
-          font-size: 28px;
-          font-weight: 700;
-          color: var(--primary);
-        }
-        
-        .stat-label {
-          font-size: 13px;
-          color: var(--muted);
-          font-weight: 500;
-        }
-        
-        .loading-state {
+
+        .hero {
+          padding: 80px 24px 100px;
           text-align: center;
-          padding: 60px 20px;
-          color: var(--muted);
+          background: linear-gradient(180deg, var(--bg) 0%, rgba(99, 102, 241, 0.05) 100%);
         }
-        
-        .spinner {
-          width: 32px;
-          height: 32px;
-          border: 3px solid var(--border);
-          border-top-color: var(--primary);
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-          margin: 0 auto 12px;
+
+        .hero-content {
+          max-width: 800px;
+          margin: 0 auto;
         }
-        
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        
-        .client-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-          gap: 20px;
-        }
-        
-        .client-card {
-          background: var(--surface);
-          border: 1px solid var(--border);
-          border-radius: 16px;
-          padding: 24px;
-          text-decoration: none;
-          color: var(--text);
-          transition: all 0.2s ease;
-          display: flex;
-          flex-direction: column;
-        }
-        
-        .client-card:hover {
-          border-color: var(--primary);
-          box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
-          transform: translateY(-3px);
-        }
-        
-        .add-card {
-          border: 2px dashed var(--border);
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          min-height: 200px;
-        }
-        
-        .add-card:hover {
-          border-color: var(--primary);
-          background: rgba(99, 102, 241, 0.03);
-        }
-        
-        .add-icon {
-          font-size: 48px;
-          color: var(--primary);
-          font-weight: 300;
-          line-height: 1;
-          margin-bottom: 8px;
-        }
-        
-        .add-text {
-          font-weight: 600;
-          color: var(--primary);
-          font-size: 15px;
-        }
-        
-        .client-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 16px;
-        }
-        
-        .client-color {
-          width: 48px;
-          height: 48px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        
-        .color-icon {
-          font-size: 24px;
-          filter: grayscale(1) brightness(10);
-        }
-        
-        .delete-btn {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--surface);
-          color: var(--muted);
-          cursor: pointer;
-          font-size: 18px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          opacity: 0;
-          transition: all 0.15s;
-        }
-        
-        .client-card:hover .delete-btn {
-          opacity: 1;
-        }
-        
-        .delete-btn:hover {
-          background: var(--danger);
-          border-color: var(--danger);
-          color: white;
-        }
-        
-        .client-name {
-          font-weight: 700;
-          font-size: 18px;
-          margin-bottom: 4px;
+
+        .hero-title {
+          font-size: 56px;
+          font-weight: 800;
+          line-height: 1.1;
+          margin-bottom: 24px;
           color: var(--text);
         }
-        
-        .client-domain {
-          color: var(--muted);
-          font-size: 13px;
-          margin-bottom: 16px;
+
+        .gradient-text {
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
-        
-        .client-stats {
+
+        .hero-subtitle {
+          font-size: 20px;
+          color: var(--muted);
+          line-height: 1.6;
+          margin-bottom: 32px;
+        }
+
+        .hero-cta {
           display: flex;
           gap: 16px;
-          padding: 16px 0;
-          border-top: 1px solid var(--border);
-          border-bottom: 1px solid var(--border);
+          justify-content: center;
           margin-bottom: 16px;
         }
-        
-        .mini-stat {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        
-        .mini-num {
-          font-size: 20px;
-          font-weight: 700;
-          color: var(--text);
-        }
-        
-        .mini-label {
-          font-size: 12px;
+
+        .hero-note {
+          font-size: 14px;
           color: var(--muted);
         }
-        
-        .client-footer {
+
+        .btn-lg {
+          padding: 14px 28px;
+          font-size: 16px;
+        }
+
+        .features {
+          padding: 80px 24px;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .section-title {
+          text-align: center;
+          font-size: 36px;
+          font-weight: 700;
+          margin-bottom: 48px;
+        }
+
+        .features-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+          gap: 24px;
+        }
+
+        .feature-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 32px;
+          transition: all 0.2s;
+        }
+
+        .feature-card:hover {
+          border-color: var(--primary);
+          transform: translateY(-4px);
+          box-shadow: 0 12px 32px rgba(99, 102, 241, 0.1);
+        }
+
+        .feature-icon {
+          font-size: 40px;
+          margin-bottom: 16px;
+        }
+
+        .feature-card h3 {
+          font-size: 20px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        }
+
+        .feature-card p {
+          color: var(--muted);
+          line-height: 1.6;
+        }
+
+        .cta-section {
+          padding: 80px 24px;
+          text-align: center;
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          color: white;
+        }
+
+        .cta-section h2 {
+          font-size: 36px;
+          margin-bottom: 16px;
+        }
+
+        .cta-section p {
+          font-size: 18px;
+          opacity: 0.9;
+          margin-bottom: 32px;
+        }
+
+        .cta-section .btn {
+          background: white;
+          color: #6366f1;
+        }
+
+        .cta-section .btn:hover {
+          background: #f8f8f8;
+        }
+
+        .landing-footer {
+          background: var(--surface);
+          border-top: 1px solid var(--border);
+          padding: 48px 24px 24px;
+        }
+
+        .footer-container {
+          max-width: 1200px;
+          margin: 0 auto;
           display: flex;
           justify-content: space-between;
-          align-items: center;
+          gap: 48px;
+          flex-wrap: wrap;
         }
-        
-        .client-date {
+
+        .footer-brand .logo-icon {
+          font-size: 32px;
+        }
+
+        .footer-tagline {
           color: var(--muted);
-          font-size: 12px;
+          margin-top: 8px;
         }
-        
-        .action-hint {
-          font-size: 13px;
-          color: var(--primary);
+
+        .footer-links {
+          display: flex;
+          gap: 64px;
+        }
+
+        .footer-col h4 {
           font-weight: 600;
-        }
-        
-        .empty-state {
-          text-align: center;
-          padding: 60px 20px;
-          background: var(--surface);
-          border-radius: 16px;
-          border: 1px solid var(--border);
-        }
-        
-        .empty-icon {
-          font-size: 48px;
           margin-bottom: 16px;
         }
-        
-        .empty-state h3 {
+
+        .footer-col a {
+          display: block;
+          color: var(--muted);
+          text-decoration: none;
           margin-bottom: 8px;
+          transition: color 0.2s;
+        }
+
+        .footer-col a:hover {
           color: var(--text);
         }
-        
-        .empty-state p {
+
+        .footer-bottom {
+          max-width: 1200px;
+          margin: 48px auto 0;
+          padding-top: 24px;
+          border-top: 1px solid var(--border);
+          text-align: center;
           color: var(--muted);
+          font-size: 14px;
         }
-        
+
         @media (max-width: 768px) {
-          .client-grid {
-            grid-template-columns: 1fr;
+          .header-nav {
+            display: none;
           }
-          
-          .header-actions {
-            width: 100%;
+
+          .hero-title {
+            font-size: 36px;
           }
-          
-          .header-actions .btn {
-            flex: 1;
-            justify-content: center;
-          }
-          
-          .summary-row {
+
+          .hero-cta {
             flex-direction: column;
           }
-          
-          .summary-stat {
-            flex: 1;
+
+          .features-grid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>

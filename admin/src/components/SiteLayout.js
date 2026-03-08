@@ -10,14 +10,14 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
-    { href: `/sites/${id}/leads`, label: 'Leads', icon: '👥' },
-    { href: `/sites/${id}/conversations`, label: 'Chats', icon: '💬' },
-    { href: `/sites/${id}/missed-leads`, label: 'Missed Leads', icon: '⚠️' },
-    { href: `/sites/${id}/analytics`, label: 'Analytics', icon: '📊' },
-    { href: `/sites/${id}/reports`, label: 'Reports', icon: '📈' },
-    { href: `/sites/${id}/files`, label: 'Files', icon: '📁' },
-    { href: `/sites/${id}/rag-eval`, label: 'RAG Test', icon: '🎯' },
-    { href: `/sites/${id}`, label: 'Settings', icon: '⚙️', exact: true },
+    { href: `/dashboard/sites/${id}/leads`, label: 'Leads', icon: '👥' },
+    { href: `/dashboard/sites/${id}/conversations`, label: 'Chats', icon: '💬' },
+    { href: `/dashboard/sites/${id}/missed-leads`, label: 'Missed Leads', icon: '⚠️' },
+    { href: `/dashboard/sites/${id}/analytics`, label: 'Analytics', icon: '📊' },
+    { href: `/dashboard/sites/${id}/reports`, label: 'Reports', icon: '📈' },
+    { href: `/dashboard/sites/${id}/files`, label: 'Files', icon: '📁' },
+    { href: `/dashboard/sites/${id}/rag-eval`, label: 'RAG Test', icon: '🎯' },
+    { href: `/dashboard/sites/${id}/settings`, label: 'Settings', icon: '⚙️' },
   ];
 
   const isActive = (item) => {
@@ -86,7 +86,7 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
 
         {/* Back to Dashboard */}
         <div className="site-footer">
-          <Link href="/" className="back-link">
+          <Link href="/dashboard" className="back-link">
             ← All Clients
           </Link>
         </div>

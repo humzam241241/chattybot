@@ -29,7 +29,10 @@ const reportsRouter = require('./routes/reports');
 const analyticsRouter = require('./routes/analytics');
 const adminReconcileRouter = require('./routes/adminReconcile');
 const twilioWebhookRouter = require('./routes/twilioWebhook');
+const stripeRouter = require('./routes/stripe');
+const adminOverviewRouter = require('./routes/adminOverview');
 const adminAuth = require('./middleware/adminAuth');
+const { userAuth } = require('./middleware/userAuth');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -103,9 +106,12 @@ app.use('/api/sites', siteConfigRouter); // public alias: /api/sites/:siteId
 // Twilio webhooks (public, no auth required)
 app.use('/webhooks', twilioWebhookRouter);
 
+// Stripe routes (webhook needs raw body, must be before json parser for that route)
+app.use('/api/stripe', stripeRouter);
+
 // Protected admin API namespace (auth required)
 const adminApi = express.Router();
-adminApi.use(adminAuth);
+adminApi.use(userAuth);
 adminApi.use('/sites', sitesRouter);
 adminApi.use('/ingest', ingestRouter);
 adminApi.use('/leads', leadsRouter);
@@ -119,6 +125,7 @@ adminApi.use('/missed-leads', missedLeadsRouter);
 adminApi.use('/reports', reportsRouter);
 adminApi.use('/analytics', analyticsRouter);
 adminApi.use('/reconcile', adminReconcileRouter);
+adminApi.use('/overview', adminOverviewRouter);
 app.use('/api/admin', adminApi);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

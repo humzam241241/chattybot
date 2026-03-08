@@ -12,6 +12,7 @@ const { retrieveContext, buildSystemPrompt } = require('../services/rag');
 const { getOrCreateConversation, appendMessage, getRecentMessages } = require('../services/conversationLog');
 const { processConversationForLead } = require('../services/leadPipeline');
 const { validateWebhookSignature, normalizePhoneE164 } = require('../services/twilioClient');
+const { trackSmsUsage } = require('../middleware/usageTracking');
 const OpenAI = require('openai');
 
 const router = express.Router();
@@ -57,6 +58,8 @@ router.post('/twilio/sms', async (req, res) => {
       return res.type('text/xml').send(twiml.toString());
     }
     
+    trackSmsUsage(defaultSiteId, 'inbound').catch(() => {});
+    
     // Generate AI response
     const aiResponse = await generateChatResponse({
       siteId: defaultSiteId,
@@ -64,6 +67,8 @@ router.post('/twilio/sms', async (req, res) => {
       visitorId: `sms:${userPhone}`,
       conversationId: null,
     });
+    
+    trackSmsUsage(defaultSiteId, 'outbound').catch(() => {});
     
     // Respond via TwiML
     const twiml = new MessagingResponse();
@@ -120,6 +125,8 @@ router.post('/twilio/whatsapp', async (req, res) => {
       return res.type('text/xml').send(twiml.toString());
     }
     
+    trackSmsUsage(defaultSiteId, 'inbound').catch(() => {});
+    
     // Generate AI response
     const aiResponse = await generateChatResponse({
       siteId: defaultSiteId,
@@ -127,6 +134,8 @@ router.post('/twilio/whatsapp', async (req, res) => {
       visitorId: `whatsapp:${userPhone}`,
       conversationId: null,
     });
+    
+    trackSmsUsage(defaultSiteId, 'outbound').catch(() => {});
     
     // Respond via TwiML
     const twiml = new MessagingResponse();
