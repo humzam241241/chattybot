@@ -1,0 +1,13 @@
+# Test and documentation files
+test.html
+check-deployment.ps1
+DEPLOYMENT.md
+
+# Development files
+node_modules/
+src/
+
+# Build config
+vite.config.js
+package.json
+package-lock.json
