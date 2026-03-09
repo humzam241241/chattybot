@@ -1,81 +1,46 @@
 const dns = require("dns");
 dns.setDefaultResultOrder("ipv4first");
 
-const { Pool } = require('pg');
+const { Pool } = require("pg");
 
-// Unit tests should not require a live database, nor keep open handles.
-// (Avoid top-level `return` so Jest/Babel parsers don't choke.)
-if (process.env.NODE_ENV === 'test') {
-  module.exports = {
-    query: async () => {
-      throw new Error('Database is disabled in test environment');
-    },
-    on: () => {},
-  };
-} else {
-
-/**
- * Supabase appends ?pgbouncer=true to their pooler connection strings as a
- * hint for ORMs (Prisma etc.) to disable prepared statements.
- * The raw `pg` library passes unknown query params as PostgreSQL startup
- * parameters — Supavisor sees an unrecognised param and throws
- * "Tenant or user not found". Strip it before creating the pool.
- */
-function sanitizeConnectionString(url) {
-  if (!url) return url;
+function normalizeDatabaseUrl(raw) {
+  if (!raw) return raw;
   try {
-    const parsed = new URL(url);
-    parsed.searchParams.delete('pgbouncer');
-    parsed.searchParams.delete('pgbouncer');   // belt-and-suspenders
-    return parsed.toString();
+    const url = new URL(raw);
+
+    // Supabase pooler expects port 6543 (not 5432). Keep env var unchanged by rewriting here.
+    if (url.hostname.endsWith(".pooler.supabase.com")) {
+      if (!url.port || url.port === "5432") url.port = "6543";
+
+      // Some Supabase-provided pooler strings include pgbouncer=true; pg treats unknown params
+      // as startup parameters which can break Supavisor. Strip it defensively.
+      url.searchParams.delete("pgbouncer");
+    }
+
+    return url.toString();
   } catch {
-    // URL parsing failed — return as-is and let pg surface the real error
-    return url;
+    return raw;
   }
 }
 
-const connectionString = sanitizeConnectionString(process.env.DATABASE_URL);
-
-// Log masked connection info at startup
-if (connectionString) {
-  try {
-    const dbUrl = new URL(connectionString);
-    const hostOnly = dbUrl.host.split(':')[0]; // Remove port if present
-    console.log(`[DB] Connecting to: ${hostOnly}`);
-    console.log(`[DB] Database: ${dbUrl.pathname.slice(1) || 'default'}`);
-  } catch {
-    console.log('[DB] Connecting to database...');
-  }
-}
+const connectionString = normalizeDatabaseUrl(process.env.DATABASE_URL);
 
 const pool = new Pool({
   connectionString,
-  ssl: { rejectUnauthorized: false },
-  max: 1,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  simple_query_mode: true,
+  ssl: {
+    rejectUnauthorized: false
+  },
+  // Pooler connections can be slightly slower to establish on cold start.
+  connectionTimeoutMillis: 10000
 });
 
-pool.on('connect', () => {
-  console.log('[DB] Client connected');
-});
-
-pool.on('error', (err) => {
-  console.error('[DB] Unexpected error on idle client:', err.message);
-});
-
-// Eagerly test the connection at startup so misconfiguration is caught immediately.
-// Skip during tests so unit tests don't require a live database.
-if (process.env.NODE_ENV !== 'test') {
-  pool.query('SELECT 1').then(() => {
-    console.log('[DB] Database connection verified');
-  }).catch((err) => {
-    console.error('[DB] STARTUP CONNECTION FAILED:', err.message);
-    console.error('[DB] Check DATABASE_URL in your environment variables');
+pool.connect()
+  .then(client => {
+    console.log("[DB] Database connection verified");
+    client.release();
+  })
+  .catch(err => {
+    console.error("[DB] STARTUP CONNECTION FAILED:", err.message);
   });
-}
 
 module.exports = pool;
-
-}
