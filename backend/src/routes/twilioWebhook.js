@@ -76,17 +76,20 @@ async function resolveSiteIdFromTo(toNumberRaw) {
  * Inbound SMS webhook
  */
 router.post('/twilio/sms', async (req, res) => {
-  console.log('[TwilioWebhook] inbound message (sms)');
+  console.log('[TwilioWebhook] SMS received:', req.body.Body);
   
   const { From, To, Body, MessageSid } = req.body;
   
-  console.log(`[TwilioWebhook] From: ${From}, Body: ${Body?.substring(0, 50)}...`);
+  console.log(`[TwilioWebhook] From: ${From}, To: ${To}, MessageSid: ${MessageSid}`);
   
   try {
     // Verify Twilio signature
     if (!validateTwilioRequest(req)) {
       console.warn('[TwilioWebhook] Invalid Twilio signature (sms)');
-      return res.status(403).send('Invalid Twilio signature');
+      const twiml = new MessagingResponse();
+      twiml.message('Invalid request.');
+      res.set('Content-Type', 'text/xml');
+      return res.status(200).send(twiml.toString());
     }
     
     const userPhone = normalizePhoneE164(From);
@@ -96,7 +99,8 @@ router.post('/twilio/sms', async (req, res) => {
       console.error('[TwilioWebhook] Missing From or Body');
       const twiml = new MessagingResponse();
       twiml.message('Sorry, I could not process your message.');
-      return res.type('text/xml').send(twiml.toString());
+      res.set('Content-Type', 'text/xml');
+      return res.status(200).send(twiml.toString());
     }
     
     // Resolve site by destination number (multi-tenant)
@@ -107,7 +111,8 @@ router.post('/twilio/sms', async (req, res) => {
       console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
       const twiml = new MessagingResponse();
       twiml.message('Service unavailable.');
-      return res.type('text/xml').send(twiml.toString());
+      res.set('Content-Type', 'text/xml');
+      return res.status(200).send(twiml.toString());
     }
     if (!mappedSiteId) {
       console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID');
@@ -124,20 +129,22 @@ router.post('/twilio/sms', async (req, res) => {
       conversationId: null,
     });
     
+    console.log('[TwilioWebhook] Responding with:', aiResponse);
+    
     trackSmsUsage(siteId, 'outbound').catch(() => {});
     
-    // Respond via TwiML
+    // ALWAYS return TwiML
     const twiml = new MessagingResponse();
-    twiml.message(aiResponse);
+    twiml.message(aiResponse || 'Thanks for contacting us. How can we help?');
 
     res.set('Content-Type', 'text/xml');
-    res.send(twiml.toString());
+    return res.status(200).send(twiml.toString());
   } catch (err) {
-    console.error('[TwilioWebhook] Error processing SMS:', err.message);
+    console.error('[TwilioWebhook] Error processing SMS:', err.message, err.stack);
     const twiml = new MessagingResponse();
     twiml.message('Sorry, something went wrong. Please try again.');
     res.set('Content-Type', 'text/xml');
-    res.send(twiml.toString());
+    return res.status(200).send(twiml.toString());
   }
 });
 
@@ -146,7 +153,7 @@ router.post('/twilio/sms', async (req, res) => {
  * Inbound WhatsApp webhook
  */
 router.post('/twilio/whatsapp', async (req, res) => {
-  console.log('[TwilioWebhook] inbound message (whatsapp)');
+  console.log('[TwilioWebhook] WhatsApp received:', req.body.Body);
   
   const { From, To, Body, MessageSid } = req.body;
   
@@ -154,13 +161,16 @@ router.post('/twilio/whatsapp', async (req, res) => {
   const fromPhone = From?.replace('whatsapp:', '');
   const toPhone = To?.replace('whatsapp:', '');
   
-  console.log(`[TwilioWebhook] From: ${fromPhone}, Body: ${Body?.substring(0, 50)}...`);
+  console.log(`[TwilioWebhook] From: ${fromPhone}, To: ${toPhone}, MessageSid: ${MessageSid}`);
   
   try {
     // Verify Twilio signature
     if (!validateTwilioRequest(req)) {
       console.warn('[TwilioWebhook] Invalid Twilio signature (whatsapp)');
-      return res.status(403).send('Invalid Twilio signature');
+      const twiml = new MessagingResponse();
+      twiml.message('Invalid request.');
+      res.set('Content-Type', 'text/xml');
+      return res.status(200).send(twiml.toString());
     }
     
     const userPhone = normalizePhoneE164(fromPhone);
@@ -169,7 +179,8 @@ router.post('/twilio/whatsapp', async (req, res) => {
       console.error('[TwilioWebhook] Missing From or Body');
       const twiml = new MessagingResponse();
       twiml.message('Sorry, I could not process your message.');
-      return res.type('text/xml').send(twiml.toString());
+      res.set('Content-Type', 'text/xml');
+      return res.status(200).send(twiml.toString());
     }
     
     // Resolve site by destination number (multi-tenant)
@@ -180,7 +191,8 @@ router.post('/twilio/whatsapp', async (req, res) => {
       console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
       const twiml = new MessagingResponse();
       twiml.message('Service unavailable.');
-      return res.type('text/xml').send(twiml.toString());
+      res.set('Content-Type', 'text/xml');
+      return res.status(200).send(twiml.toString());
     }
     if (!mappedSiteId) {
       console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID');
@@ -197,18 +209,22 @@ router.post('/twilio/whatsapp', async (req, res) => {
       conversationId: null,
     });
     
+    console.log('[TwilioWebhook] Responding with:', aiResponse);
+    
     trackSmsUsage(siteId, 'outbound').catch(() => {});
     
-    // Respond via TwiML
+    // ALWAYS return TwiML
     const twiml = new MessagingResponse();
-    twiml.message(aiResponse);
+    twiml.message(aiResponse || 'Thanks for contacting us. How can we help?');
     
-    res.type('text/xml').send(twiml.toString());
+    res.set('Content-Type', 'text/xml');
+    return res.status(200).send(twiml.toString());
   } catch (err) {
-    console.error('[TwilioWebhook] Error processing WhatsApp:', err.message);
+    console.error('[TwilioWebhook] Error processing WhatsApp:', err.message, err.stack);
     const twiml = new MessagingResponse();
     twiml.message('Sorry, something went wrong. Please try again.');
-    res.type('text/xml').send(twiml.toString());
+    res.set('Content-Type', 'text/xml');
+    return res.status(200).send(twiml.toString());
   }
 });
 
