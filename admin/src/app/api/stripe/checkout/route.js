@@ -9,7 +9,7 @@ export async function POST(request) {
   }
 
   const body = await request.json();
-  const { plan } = body;
+  const { plan, site_id } = body;
 
   const res = await fetch(`${API_URL}/api/stripe/create-checkout-session`, {
     method: 'POST',
@@ -19,8 +19,13 @@ export async function POST(request) {
     },
     body: JSON.stringify({
       plan,
-      successUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard?success=true`,
-      cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/pricing?canceled=true`,
+      site_id: site_id || undefined,
+      successUrl: process.env.NEXT_PUBLIC_APP_URL
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`
+        : undefined,
+      cancelUrl: process.env.NEXT_PUBLIC_APP_URL
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`
+        : undefined,
     }),
   });
 

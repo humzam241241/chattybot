@@ -17,8 +17,8 @@ export default function EditSitePage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [ingestResult, setIngestResult] = useState(null);
 
-  const widgetUrl = process.env.NEXT_PUBLIC_WIDGET_URL || 'https://your-widget-cdn.vercel.app/widget.js';
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://chattybot-backend.onrender.com';
+  const widgetUrl = process.env.NEXT_PUBLIC_WIDGET_URL || '';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
   useEffect(() => {
     getSite(id)
