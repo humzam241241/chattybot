@@ -1,3 +1,6 @@
+const dns = require("dns");
+dns.setDefaultResultOrder("ipv4first");
+
 const { Pool } = require('pg');
 
 // Unit tests should not require a live database, nor keep open handles.
