@@ -115,7 +115,7 @@ app.use('/api/sites', siteConfigRouter); // public alias: /api/sites/:siteId
 app.use('/api/usage', usageRouter);
 
 // Twilio webhooks (public, no auth required)
-app.use('/webhooks', twilioWebhookRouter);
+app.use('/webhooks/twilio', twilioWebhookRouter);
 
 // Stripe routes (checkout, portal, subscription status)
 app.use('/api/stripe', stripeRouter);

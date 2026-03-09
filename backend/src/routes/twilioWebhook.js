@@ -75,7 +75,7 @@ async function resolveSiteIdFromTo(toNumberRaw) {
  * POST /webhooks/twilio/sms
  * Inbound SMS webhook
  */
-router.post('/twilio/sms', async (req, res) => {
+router.post('/sms', async (req, res) => {
   console.log('[TwilioWebhook] SMS received:', req.body.Body);
   
   const { From, To, Body, MessageSid } = req.body;
@@ -152,7 +152,7 @@ router.post('/twilio/sms', async (req, res) => {
  * POST /webhooks/twilio/whatsapp
  * Inbound WhatsApp webhook
  */
-router.post('/twilio/whatsapp', async (req, res) => {
+router.post('/whatsapp', async (req, res) => {
   console.log('[TwilioWebhook] WhatsApp received:', req.body.Body);
   
   const { From, To, Body, MessageSid } = req.body;
