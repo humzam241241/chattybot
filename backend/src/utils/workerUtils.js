@@ -80,18 +80,6 @@ function validateEnv(required) {
 }
 
 /**
- * Create a database pool with standard config
- * @returns {pg.Pool}
- */
-function createPool() {
-  const { Pool } = require('pg');
-  return new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  });
-}
-
-/**
  * Structured log with timestamp and worker name
  * @param {string} worker - worker name
  * @param {string} message - log message
@@ -173,7 +161,6 @@ module.exports = {
   sendEmail,
   getAdminUrl,
   validateEnv,
-  createPool,
   log,
   logError,
   LEAD_KEYWORDS,

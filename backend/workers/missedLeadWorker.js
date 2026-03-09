@@ -10,8 +10,8 @@
 
 require('dotenv').config();
 
+const pool = require('../src/config/database');
 const {
-  createPool,
   sendEmail,
   getAdminUrl,
   log,
@@ -20,7 +20,6 @@ const {
   detectLeadKeywords,
 } = require('../src/utils/workerUtils');
 
-const pool = createPool();
 const WORKER_NAME = 'MissedLeadDetector';
 
 async function detectMissedLeads() {

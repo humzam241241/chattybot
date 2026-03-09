@@ -10,15 +10,14 @@
 require('dotenv').config();
 
 const OpenAI = require('openai');
+const pool = require('../src/config/database');
 const {
-  createPool,
   sendEmail,
   getAdminUrl,
   log,
   logError,
 } = require('../src/utils/workerUtils');
 
-const pool = createPool();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const WORKER_NAME = 'WeeklyReport';
 

@@ -13,15 +13,14 @@
 require('dotenv').config();
 
 const OpenAI = require('openai');
+const pool = require('../src/config/database');
 const {
-  createPool,
   log,
   logError,
   detectContactInfo,
 } = require('../src/utils/workerUtils');
 const { scoreLead } = require('../src/services/leadScore');
 
-const pool = createPool();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const WORKER_NAME = 'DataReconciliation';
 
