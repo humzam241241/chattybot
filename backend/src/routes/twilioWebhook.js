@@ -6,7 +6,9 @@
  */
 
 const express = require('express');
+const { MessagingResponse } = require('twilio').twiml;
 const twilio = require('twilio');
+const pool = require('../config/database');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { retrieveContext, buildSystemPrompt } = require('../services/rag');
 const { getOrCreateConversation, appendMessage, getRecentMessages } = require('../services/conversationLog');
@@ -17,27 +19,75 @@ const OpenAI = require('openai');
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const MessagingResponse = twilio.twiml.MessagingResponse;
+
+function getFullUrl(req) {
+  // trust proxy is enabled in app.js so req.protocol should reflect X-Forwarded-Proto
+  return `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+}
+
+function validateTwilioRequest(req) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const signature = req.headers['x-twilio-signature'];
+  const url = getFullUrl(req);
+
+  if (!authToken) {
+    console.warn('[TwilioWebhook] TWILIO_AUTH_TOKEN not set; skipping signature validation');
+    return true;
+  }
+  if (!signature) return false;
+
+  try {
+    return twilio.validateRequest(authToken, signature, url, req.body);
+  } catch (e) {
+    console.error('[TwilioWebhook] Signature validation error:', e.message);
+    return false;
+  }
+}
+
+function normalizeTwilioTo(to) {
+  const raw = String(to || '').trim();
+  if (!raw) return null;
+  // Twilio WhatsApp uses "whatsapp:+E164"
+  const withoutPrefix = raw.replace(/^whatsapp:/i, '');
+  return normalizePhoneE164(withoutPrefix);
+}
+
+async function resolveSiteIdFromTo(toNumberRaw) {
+  const toE164 = normalizeTwilioTo(toNumberRaw);
+  if (!toE164) return null;
+
+  try {
+    const r = await pool.query(
+      `SELECT id
+       FROM sites
+       WHERE twilio_phone = $1 OR twilio_whatsapp = $1
+       LIMIT 1`,
+      [toE164]
+    );
+    return r.rows?.[0]?.id || null;
+  } catch (e) {
+    console.warn('[TwilioWebhook] Site lookup failed (non-fatal):', e.message);
+    return null;
+  }
+}
 
 /**
  * POST /webhooks/twilio/sms
  * Inbound SMS webhook
  */
 router.post('/twilio/sms', async (req, res) => {
-  console.log('[TwilioWebhook] Incoming SMS message');
+  console.log('[TwilioWebhook] inbound message (sms)');
   
   const { From, To, Body, MessageSid } = req.body;
   
   console.log(`[TwilioWebhook] From: ${From}, Body: ${Body?.substring(0, 50)}...`);
   
   try {
-    // TODO: Add webhook signature validation if needed
-    // const signature = req.headers['x-twilio-signature'];
-    // const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    // if (!validateWebhookSignature(signature, url, req.body)) {
-    //   console.error('[TwilioWebhook] Invalid signature');
-    //   return res.status(403).send('Forbidden');
-    // }
+    // Verify Twilio signature
+    if (!validateTwilioRequest(req)) {
+      console.warn('[TwilioWebhook] Invalid Twilio signature (sms)');
+      return res.status(403).send('Invalid Twilio signature');
+    }
     
     const userPhone = normalizePhoneE164(From);
     const botPhone = normalizePhoneE164(To);
@@ -49,37 +99,45 @@ router.post('/twilio/sms', async (req, res) => {
       return res.type('text/xml').send(twiml.toString());
     }
     
-    // Get default site (you may want to map phone numbers to sites)
-    const defaultSiteId = process.env.TWILIO_DEFAULT_SITE_ID;
-    if (!defaultSiteId) {
-      console.error('[TwilioWebhook] TWILIO_DEFAULT_SITE_ID not configured');
+    // Resolve site by destination number (multi-tenant)
+    const mappedSiteId = await resolveSiteIdFromTo(To);
+    const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
+    const siteId = mappedSiteId || fallbackSiteId;
+    if (!siteId) {
+      console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
       const twiml = new MessagingResponse();
       twiml.message('Service unavailable.');
       return res.type('text/xml').send(twiml.toString());
     }
+    if (!mappedSiteId) {
+      console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID');
+    }
+    console.log(`[TwilioWebhook] resolved site: ${siteId}`);
     
-    trackSmsUsage(defaultSiteId, 'inbound').catch(() => {});
+    trackSmsUsage(siteId, 'inbound').catch(() => {});
     
     // Generate AI response
     const aiResponse = await generateChatResponse({
-      siteId: defaultSiteId,
+      siteId,
       userMessage: Body,
       visitorId: `sms:${userPhone}`,
       conversationId: null,
     });
     
-    trackSmsUsage(defaultSiteId, 'outbound').catch(() => {});
+    trackSmsUsage(siteId, 'outbound').catch(() => {});
     
     // Respond via TwiML
     const twiml = new MessagingResponse();
     twiml.message(aiResponse);
-    
-    res.type('text/xml').send(twiml.toString());
+
+    res.set('Content-Type', 'text/xml');
+    res.send(twiml.toString());
   } catch (err) {
     console.error('[TwilioWebhook] Error processing SMS:', err.message);
     const twiml = new MessagingResponse();
     twiml.message('Sorry, something went wrong. Please try again.');
-    res.type('text/xml').send(twiml.toString());
+    res.set('Content-Type', 'text/xml');
+    res.send(twiml.toString());
   }
 });
 
@@ -88,7 +146,7 @@ router.post('/twilio/sms', async (req, res) => {
  * Inbound WhatsApp webhook
  */
 router.post('/twilio/whatsapp', async (req, res) => {
-  console.log('[TwilioWebhook] Incoming WhatsApp message');
+  console.log('[TwilioWebhook] inbound message (whatsapp)');
   
   const { From, To, Body, MessageSid } = req.body;
   
@@ -99,13 +157,11 @@ router.post('/twilio/whatsapp', async (req, res) => {
   console.log(`[TwilioWebhook] From: ${fromPhone}, Body: ${Body?.substring(0, 50)}...`);
   
   try {
-    // TODO: Add webhook signature validation if needed
-    // const signature = req.headers['x-twilio-signature'];
-    // const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    // if (!validateWebhookSignature(signature, url, req.body)) {
-    //   console.error('[TwilioWebhook] Invalid signature');
-    //   return res.status(403).send('Forbidden');
-    // }
+    // Verify Twilio signature
+    if (!validateTwilioRequest(req)) {
+      console.warn('[TwilioWebhook] Invalid Twilio signature (whatsapp)');
+      return res.status(403).send('Invalid Twilio signature');
+    }
     
     const userPhone = normalizePhoneE164(fromPhone);
     
@@ -116,26 +172,32 @@ router.post('/twilio/whatsapp', async (req, res) => {
       return res.type('text/xml').send(twiml.toString());
     }
     
-    // Get default site (you may want to map phone numbers to sites)
-    const defaultSiteId = process.env.TWILIO_DEFAULT_SITE_ID;
-    if (!defaultSiteId) {
-      console.error('[TwilioWebhook] TWILIO_DEFAULT_SITE_ID not configured');
+    // Resolve site by destination number (multi-tenant)
+    const mappedSiteId = await resolveSiteIdFromTo(To);
+    const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
+    const siteId = mappedSiteId || fallbackSiteId;
+    if (!siteId) {
+      console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
       const twiml = new MessagingResponse();
       twiml.message('Service unavailable.');
       return res.type('text/xml').send(twiml.toString());
     }
+    if (!mappedSiteId) {
+      console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID');
+    }
+    console.log(`[TwilioWebhook] resolved site: ${siteId}`);
     
-    trackSmsUsage(defaultSiteId, 'inbound').catch(() => {});
+    trackSmsUsage(siteId, 'inbound').catch(() => {});
     
     // Generate AI response
     const aiResponse = await generateChatResponse({
-      siteId: defaultSiteId,
+      siteId,
       userMessage: Body,
       visitorId: `whatsapp:${userPhone}`,
       conversationId: null,
     });
     
-    trackSmsUsage(defaultSiteId, 'outbound').catch(() => {});
+    trackSmsUsage(siteId, 'outbound').catch(() => {});
     
     // Respond via TwiML
     const twiml = new MessagingResponse();
@@ -177,6 +239,7 @@ async function generateChatResponse({ siteId, userMessage, visitorId, conversati
       conversationId,
       currentPageUrl: null,
     });
+    console.log(`[TwilioWebhook] conversation id: ${convoId}`);
 
     // Save user message
     await appendMessage({

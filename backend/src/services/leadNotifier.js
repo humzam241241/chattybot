@@ -10,6 +10,16 @@ const { scoreLead } = require('./leadScore');
 const { buildTranscript } = require('./transcript');
 const { isConfigured } = require('./emailService');
 const { sendEmail, sendSMS, sendWhatsApp } = require('./notificationService');
+const { getEffectiveRaffySettings } = require('./raffySettings');
+
+async function getBookingUrlForSite(siteId) {
+  try {
+    const settings = await getEffectiveRaffySettings(siteId);
+    return settings?.raffy?.booking?.url || process.env.DEFAULT_BOOKING_URL || null;
+  } catch (e) {
+    return process.env.DEFAULT_BOOKING_URL || null;
+  }
+}
 
 /**
  * Send lead notification email
@@ -83,7 +93,7 @@ async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUr
 
     // 2–4) Multi-channel follow-up for HOT leads only
     if (String(lead.lead_rating || '').toUpperCase() === 'HOT') {
-      const bookingLink = process.env.CALENDLY_LINK;
+      const bookingLink = await getBookingUrlForSite(conversation.site_id);
       const followupMessage = [
         `Thanks for contacting ${siteName}.`,
         '',
