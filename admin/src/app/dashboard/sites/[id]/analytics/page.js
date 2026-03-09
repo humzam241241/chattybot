@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getAnalytics, getSite } from '../../../../lib/api';
-import SiteLayout from '../../../../components/SiteLayout';
+import { getAnalytics, getSite } from '../../../../../lib/api';
+import SiteLayout from '../../../../../components/SiteLayout';
 
 export default function AnalyticsPage() {
   const { id } = useParams();

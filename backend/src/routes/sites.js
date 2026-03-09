@@ -94,11 +94,13 @@ router.post(
     try {
       const id = uuidv4();
       const ownerId = req.ownerId || null;
+      const stripeCustomerId = req.user?.appUser?.stripe_customer_id || null;
+      const billingPlan = 'starter';
       const result = await pool.query(
-        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, owner_id, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, owner_id, stripe_customer_id, billing_plan, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
          RETURNING *`,
-        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null, raffy_overrides || {}, ownerId]
+        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null, raffy_overrides || {}, ownerId, stripeCustomerId, billingPlan]
       );
       return res.status(201).json({ site: result.rows[0] });
     } catch (err) {

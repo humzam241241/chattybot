@@ -101,3 +101,6 @@ export const createCheckoutSession = (plan) =>
 export const getPortalUrl = () => apiFetch('/api/stripe/portal', { method: 'POST' });
 export const getSubscriptionStatus = () => apiFetch('/api/stripe/subscription');
 
+// Usage
+export const getUsage = (siteId) => apiFetch(`/api/usage/${siteId}`);
+

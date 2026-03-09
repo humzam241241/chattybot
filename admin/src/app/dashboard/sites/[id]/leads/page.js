@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { clearLeads, deleteLead, getLeads, getSite, rescoreLeads } from '../../../../lib/api';
-import SiteLayout from '../../../../components/SiteLayout';
+import { clearLeads, deleteLead, getLeads, getSite, getUsage, rescoreLeads } from '../../../../../lib/api';
+import SiteLayout from '../../../../../components/SiteLayout';
+import UsageCard from '../../../../../components/UsageCard';
 
 const RATING_COLORS = {
   HOT: { bg: '#fee2e2', color: '#dc2626' },
@@ -19,16 +20,18 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [counts, setCounts] = useState({ hot: 0, warm: 0, cold: 0 });
+  const [usage, setUsage] = useState(null);
   const [rescoring, setRescoring] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [clearing, setClearing] = useState(false);
 
   async function loadData() {
     try {
-      const [siteData, leadsData] = await Promise.all([getSite(id), getLeads(id)]);
+      const [siteData, leadsData, usageData] = await Promise.all([getSite(id), getLeads(id), getUsage(id)]);
       setSite(siteData.site);
       setLeads(leadsData.leads || []);
       setCounts(leadsData.counts || { hot: 0, warm: 0, cold: 0 });
+      setUsage(usageData);
     } catch (err) {
       setError(err.message);
     }
@@ -137,6 +140,8 @@ export default function LeadsPage() {
           )}
         </div>
       </div>
+
+      <UsageCard usage={usage} />
 
       {error && <div className="alert alert-error">{error}</div>}
       {loading && <p className="text-muted">Loading leads...</p>}

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getSite, updateSite } from '../../../../lib/api';
-import SiteLayout from '../../../../components/SiteLayout';
+import { getSite, updateSite } from '../../../../../lib/api';
+import SiteLayout from '../../../../../components/SiteLayout';
 
 export default function SiteSettingsPage() {
   const { id } = useParams();

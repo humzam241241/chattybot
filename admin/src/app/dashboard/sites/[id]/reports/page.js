@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getWeeklyReports, getSite } from '../../../../lib/api';
-import SiteLayout from '../../../../components/SiteLayout';
+import { getWeeklyReports, getSite } from '../../../../../lib/api';
+import SiteLayout from '../../../../../components/SiteLayout';
 
 export default function ReportsPage() {
   const { id } = useParams();

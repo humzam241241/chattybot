@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getSite } from '../../../../lib/api';
-import SiteLayout from '../../../../components/SiteLayout';
+import { getSite } from '../../../../../lib/api';
+import SiteLayout from '../../../../../components/SiteLayout';
 
 export default function RagEvaluationPage() {
   const { id } = useParams();

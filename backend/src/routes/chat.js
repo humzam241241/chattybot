@@ -11,6 +11,7 @@ const { detectContactInfo } = require('../services/leadDetector');
 const { chatLimiter } = require('../middleware/rateLimiter');
 const domainVerify = require('../middleware/domainVerify');
 const { trackApiUsage } = require('../middleware/usageTracking');
+const { checkLimit, recordUsage } = require('../services/usageService');
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -103,6 +104,9 @@ router.post(
       if (!settings) return res.status(404).json({ error: 'Site not found' });
       const { site, raffy } = settings;
       console.log(`[Chat] Settings loaded for ${site.company_name}`);
+
+      // Server-side usage enforcement (before AI call)
+      await checkLimit(site.id);
       console.log(`[Chat] SITE ID: ${site_id}`);
       console.log(`[Chat] Custom system_prompt exists: ${Boolean(site.system_prompt)}`);
       if (site.system_prompt) {
@@ -262,6 +266,9 @@ router.post(
       const afterAssistant = await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
       console.log(`[Chat] Assistant response saved. Total messages in conversation: ${afterAssistant.message_count}`);
 
+      // Count 1 API request per completed chatbot response (metered billing)
+      recordUsage(site.id).catch(() => {});
+
       // Rolling summary update every 8 messages (≈4 turns)
       if (afterAssistant.message_count % 8 === 0) {
         const recent = await getRecentMessages(convoId, 12);
@@ -360,6 +367,9 @@ router.post(
         return res.end();
       }
       const { site, raffy } = settings;
+
+      // Server-side usage enforcement (before AI call)
+      await checkLimit(site.id);
       
       console.log(`[Chat/Stream] SITE ID: ${site_id}`);
       console.log(`[Chat/Stream] Custom system_prompt exists: ${Boolean(site.system_prompt)}`);
@@ -473,6 +483,9 @@ router.post(
       if (emergencyResponse && isLifeThreateningEmergency) {
         res.write(`event: token\ndata: ${JSON.stringify({ token: emergencyResponse })}\n\n`);
         await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: emergencyResponse });
+
+        // Count usage for emergency response too
+        recordUsage(site.id).catch(() => {});
         
         // Trigger lead notification for emergency (non-blocking)
         notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent }).catch((err) => {
@@ -517,6 +530,9 @@ router.post(
         const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer);
         const afterAssistant = await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
         console.log(`[Chat/Stream] Assistant response saved to conversation ${convoId}. Total messages: ${afterAssistant.message_count}`);
+
+        // Count 1 API request per completed streamed response
+        recordUsage(site.id).catch(() => {});
         
         // Rolling summary update every 8 messages (≈4 turns)
         if (afterAssistant.message_count % 8 === 0) {

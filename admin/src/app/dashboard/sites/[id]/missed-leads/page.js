@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getMissedLeads, getMissedLeadStats, getSite } from '../../../../lib/api';
-import SiteLayout from '../../../../components/SiteLayout';
+import { getMissedLeads, getMissedLeadStats, getSite } from '../../../../../lib/api';
+import SiteLayout from '../../../../../components/SiteLayout';
 import Link from 'next/link';
 
 export default function MissedLeadsPage() {

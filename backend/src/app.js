@@ -30,12 +30,19 @@ const analyticsRouter = require('./routes/analytics');
 const adminReconcileRouter = require('./routes/adminReconcile');
 const twilioWebhookRouter = require('./routes/twilioWebhook');
 const stripeRouter = require('./routes/stripe');
+const stripeWebhookRouter = require('./routes/stripeWebhook');
 const adminOverviewRouter = require('./routes/adminOverview');
+const usageRouter = require('./routes/usage');
 const adminAuth = require('./middleware/adminAuth');
 const { userAuth } = require('./middleware/userAuth');
+const { startResetUsageCron } = require('./workers/resetUsage');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
+
+if (process.env.NODE_ENV !== 'test') {
+  startResetUsageCron();
+}
 
 // Render (and most cloud platforms) sit behind a reverse proxy.
 // This tells Express to trust the X-Forwarded-For header so that
@@ -78,6 +85,9 @@ app.use(
   })
 );
 
+// Stripe webhook must use raw body (mount BEFORE json parser)
+app.use('/api/stripe/webhook', stripeWebhookRouter);
+
 // ── Body parsing ──────────────────────────────────────────────────────────────
 // Hard cap at 1 MB — prevents request body bomb attacks
 app.use(express.json({ limit: '1mb' }));
@@ -102,11 +112,12 @@ app.use('/sites', sitesRouter);
 app.use('/site-config', siteConfigRouter);
 app.use('/api/site-config', siteConfigRouter);
 app.use('/api/sites', siteConfigRouter); // public alias: /api/sites/:siteId
+app.use('/api/usage', usageRouter);
 
 // Twilio webhooks (public, no auth required)
 app.use('/webhooks', twilioWebhookRouter);
 
-// Stripe routes (webhook needs raw body, must be before json parser for that route)
+// Stripe routes (checkout, portal, subscription status)
 app.use('/api/stripe', stripeRouter);
 
 // Protected admin API namespace (auth required)

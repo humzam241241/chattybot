@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { listFiles, uploadFiles, reprocessFile, deleteFile, getSite } from '../../../../lib/api';
-import SiteLayout from '../../../../components/SiteLayout';
+import { listFiles, uploadFiles, reprocessFile, deleteFile, getSite } from '../../../../../lib/api';
+import SiteLayout from '../../../../../components/SiteLayout';
 
 export default function SiteFilesPage() {
   const { id } = useParams();

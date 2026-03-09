@@ -1,12 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../contexts/AuthContext';
 import { createCheckoutSession } from '../../lib/api';
 
 export default function PricingPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>Loading...</div>}>
+      <PricingInner />
+    </Suspense>
+  );
+}
+
+function PricingInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, hasAccess } = useAuth();

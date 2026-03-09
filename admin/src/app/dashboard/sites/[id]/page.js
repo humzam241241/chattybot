@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getSite, updateSite, triggerIngest, getIngestStatus } from '../../../lib/api';
-import SiteLayout from '../../../components/SiteLayout';
+import { getSite, updateSite, triggerIngest, getIngestStatus } from '../../../../lib/api';
+import SiteLayout from '../../../../components/SiteLayout';
 
 export default function EditSitePage() {
   const { id } = useParams();

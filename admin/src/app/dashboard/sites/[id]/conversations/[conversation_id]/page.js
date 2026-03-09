@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getConversation } from '../../../../../lib/api';
+import { getConversation } from '../../../../../../lib/api';
 
 export default function ConversationDetailPage() {
   const { id, conversation_id } = useParams();

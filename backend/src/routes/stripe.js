@@ -21,7 +21,6 @@ const PRICE_IDS = {
   lifetime: process.env.STRIPE_PRICE_ID_LIFETIME,
 };
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 async function getOrCreateStripeCustomer(appUser) {
   if (appUser.stripe_customer_id) {
@@ -39,6 +38,20 @@ async function getOrCreateStripeCustomer(appUser) {
   );
   
   return customer.id;
+}
+
+async function backfillSitesCustomerId(userId, customerId) {
+  if (!userId || !customerId) return;
+  try {
+    await pool.query(
+      `UPDATE sites
+       SET stripe_customer_id = COALESCE(stripe_customer_id, $2)
+       WHERE owner_id = $1`,
+      [userId, customerId]
+    );
+  } catch (err) {
+    console.error('[Stripe] Failed to backfill sites stripe_customer_id (non-fatal):', err.message);
+  }
 }
 
 router.post('/create-checkout-session', userAuth, async (req, res) => {
@@ -78,6 +91,8 @@ router.post('/create-checkout-session', userAuth, async (req, res) => {
   
   try {
     const customerId = await getOrCreateStripeCustomer(appUser);
+    // Keep sites table in sync for usage metering
+    backfillSitesCustomerId(appUser.id, customerId).catch(() => {});
     
     const sessionParams = {
       customer: customerId,
@@ -104,132 +119,8 @@ router.post('/create-checkout-session', userAuth, async (req, res) => {
   }
 });
 
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  if (!stripe || !webhookSecret) {
-    return res.status(500).json({ error: 'Webhook not configured' });
-  }
-  
-  const sig = req.headers['stripe-signature'];
-  let event;
-  
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-  } catch (err) {
-    console.error('[Stripe] Webhook signature error:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-  
-  try {
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object;
-        const userId = session.metadata?.user_id;
-        const plan = session.metadata?.plan;
-        
-        if (userId) {
-          if (plan === 'lifetime') {
-            await pool.query(
-              `UPDATE app_users 
-               SET subscription_status = 'lifetime', updated_at = NOW() 
-               WHERE id = $1`,
-              [userId]
-            );
-          } else if (session.subscription) {
-            await pool.query(
-              `UPDATE app_users 
-               SET subscription_status = 'active', 
-                   stripe_subscription_id = $2,
-                   updated_at = NOW() 
-               WHERE id = $1`,
-              [userId, session.subscription]
-            );
-          }
-          
-          if (session.amount_total) {
-            await pool.query(
-              `INSERT INTO payments (user_id, stripe_payment_intent_id, amount_cents, status, payment_type)
-               VALUES ($1, $2, $3, 'succeeded', $4)`,
-              [userId, session.payment_intent, session.amount_total, plan]
-            );
-          }
-        }
-        break;
-      }
-      
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object;
-        const customerId = subscription.customer;
-        
-        const user = await pool.query(
-          'SELECT id FROM app_users WHERE stripe_customer_id = $1',
-          [customerId]
-        );
-        
-        if (user.rows.length > 0) {
-          let status = 'active';
-          if (subscription.status === 'canceled') status = 'canceled';
-          else if (subscription.status === 'past_due') status = 'past_due';
-          else if (subscription.status === 'trialing') status = 'trialing';
-          
-          await pool.query(
-            `UPDATE app_users 
-             SET subscription_status = $2, 
-                 stripe_subscription_id = $3,
-                 updated_at = NOW() 
-             WHERE id = $1`,
-            [user.rows[0].id, status, subscription.id]
-          );
-        }
-        break;
-      }
-      
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object;
-        const customerId = subscription.customer;
-        
-        const user = await pool.query(
-          'SELECT id FROM app_users WHERE stripe_customer_id = $1',
-          [customerId]
-        );
-        
-        if (user.rows.length > 0) {
-          await pool.query(
-            `UPDATE app_users 
-             SET subscription_status = 'canceled', 
-                 stripe_subscription_id = NULL,
-                 updated_at = NOW() 
-             WHERE id = $1`,
-            [user.rows[0].id]
-          );
-        }
-        break;
-      }
-      
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object;
-        const customerId = invoice.customer;
-        
-        const user = await pool.query(
-          'SELECT id FROM app_users WHERE stripe_customer_id = $1',
-          [customerId]
-        );
-        
-        if (user.rows.length > 0) {
-          await pool.query(
-            `UPDATE app_users SET subscription_status = 'past_due', updated_at = NOW() WHERE id = $1`,
-            [user.rows[0].id]
-          );
-        }
-        break;
-      }
-    }
-    
-    return res.json({ received: true });
-  } catch (err) {
-    console.error('[Stripe] Webhook processing error:', err);
-    return res.status(500).json({ error: 'Webhook processing failed' });
-  }
-});
+// Webhook handling moved to `routes/stripeWebhook.js` so it can be mounted
+// before JSON body parsing (Stripe requires raw body for signature verification).
 
 router.post('/portal', userAuth, async (req, res) => {
   if (!stripe) {
