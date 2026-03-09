@@ -1,14 +1,15 @@
+// Force Node.js DNS to resolve IPv4 first.
+// Render's free tier only has IPv4 outbound — without this, DNS resolves
+// Supabase's hostname to an IPv6 address and the connection fails with ENETUNREACH.
+// MUST be set before any imports that may trigger database connections.
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 require('dotenv').config();
 
 // Validate environment on startup
 const { logEnvironmentStatus } = require('./config/env');
 logEnvironmentStatus();
-
-// Force Node.js DNS to resolve IPv4 first.
-// Render's free tier only has IPv4 outbound — without this, DNS resolves
-// Supabase's hostname to an IPv6 address and the connection fails with ENETUNREACH.
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
 
 const express = require('express');
 const cors = require('cors');

@@ -37,7 +37,9 @@ const connectionString = sanitizeConnectionString(process.env.DATABASE_URL);
 if (connectionString) {
   try {
     const dbUrl = new URL(connectionString);
-    console.log(`[DB] Connecting to: ${dbUrl.host} (database: ${dbUrl.pathname.slice(1) || 'default'})`);
+    const hostOnly = dbUrl.host.split(':')[0]; // Remove port if present
+    console.log(`[DB] Connecting to: ${hostOnly}`);
+    console.log(`[DB] Database: ${dbUrl.pathname.slice(1) || 'default'}`);
   } catch {
     console.log('[DB] Connecting to database...');
   }
