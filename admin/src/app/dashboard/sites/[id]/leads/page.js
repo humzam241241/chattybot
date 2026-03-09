@@ -141,7 +141,7 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <UsageCard usage={usage} />
+      <UsageCard usage={usage} siteId={id} />
 
       {error && <div className="alert alert-error">{error}</div>}
       {loading && <p className="text-muted">Loading leads...</p>}

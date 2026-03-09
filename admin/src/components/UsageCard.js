@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-export default function UsageCard({ usage }) {
+export default function UsageCard({ usage, siteId }) {
   if (!usage) return null;
 
   const { plan, used, limit, remaining, percent } = usage;
@@ -40,7 +40,7 @@ export default function UsageCard({ usage }) {
         <div className="usage-warning">
           <strong>You have reached your plan limit.</strong> Upgrade to continue.
           <div style={{ marginTop: 10 }}>
-            <Link href="/pricing" className="btn btn-primary btn-sm">Upgrade Plan</Link>
+            <Link href={siteId ? `/pricing?site_id=${siteId}` : '/pricing'} className="btn btn-primary btn-sm">Upgrade Plan</Link>
           </div>
         </div>
       )}

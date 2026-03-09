@@ -20,6 +20,7 @@ function PricingInner() {
   const { user, hasAccess } = useAuth();
   const [loading, setLoading] = useState(null);
   const canceled = searchParams.get('canceled');
+  const siteId = searchParams.get('site_id');
 
   async function handleCheckout(plan) {
     if (!user) {
@@ -29,7 +30,7 @@ function PricingInner() {
 
     setLoading(plan);
     try {
-      const { url } = await createCheckoutSession(plan);
+      const { url } = await createCheckoutSession(plan, siteId || undefined);
       if (url) {
         window.location.href = url;
       }

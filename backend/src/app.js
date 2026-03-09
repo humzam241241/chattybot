@@ -35,13 +35,13 @@ const adminOverviewRouter = require('./routes/adminOverview');
 const usageRouter = require('./routes/usage');
 const adminAuth = require('./middleware/adminAuth');
 const { userAuth } = require('./middleware/userAuth');
-const { startResetUsageCron } = require('./workers/resetUsage');
+const { startUsageResetWorker } = require('./workers/usageResetWorker');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 
 if (process.env.NODE_ENV !== 'test') {
-  startResetUsageCron();
+  startUsageResetWorker();
 }
 
 // Render (and most cloud platforms) sit behind a reverse proxy.

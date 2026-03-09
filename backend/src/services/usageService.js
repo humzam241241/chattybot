@@ -43,13 +43,34 @@ async function getUsage(siteId) {
   const site = await getSite(siteId);
   if (!site) return null;
 
-  const plan = String(site.plan || 'starter').toLowerCase();
-  const used = parseInt(site.messages_used || 0, 10);
-  const limit = getLimitForPlan(plan);
-  const remaining = Math.max(0, limit - used);
-  const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  // Prefer site_subscriptions if active; fallback to sites fields.
+  const sub = await pool.query(
+    `SELECT plan, message_limit, messages_used
+     FROM site_subscriptions
+     WHERE site_id = $1 AND status = 'active'
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    [siteId]
+  );
 
-  return { plan, used, limit, remaining, percent };
+  const row = sub.rows?.[0];
+  const plan = String(row?.plan || site.plan || 'starter').toLowerCase();
+  const used = parseInt(row?.messages_used ?? site.messages_used ?? 0, 10);
+  const limit = parseInt(row?.message_limit ?? getLimitForPlan(plan), 10);
+  const remaining = Math.max(0, limit - used);
+  const usage_percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+
+  // Return both shapes (back-compat + requested SaaS shape)
+  return {
+    plan,
+    messages_used: used,
+    message_limit: limit,
+    usage_percent,
+    used,
+    limit,
+    remaining,
+    percent: usage_percent,
+  };
 }
 
 async function checkLimit(siteId) {
@@ -60,14 +81,15 @@ async function checkLimit(siteId) {
     throw err;
   }
 
-  const plan = String(site.plan || 'starter').toLowerCase();
-  const limit = getLimitForPlan(plan);
-  const used = parseInt(site.messages_used || 0, 10);
+  const usage = await getUsage(siteId);
+  const plan = usage.plan;
+  const limit = usage.message_limit;
+  const used = usage.messages_used;
 
   if (used >= limit) {
-    const err = new Error('Message limit reached');
+    const err = new Error('PLAN_LIMIT_REACHED');
     err.status = 429;
-    err.code = 'MESSAGE_LIMIT_REACHED';
+    err.code = 'PLAN_LIMIT_REACHED';
     err.plan = plan;
     err.limit = limit;
     err.used = used;
@@ -80,6 +102,25 @@ async function checkLimit(siteId) {
 async function recordUsage(siteId) {
   if (!siteId) return;
 
+  // Prefer active subscription row for counting
+  const subUpdate = await pool.query(
+    `UPDATE site_subscriptions
+     SET messages_used = messages_used + 1,
+         updated_at = NOW()
+     WHERE site_id = $1 AND status = 'active'
+     RETURNING messages_used, stripe_customer_id`,
+    [siteId]
+  );
+
+  if (subUpdate.rows.length > 0) {
+    const used = parseInt(subUpdate.rows[0].messages_used || 0, 10);
+    const customerId = subUpdate.rows[0].stripe_customer_id || null;
+    console.log(`[Usage] Message counted (site ${siteId}, used ${used})`);
+    await sendStripeMeterEvent(customerId);
+    return;
+  }
+
+  // Fallback (no active subscription row yet)
   const r = await pool.query(
     `UPDATE sites
      SET messages_used = COALESCE(messages_used, 0) + 1,
@@ -88,11 +129,9 @@ async function recordUsage(siteId) {
      RETURNING messages_used, stripe_customer_id`,
     [siteId]
   );
-
   const used = parseInt(r.rows?.[0]?.messages_used || 0, 10);
   const customerId = r.rows?.[0]?.stripe_customer_id || null;
-
-  console.log(`[Usage] Site ${siteId} used 1 request (month total: ${used})`);
+  console.log(`[Usage] Message counted (site ${siteId}, used ${used})`);
   await sendStripeMeterEvent(customerId);
 }
 

@@ -96,8 +96,8 @@ export const getApiUsageBySite = (days = 30) => apiFetch(`/api/admin/api-usage-b
 export const getSmsUsageBySite = (days = 30) => apiFetch(`/api/admin/sms-usage-by-site?days=${days}`);
 
 // Stripe
-export const createCheckoutSession = (plan) => 
-  apiFetch('/api/stripe/checkout', { method: 'POST', body: JSON.stringify({ plan }) });
+export const createCheckoutSession = (plan, siteId) => 
+  apiFetch('/api/stripe/checkout', { method: 'POST', body: JSON.stringify({ plan, site_id: siteId }) });
 export const getPortalUrl = () => apiFetch('/api/stripe/portal', { method: 'POST' });
 export const getSubscriptionStatus = () => apiFetch('/api/stripe/subscription');
 

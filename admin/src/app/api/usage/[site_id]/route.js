@@ -16,7 +16,7 @@ function backendHeaders(request) {
 
 export async function GET(request, { params }) {
   const { site_id } = params;
-  const res = await fetch(`${API_URL}/api/usage?site_id=${site_id}`, {
+  const res = await fetch(`${API_URL}/api/usage/${site_id}`, {
     headers: backendHeaders(request),
     cache: 'no-store',
   });

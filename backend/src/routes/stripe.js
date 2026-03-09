@@ -59,12 +59,24 @@ router.post('/create-checkout-session', userAuth, async (req, res) => {
     return res.status(500).json({ error: 'Stripe not configured' });
   }
   
-  const { plan, successUrl, cancelUrl } = req.body;
+  let { plan, successUrl, cancelUrl, site_id } = req.body;
   const appUser = req.user?.appUser;
   
   if (!appUser) {
     return res.status(401).json({ error: 'User not found' });
   }
+
+  // For site-based subscriptions, require site_id. If not provided, pick most recent site for user (if any).
+  if (!site_id) {
+    try {
+      const r = await pool.query(
+        `SELECT id FROM sites WHERE owner_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [appUser.id]
+      );
+      site_id = r.rows?.[0]?.id || null;
+    } catch {}
+  }
+  if (!site_id) return res.status(400).json({ error: 'site_id is required' });
   
   let priceId = PRICE_IDS[plan];
   
@@ -101,7 +113,7 @@ router.post('/create-checkout-session', userAuth, async (req, res) => {
       mode: plan === 'lifetime' ? 'payment' : 'subscription',
       success_url: successUrl || `${process.env.FRONTEND_URL}/dashboard?success=true`,
       cancel_url: cancelUrl || `${process.env.FRONTEND_URL}/pricing?canceled=true`,
-      metadata: { user_id: appUser.id, plan },
+      metadata: { user_id: appUser.id, plan, site_id },
     };
     
     if (plan !== 'lifetime') {
