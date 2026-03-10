@@ -42,9 +42,12 @@ async function sendEmail(to, subject, html) {
   }
 }
 
-async function sendSMS(to, message) {
+async function sendSMS(to, message, options = {}) {
   try {
-    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !FROM_PHONE) {
+    const fromOverride = options && typeof options === 'object' ? options.from : null;
+    const from = normalizeE164(fromOverride) || FROM_PHONE;
+
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !from) {
       console.log('[Notify] SMS skipped (Twilio env missing)');
       return;
     }
@@ -55,7 +58,7 @@ async function sendSMS(to, message) {
     }
     await twilioClient.messages.create({
       body: message,
-      from: FROM_PHONE,
+      from,
       to: e164,
     });
     console.log('[Notify] SMS sent');
@@ -64,9 +67,15 @@ async function sendSMS(to, message) {
   }
 }
 
-async function sendWhatsApp(to, message) {
+async function sendWhatsApp(to, message, options = {}) {
   try {
-    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !WHATSAPP_FROM) {
+    const fromOverride = options && typeof options === 'object' ? options.from : null;
+    const normalizedFrom = normalizeE164(String(fromOverride || '').replace(/^whatsapp:/i, '')) || null;
+    const from = normalizedFrom
+      ? `whatsapp:${normalizedFrom}`
+      : WHATSAPP_FROM;
+
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !from) {
       console.log('[Notify] WhatsApp skipped (Twilio env missing)');
       return;
     }
@@ -77,7 +86,7 @@ async function sendWhatsApp(to, message) {
     }
     await twilioClient.messages.create({
       body: message,
-      from: WHATSAPP_FROM,
+      from,
       to: `whatsapp:${e164}`,
     });
     console.log('[Notify] WhatsApp sent');

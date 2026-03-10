@@ -78,6 +78,16 @@ async function resolveSiteIdFromTo(toNumberRaw) {
   }
 }
 
+function shouldAllowDefaultFallback() {
+  // Safety: in production, do NOT fall back to a default site unless explicitly allowed.
+  // This prevents replying as the wrong client when a Twilio number isn't mapped yet.
+  if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+    return String(process.env.ALLOW_TWILIO_DEFAULT_FALLBACK || '').toLowerCase() === 'true';
+  }
+  // In non-prod, allow fallback to ease local/dev testing.
+  return true;
+}
+
 /**
  * POST /webhooks/twilio/sms
  * Inbound SMS webhook
@@ -113,16 +123,23 @@ router.post('/sms', async (req, res) => {
     // Resolve site by destination number (multi-tenant)
     const mappedSiteId = await resolveSiteIdFromTo(To, 'sms');
     const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
-    const siteId = mappedSiteId || fallbackSiteId;
+    const allowFallback = shouldAllowDefaultFallback();
+    const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
     if (!siteId) {
-      console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
+      if (mappedSiteId) {
+        console.error('[TwilioWebhook] Site resolution failed unexpectedly');
+      } else if (!allowFallback) {
+        console.warn('[TwilioWebhook] No site mapping found; default fallback disabled');
+      } else {
+        console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
+      }
       const twiml = new MessagingResponse();
-      twiml.message('Service unavailable.');
+      twiml.message('This number is not configured yet. Please contact the business directly.');
       res.set('Content-Type', 'text/xml');
       return res.status(200).send(twiml.toString());
     }
     if (!mappedSiteId) {
-      console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID');
+      console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID fallback');
     }
     console.log(`[TwilioWebhook] resolved site: ${siteId}`);
     
@@ -193,16 +210,23 @@ router.post('/whatsapp', async (req, res) => {
     // Resolve site by destination number (multi-tenant)
     const mappedSiteId = await resolveSiteIdFromTo(To, 'whatsapp');
     const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
-    const siteId = mappedSiteId || fallbackSiteId;
+    const allowFallback = shouldAllowDefaultFallback();
+    const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
     if (!siteId) {
-      console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
+      if (mappedSiteId) {
+        console.error('[TwilioWebhook] Site resolution failed unexpectedly');
+      } else if (!allowFallback) {
+        console.warn('[TwilioWebhook] No site mapping found; default fallback disabled');
+      } else {
+        console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
+      }
       const twiml = new MessagingResponse();
-      twiml.message('Service unavailable.');
+      twiml.message('This number is not configured yet. Please contact the business directly.');
       res.set('Content-Type', 'text/xml');
       return res.status(200).send(twiml.toString());
     }
     if (!mappedSiteId) {
-      console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID');
+      console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID fallback');
     }
     console.log(`[TwilioWebhook] resolved site: ${siteId}`);
     

@@ -11,6 +11,7 @@ const { buildTranscript } = require('./transcript');
 const { isConfigured } = require('./emailService');
 const { sendEmail, sendSMS, sendWhatsApp } = require('./notificationService');
 const { getEffectiveRaffySettings } = require('./raffySettings');
+const { normalizePhoneE164 } = require('./twilioClient');
 
 async function getBookingUrlForSite(siteId) {
   try {
@@ -19,6 +20,64 @@ async function getBookingUrlForSite(siteId) {
   } catch (e) {
     return process.env.DEFAULT_BOOKING_URL || null;
   }
+}
+
+async function getSiteCommsConfig(siteId) {
+  if (!siteId) {
+    return {
+      ownerEmail: (process.env.LEAD_NOTIFICATION_EMAIL || '').trim() || null,
+      ownerSmsTo: null,
+      ownerWhatsAppTo: null,
+      siteFromSms: null,
+      siteFromWhatsApp: null,
+      reportEmail: null,
+    };
+  }
+
+  const siteRes = await pool.query(
+    `SELECT report_email, twilio_phone, twilio_whatsapp
+     FROM sites
+     WHERE id = $1::uuid`,
+    [siteId]
+  );
+  const siteRow = siteRes.rows?.[0] || {};
+
+  let settings = null;
+  try {
+    settings = await getEffectiveRaffySettings(siteId);
+  } catch {
+    settings = null;
+  }
+
+  const reportEmail = String(siteRow.report_email || '').trim() || null;
+  const overrideLeadEmail = String(settings?.raffy?.notifications?.lead_email || '').trim() || null;
+  const globalEmail = String(process.env.LEAD_NOTIFICATION_EMAIL || '').trim() || null;
+
+  // Prefer per-site report_email for owner alerts; allow raffy override; fallback to global env.
+  const ownerEmail = reportEmail || overrideLeadEmail || globalEmail || null;
+
+  const ownerSmsTo = normalizePhoneE164(settings?.raffy?.notifications?.lead_sms_to) || null;
+  const ownerWhatsAppTo = normalizePhoneE164(settings?.raffy?.notifications?.lead_whatsapp_to) || null;
+
+  // Per-site Twilio "from" numbers (used for proactive outbound; wired in later step).
+  const siteFromSms = normalizePhoneE164(siteRow.twilio_phone) || null;
+  const siteFromWhatsApp = normalizePhoneE164(siteRow.twilio_whatsapp) || null;
+
+  return { ownerEmail, ownerSmsTo, ownerWhatsAppTo, siteFromSms, siteFromWhatsApp, reportEmail };
+}
+
+function buildOwnerAlertText({ lead, siteName, adminUrl, isDuplicate }) {
+  const subjectPrefix = isDuplicate ? 'RETURNING CONTACT' : `${lead.lead_rating} LEAD`;
+  const lines = [
+    `[${subjectPrefix}] ${siteName}`,
+    lead.name ? `Name: ${lead.name}` : null,
+    lead.email ? `Email: ${lead.email}` : null,
+    lead.phone ? `Phone: ${lead.phone}` : null,
+    lead.issue ? `Issue: ${lead.issue}` : null,
+    lead.location ? `Location: ${lead.location}` : null,
+    adminUrl ? `View: ${adminUrl}` : null,
+  ].filter(Boolean);
+  return lines.join('\n');
 }
 
 /**
@@ -32,12 +91,8 @@ async function getBookingUrlForSite(siteId) {
  * @returns {Promise<{success: boolean, reason?: string}>}
  */
 async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUrl, isDuplicate = false }) {
-  const notificationEmail = process.env.LEAD_NOTIFICATION_EMAIL;
-  
-  if (!notificationEmail) {
-    console.log('[LeadNotifier] LEAD_NOTIFICATION_EMAIL not set, skipping');
-    return { success: false, reason: 'No notification email configured' };
-  }
+  const siteId = conversation?.site_id || null;
+  const comms = await getSiteCommsConfig(siteId);
 
   if (!isConfigured()) {
     console.log('[LeadNotifier] Email not configured, skipping');
@@ -87,7 +142,20 @@ async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUr
     console.log(`[LeadNotifier] Sending ${lead.lead_rating} lead email...`);
 
     // 1) Notify owner (all HOT/WARM notifications go here)
-    await sendEmail(notificationEmail, subject, html);
+    if (comms.ownerEmail) {
+      await sendEmail(comms.ownerEmail, subject, html);
+    } else {
+      console.log('[LeadNotifier] No owner notification email configured (report_email / raffy override / LEAD_NOTIFICATION_EMAIL).');
+    }
+
+    // Optional: notify owner by SMS / WhatsApp (destinations configured per-site in raffy_overrides)
+    const ownerAlertText = buildOwnerAlertText({ lead, siteName, adminUrl, isDuplicate });
+    if (comms.ownerSmsTo) {
+      await sendSMS(comms.ownerSmsTo, ownerAlertText, { from: comms.siteFromSms || undefined });
+    }
+    if (comms.ownerWhatsAppTo) {
+      await sendWhatsApp(comms.ownerWhatsAppTo, ownerAlertText, { from: comms.siteFromWhatsApp || undefined });
+    }
 
     console.log(`[LeadNotifier] Email sent successfully`);
 
@@ -117,12 +185,12 @@ async function sendLeadNotificationEmail({ lead, conversation, siteName, adminUr
 
       // 3) Send SMS confirmation
       if (lead.phone) {
-        await sendSMS(lead.phone, followupMessage);
+        await sendSMS(lead.phone, followupMessage, { from: comms.siteFromSms || undefined });
       }
 
       // 4) Send WhatsApp confirmation
       if (lead.phone) {
-        await sendWhatsApp(lead.phone, followupMessage);
+        await sendWhatsApp(lead.phone, followupMessage, { from: comms.siteFromWhatsApp || undefined });
       }
     }
 
@@ -159,12 +227,6 @@ function formatUrgency(urgency) {
  */
 async function notifyOwnerOfLead({ conversationId, siteId, intent }) {
   try {
-    const notificationEmail = process.env.LEAD_NOTIFICATION_EMAIL;
-    if (!notificationEmail) {
-      console.log('[LeadNotifier] LEAD_NOTIFICATION_EMAIL not set, skipping notification');
-      return { success: false, reason: 'No notification email configured' };
-    }
-
     if (!isConfigured()) {
       console.log('[LeadNotifier] Email not configured, skipping notification');
       return { success: false, reason: 'Email not configured' };
@@ -173,7 +235,7 @@ async function notifyOwnerOfLead({ conversationId, siteId, intent }) {
     // Fetch conversation with messages
     const convoRes = await pool.query(
       `SELECT c.id, c.site_id, c.visitor_id, c.summary, c.created_at, c.updated_at,
-              s.company_name
+              s.company_name, s.report_email
        FROM conversations c
        JOIN sites s ON c.site_id = s.id
        WHERE c.id = $1`,
@@ -234,8 +296,14 @@ async function notifyOwnerOfLead({ conversationId, siteId, intent }) {
 
     // Send email (legacy path)
     console.log(`[LeadNotifier] Sending ${rating} lead email...`);
+    const comms = await getSiteCommsConfig(conversation.site_id);
+    const to = comms.ownerEmail;
+    if (!to) {
+      console.log('[LeadNotifier] No owner notification email configured (report_email / raffy override / LEAD_NOTIFICATION_EMAIL).');
+      return { success: false, reason: 'No notification email configured' };
+    }
     await sendEmail(
-      notificationEmail,
+      to,
       subject,
       `<pre style="white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${escapeHtml(body)}</pre>`
     );

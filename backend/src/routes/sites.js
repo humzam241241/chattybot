@@ -115,12 +115,21 @@ router.post(
         if (!isValidE164OrNull(v)) throw new Error('twilio_whatsapp must be E.164 (e.g. +15551234567)');
         return true;
       }),
+    body('report_email')
+      .optional({ nullable: true })
+      .customSanitizer((v) => (v === undefined ? undefined : v === null ? null : String(v).trim()))
+      .custom((v) => {
+        if (v === undefined || v === null || v === '') return true;
+        // Basic email format check
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v))) throw new Error('report_email must be a valid email');
+        return true;
+      }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { company_name, domain, primary_color, tone, system_prompt, raffy_overrides, twilio_phone, twilio_whatsapp } = req.body;
+    const { company_name, domain, primary_color, tone, system_prompt, raffy_overrides, twilio_phone, twilio_whatsapp, report_email } = req.body;
 
     try {
       const id = uuidv4();
@@ -128,10 +137,24 @@ router.post(
       const stripeCustomerId = req.user?.stripe_customer_id || null;
       const billingPlan = 'starter';
       const result = await pool.query(
-        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, twilio_phone, twilio_whatsapp, owner_id, stripe_customer_id, billing_plan, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, twilio_phone, twilio_whatsapp, report_email, owner_id, stripe_customer_id, billing_plan, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
          RETURNING *`,
-        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null, raffy_overrides || {}, twilio_phone ?? null, twilio_whatsapp ?? null, ownerId, stripeCustomerId, billingPlan]
+        [
+          id,
+          company_name,
+          domain,
+          primary_color || '#6366f1',
+          tone || null,
+          system_prompt || null,
+          raffy_overrides || {},
+          twilio_phone ?? null,
+          twilio_whatsapp ?? null,
+          report_email ? String(report_email).trim() : null,
+          ownerId,
+          stripeCustomerId,
+          billingPlan,
+        ]
       );
       return res.status(201).json({ site: result.rows[0] });
     } catch (err) {
@@ -168,6 +191,14 @@ router.put(
         if (!isValidE164OrNull(v)) throw new Error('twilio_whatsapp must be E.164 (e.g. +15551234567)');
         return true;
       }),
+    body('report_email')
+      .optional({ nullable: true })
+      .customSanitizer((v) => (v === undefined ? undefined : v === null ? null : String(v).trim()))
+      .custom((v) => {
+        if (v === undefined || v === null || v === '') return true;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v))) throw new Error('report_email must be a valid email');
+        return true;
+      }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -183,6 +214,7 @@ router.put(
         'raffy_overrides',
         'twilio_phone',
         'twilio_whatsapp',
+        'report_email',
       ];
 
       const setParts = [];

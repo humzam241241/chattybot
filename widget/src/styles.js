@@ -38,6 +38,7 @@ export function injectStyles(shadow) {
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      overscroll-behavior: contain;
       z-index: 999998;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 14px;
@@ -81,6 +82,8 @@ export function injectStyles(shadow) {
       flex-direction: column;
       gap: 12px;
       scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
     .cb-messages::-webkit-scrollbar { width: 4px; }
     .cb-messages::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
@@ -128,6 +131,56 @@ export function injectStyles(shadow) {
       transition: opacity 0.15s;
     }
     .cb-cta:hover { opacity: 0.92; }
+
+    /* Booking modal (inline scheduling) */
+    .cb-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: flex;
+      flex-direction: column;
+      z-index: 999999;
+    }
+    .cb-modal {
+      margin: 12px;
+      background: #fff;
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .cb-modal-header {
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #f0f0f0;
+      flex-shrink: 0;
+      background: #fff;
+    }
+    .cb-modal-title {
+      font-weight: 600;
+      color: #0f172a;
+      font-size: 13px;
+    }
+    .cb-modal-close {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 22px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: #0f172a;
+      opacity: 0.8;
+    }
+    .cb-modal-close:hover { opacity: 1; }
+    .cb-modal-frame {
+      flex: 1;
+      width: 100%;
+      border: 0;
+    }
 
     .cb-msg { display: flex; flex-direction: column; max-width: 82%; gap: 2px; }
     .cb-msg.bot { align-self: flex-start; }
@@ -250,7 +303,8 @@ export function injectStyles(shadow) {
         max-width: 100vw;
         right: 0;
         bottom: 0;
-        max-height: 100vh;
+        height: calc(var(--cb-vh, 1vh) * 100);
+        max-height: calc(var(--cb-vh, 1vh) * 100);
         border-radius: 0;
       }
       .cb-bubble {
@@ -266,13 +320,25 @@ export function injectStyles(shadow) {
       .cb-input-row {
         padding: 14px;
         /* Prevent keyboard from covering input on iOS */
-        position: sticky;
-        bottom: 0;
+        padding-bottom: calc(14px + env(safe-area-inset-bottom));
       }
       .cb-send {
         width: 44px;
         height: 44px;
         min-width: 44px;
+      }
+
+      .cb-cta-row {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
+      .cb-modal {
+        margin: 0;
+        border-radius: 0;
+      }
+
+      .cb-powered {
+        padding-bottom: env(safe-area-inset-bottom);
       }
     }
   `;

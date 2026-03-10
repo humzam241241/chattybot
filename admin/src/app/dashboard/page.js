@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function DashboardPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, hasAccess } = useAuth();
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reconciling, setReconciling] = useState(false);
@@ -22,6 +22,11 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    if (!hasAccess && !isAdmin) {
+      setLoading(false);
+      setSites([]);
+      return;
+    }
     loadSites().finally(() => setLoading(false));
   }, []);
 
@@ -86,6 +91,17 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {!hasAccess && !isAdmin && (
+        <div className="empty-state">
+          <div className="empty-icon">🔒</div>
+          <h3>Upgrade to unlock the dashboard</h3>
+          <p>Your account doesn’t have an active plan right now.</p>
+          <Link href="/pricing" className="btn btn-primary" style={{ marginTop: 16 }}>
+            View plans
+          </Link>
+        </div>
+      )}
 
       {!loading && sites.length > 0 && (
         <div className="summary-row">

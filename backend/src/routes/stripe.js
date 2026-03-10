@@ -16,9 +16,9 @@ if (stripeSecretKey) {
 }
 
 const PRICE_IDS = {
-  monthly: process.env.STRIPE_PRICE_ID_MONTHLY,
-  yearly: process.env.STRIPE_PRICE_ID_YEARLY,
-  lifetime: process.env.STRIPE_PRICE_ID_LIFETIME,
+  pro: process.env.STRIPE_PRICE_ID_PRO || process.env.STRIPE_PRICE_ID_MONTHLY, // fallback for older envs
+  plus: process.env.STRIPE_PRICE_ID_PLUS,
+  ultra: process.env.STRIPE_PRICE_ID_ULTRA || process.env.STRIPE_PRICE_ID_AGENCY, // legacy alias
 };
 
 
@@ -78,6 +78,7 @@ router.post('/create-checkout-session', userAuth, async (req, res) => {
   }
   if (!site_id) return res.status(400).json({ error: 'site_id is required' });
   
+  plan = String(plan || '').toLowerCase();
   let priceId = PRICE_IDS[plan];
   
   if (appUser.custom_pricing && typeof appUser.custom_pricing === 'object') {
@@ -88,7 +89,7 @@ router.post('/create-checkout-session', userAuth, async (req, res) => {
           unit_amount: appUser.custom_pricing[customKey],
           currency: 'usd',
           product: process.env.STRIPE_PRODUCT_ID,
-          ...(plan !== 'lifetime' && { recurring: { interval: plan === 'yearly' ? 'year' : 'month' } }),
+          recurring: { interval: 'month' },
         });
         priceId = price.id;
       } catch (err) {
@@ -110,17 +111,15 @@ router.post('/create-checkout-session', userAuth, async (req, res) => {
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
-      mode: plan === 'lifetime' ? 'payment' : 'subscription',
+      mode: 'subscription',
       success_url: successUrl || `${process.env.FRONTEND_URL}/dashboard?success=true`,
       cancel_url: cancelUrl || `${process.env.FRONTEND_URL}/pricing?canceled=true`,
       metadata: { user_id: appUser.id, plan, site_id },
     };
     
-    if (plan !== 'lifetime') {
-      sessionParams.subscription_data = {
-        metadata: { user_id: appUser.id },
-      };
-    }
+    sessionParams.subscription_data = {
+      metadata: { user_id: appUser.id },
+    };
     
     const session = await stripe.checkout.sessions.create(sessionParams);
     

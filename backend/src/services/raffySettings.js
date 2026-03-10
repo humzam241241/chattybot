@@ -57,6 +57,8 @@ const DEFAULT_RAFFY_SETTINGS = {
   },
   booking: {
     url: '',
+    embed: false,
+    button_text: 'Book a call',
     keywords: ['book', 'booking', 'appointment', 'schedule', 'calendar', 'meeting', 'demo', 'consultation'],
     prompt: 'Want to book a call?',
   },

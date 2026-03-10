@@ -254,6 +254,8 @@ router.post(
       const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
       const wantsBooking = detectBookingIntent(user_message, raffy);
       const shouldOfferBooking = Boolean(bookingUrl) && wantsBooking;
+      const bookingEmbed = Boolean(raffy?.booking?.embed);
+      const bookingButtonText = raffy?.booking?.button_text ? String(raffy.booking.button_text) : null;
 
       const intent = isLifeThreateningEmergency
         ? 'emergency'
@@ -318,6 +320,8 @@ router.post(
         should_capture_lead: shouldCaptureLead,
         should_offer_booking: shouldOfferBooking,
         booking_url: shouldOfferBooking ? bookingUrl : null,
+        booking_embed: bookingEmbed,
+        booking_button_text: bookingButtonText,
         context_used: contextChunks.length,
         conversation_id: convoId,
       });
@@ -426,6 +430,8 @@ router.post(
       const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
       const wantsBooking = detectBookingIntent(user_message, raffy);
       const shouldOfferBooking = Boolean(bookingUrl) && wantsBooking;
+      const bookingEmbed = Boolean(raffy?.booking?.embed);
+      const bookingButtonText = raffy?.booking?.button_text ? String(raffy.booking.button_text) : null;
 
       const escalationKeywords = raffy?.escalation_triggers?.keywords || [];
       const wantsHuman = Array.isArray(escalationKeywords) && escalationKeywords.some((k) => msgLower.includes(String(k).toLowerCase()));
@@ -492,7 +498,7 @@ router.post(
           console.warn('[Chat/Stream] Lead notification failed (non-fatal):', err.message);
         });
 
-        res.write(`event: done\ndata: ${JSON.stringify({ should_capture_lead: wantsHuman, should_offer_booking: shouldOfferBooking, booking_url: shouldOfferBooking ? bookingUrl : null })}\n\n`);
+        res.write(`event: done\ndata: ${JSON.stringify({ should_capture_lead: wantsHuman, should_offer_booking: shouldOfferBooking, booking_url: shouldOfferBooking ? bookingUrl : null, booking_embed: bookingEmbed, booking_button_text: bookingButtonText })}\n\n`);
         return res.end();
       }
 
@@ -579,7 +585,7 @@ router.post(
           });
         }
 
-        res.write(`event: done\ndata: ${JSON.stringify({ should_capture_lead: shouldCaptureLead, should_offer_booking: shouldOfferBooking, booking_url: shouldOfferBooking ? bookingUrl : null })}\n\n`);
+        res.write(`event: done\ndata: ${JSON.stringify({ should_capture_lead: shouldCaptureLead, should_offer_booking: shouldOfferBooking, booking_url: shouldOfferBooking ? bookingUrl : null, booking_embed: bookingEmbed, booking_button_text: bookingButtonText })}\n\n`);
         return res.end();
       }
 

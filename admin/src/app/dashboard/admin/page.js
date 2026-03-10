@@ -446,35 +446,35 @@ function PricingModal({ user, onClose, onSave }) {
         
         <form onSubmit={handleSubmit}>
           <div className="field">
-            <label>Monthly Price (cents)</label>
+            <label>Pro Price (cents)</label>
             <input
               type="number"
               className="input"
-              value={pricing.monthly_cents || ''}
-              onChange={e => setPricing({ ...pricing, monthly_cents: e.target.value ? parseInt(e.target.value) : undefined })}
-              placeholder="4900 = $49"
+              value={pricing.pro_cents || ''}
+              onChange={e => setPricing({ ...pricing, pro_cents: e.target.value ? parseInt(e.target.value) : undefined })}
+              placeholder="5000 = $50"
             />
           </div>
           
           <div className="field">
-            <label>Yearly Price (cents)</label>
+            <label>Plus Price (cents)</label>
             <input
               type="number"
               className="input"
-              value={pricing.yearly_cents || ''}
-              onChange={e => setPricing({ ...pricing, yearly_cents: e.target.value ? parseInt(e.target.value) : undefined })}
-              placeholder="46800 = $468"
+              value={pricing.plus_cents || ''}
+              onChange={e => setPricing({ ...pricing, plus_cents: e.target.value ? parseInt(e.target.value) : undefined })}
+              placeholder="15000 = $150"
             />
           </div>
           
           <div className="field">
-            <label>Lifetime Price (cents)</label>
+            <label>Ultra Price (cents)</label>
             <input
               type="number"
               className="input"
-              value={pricing.lifetime_cents || ''}
-              onChange={e => setPricing({ ...pricing, lifetime_cents: e.target.value ? parseInt(e.target.value) : undefined })}
-              placeholder="49900 = $499"
+              value={pricing.ultra_cents || ''}
+              onChange={e => setPricing({ ...pricing, ultra_cents: e.target.value ? parseInt(e.target.value) : undefined })}
+              placeholder="40000 = $400"
             />
           </div>
           

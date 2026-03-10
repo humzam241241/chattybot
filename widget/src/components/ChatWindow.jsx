@@ -18,6 +18,7 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadCaptured, setLeadCaptured] = useState(false);
   const [bookingUrl, setBookingUrl] = useState(null);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [visitorId, setVisitorId] = useState(null);
   const [conversationId, setConversationId] = useState(null);
   const messagesEndRef = useRef(null);
@@ -38,6 +39,11 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
       return [{ role: 'bot', content: config?.intro_message || DEFAULT_INTRO, timestamp: new Date() }];
     });
   }, [config?.intro_message]);
+
+  useEffect(() => {
+    // If booking CTA disappears, also close any open booking modal.
+    if (!bookingUrl) setBookingOpen(false);
+  }, [bookingUrl]);
 
   useEffect(() => {
     // Stable anonymous visitor id for analytics/logs (no PII)
@@ -183,6 +189,8 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
   const initial = (config.company_name || 'S')[0].toUpperCase();
   const suggested = Array.isArray(config?.suggested_questions) ? config.suggested_questions : [];
   const showChips = messages.length <= 1 && suggested.length > 0 && !showLeadForm;
+  const bookingEmbed = Boolean(config?.booking_embed);
+  const bookingButtonText = (config?.booking_button_text || 'Book a call').trim() || 'Book a call';
 
   return (
     <div className="cb-window" style={{ '--cb-primary': primaryColor }}>
@@ -236,10 +244,40 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
           <button
             type="button"
             className="cb-cta"
-            onClick={() => window.open(bookingUrl, '_blank', 'noopener,noreferrer')}
+            onClick={() => {
+              if (bookingEmbed) setBookingOpen(true);
+              else window.open(bookingUrl, '_blank', 'noopener,noreferrer');
+            }}
           >
-            Book a call
+            {bookingButtonText}
           </button>
+        </div>
+      )}
+
+      {/* Inline booking modal */}
+      {bookingUrl && bookingEmbed && bookingOpen && (
+        <div className="cb-modal-backdrop" role="dialog" aria-label="Booking">
+          <div className="cb-modal">
+            <div className="cb-modal-header">
+              <div className="cb-modal-title">{bookingButtonText}</div>
+              <button
+                type="button"
+                className="cb-modal-close"
+                aria-label="Close booking"
+                onClick={() => setBookingOpen(false)}
+              >
+                &times;
+              </button>
+            </div>
+            <iframe
+              className="cb-modal-frame"
+              title="Booking"
+              src={bookingUrl}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              allow="clipboard-write; fullscreen"
+            />
+          </div>
         </div>
       )}
 

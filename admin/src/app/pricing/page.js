@@ -1,10 +1,10 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../contexts/AuthContext';
-import { createCheckoutSession } from '../../lib/api';
+import { createCheckoutSession, getSites } from '../../lib/api';
 
 export default function PricingPage() {
   return (
@@ -20,7 +20,34 @@ function PricingInner() {
   const { user, hasAccess } = useAuth();
   const [loading, setLoading] = useState(null);
   const canceled = searchParams.get('canceled');
-  const siteId = searchParams.get('site_id');
+  const siteIdParam = searchParams.get('site_id');
+  const [resolvedSiteId, setResolvedSiteId] = useState(siteIdParam || null);
+  const [siteResolved, setSiteResolved] = useState(false);
+
+  useEffect(() => {
+    setResolvedSiteId(siteIdParam || null);
+  }, [siteIdParam]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveSite() {
+      if (!user) return;
+      if (resolvedSiteId) return;
+      try {
+        const data = await getSites();
+        const sites = Array.isArray(data?.sites) ? data.sites : [];
+        const mostRecent = sites[0]?.id || null;
+        if (!cancelled) setResolvedSiteId(mostRecent);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setSiteResolved(true);
+      }
+    }
+    resolveSite();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, resolvedSiteId]);
 
   async function handleCheckout(plan) {
     if (!user) {
@@ -28,9 +55,16 @@ function PricingInner() {
       return;
     }
 
+    const siteId = resolvedSiteId || null;
+    if (!siteId) {
+      alert('Create a client/site first, then pick a plan.');
+      router.push('/dashboard/sites/new');
+      return;
+    }
+
     setLoading(plan);
     try {
-      const { url } = await createCheckoutSession(plan, siteId || undefined);
+      const { url } = await createCheckoutSession(plan, siteId);
       if (url) {
         window.location.href = url;
       }
@@ -65,7 +99,7 @@ function PricingInner() {
       <main className="pricing-main">
         <h1>Simple, Transparent Pricing</h1>
         <p className="pricing-subtitle">
-          Start with a 14-day free trial. No credit card required.
+          Choose a monthly plan. Limits are messages per month.
         </p>
 
         {canceled && (
@@ -77,11 +111,12 @@ function PricingInner() {
         <div className="pricing-grid">
           <div className="pricing-card">
             <div className="pricing-header">
-              <h3>Monthly</h3>
+              <h3>Pro</h3>
               <div className="price">
-                <span className="amount">$49</span>
+                <span className="amount">$50</span>
                 <span className="period">/month</span>
               </div>
+              <div className="savings">5,000 messages / month</div>
             </div>
             <ul className="features-list">
               <li>Unlimited chatbots</li>
@@ -93,62 +128,58 @@ function PricingInner() {
             </ul>
             <button 
               className="btn btn-primary btn-full"
-              onClick={() => handleCheckout('monthly')}
-              disabled={loading === 'monthly'}
+              onClick={() => handleCheckout('pro')}
+              disabled={loading === 'pro'}
             >
-              {loading === 'monthly' ? 'Loading...' : 'Start Free Trial'}
+              {loading === 'pro' ? 'Loading...' : 'Choose Pro'}
             </button>
           </div>
 
           <div className="pricing-card popular">
             <div className="popular-badge">Most Popular</div>
             <div className="pricing-header">
-              <h3>Yearly</h3>
+              <h3>Plus</h3>
               <div className="price">
-                <span className="amount">$39</span>
+                <span className="amount">$150</span>
                 <span className="period">/month</span>
               </div>
-              <div className="savings">Save $120/year</div>
+              <div className="savings">10,000 messages / month</div>
             </div>
             <ul className="features-list">
-              <li>Everything in Monthly</li>
+              <li>Everything in Pro</li>
               <li>Priority support</li>
               <li>Early access to new features</li>
               <li>Custom onboarding</li>
-              <li>API access</li>
-              <li>Billed annually ($468)</li>
             </ul>
             <button 
               className="btn btn-primary btn-full"
-              onClick={() => handleCheckout('yearly')}
-              disabled={loading === 'yearly'}
+              onClick={() => handleCheckout('plus')}
+              disabled={loading === 'plus'}
             >
-              {loading === 'yearly' ? 'Loading...' : 'Start Free Trial'}
+              {loading === 'plus' ? 'Loading...' : 'Choose Plus'}
             </button>
           </div>
 
           <div className="pricing-card">
             <div className="pricing-header">
-              <h3>Lifetime</h3>
+              <h3>Ultra</h3>
               <div className="price">
-                <span className="amount">$499</span>
-                <span className="period">one-time</span>
+                <span className="amount">$400</span>
+                <span className="period">/month</span>
               </div>
+              <div className="savings">20,000 messages / month</div>
             </div>
             <ul className="features-list">
-              <li>Everything in Yearly</li>
-              <li>Pay once, use forever</li>
-              <li>Lifetime updates</li>
+              <li>Everything in Plus</li>
               <li>White-label option</li>
               <li>Dedicated support</li>
-              <li>No recurring fees</li>
             </ul>
             <button 
               className="btn btn-secondary btn-full"
-              onClick={() => handleCheckout('lifetime')}
-              disabled={loading === 'lifetime'}
+              onClick={() => handleCheckout('ultra')}
+              disabled={loading === 'ultra'}
             >
-              {loading === 'lifetime' ? 'Loading...' : 'Get Lifetime Access'}
+              {loading === 'ultra' ? 'Loading...' : 'Choose Ultra'}
             </button>
           </div>
         </div>

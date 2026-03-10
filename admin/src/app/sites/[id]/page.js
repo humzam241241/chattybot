@@ -211,7 +211,96 @@ export default function EditSitePage() {
             />
           </div>
           <div className="field">
-            <label>Lead Notification Email</label>
+            <label>Open Booking Inline (optional)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={Boolean(getOverride('booking.embed', false))}
+                onChange={(e) =>
+                  setOverride((ro) => ({ ...ro, booking: { ...(ro.booking || {}), embed: e.target.checked } }))
+                }
+              />
+              <span style={{ fontSize: 13 }}>Open scheduling inside the widget instead of a new tab</span>
+            </div>
+          </div>
+          <div className="field">
+            <label>Booking Button Text (optional)</label>
+            <input
+              className="input"
+              value={getOverride('booking.button_text', '')}
+              onChange={(e) =>
+                setOverride((ro) => ({ ...ro, booking: { ...(ro.booking || {}), button_text: e.target.value } }))
+              }
+              placeholder="Book a call"
+            />
+          </div>
+
+          <div style={{ height: 1, background: 'var(--border)', marginTop: 18, marginBottom: 10 }} />
+
+          <div className="field">
+            <label>Owner / Report Email</label>
+            <input
+              className="input"
+              name="report_email"
+              value={form.report_email || ''}
+              onChange={handleChange}
+              placeholder="owner@yourcompany.com"
+            />
+            <small>Used for lead alerts, missed-lead alerts, and weekly reports (falls back to backend LEAD_NOTIFICATION_EMAIL if blank).</small>
+          </div>
+
+          <div className="field">
+            <label>Owner SMS Alert To (optional)</label>
+            <input
+              className="input"
+              value={getOverride('notifications.lead_sms_to', '')}
+              onChange={(e) =>
+                setOverride((ro) => ({ ...ro, notifications: { ...(ro.notifications || {}), lead_sms_to: e.target.value } }))
+              }
+              placeholder="+15551234567"
+            />
+            <small>If set, HOT/WARM lead alerts will also be sent by SMS.</small>
+          </div>
+
+          <div className="field">
+            <label>Owner WhatsApp Alert To (optional)</label>
+            <input
+              className="input"
+              value={getOverride('notifications.lead_whatsapp_to', '')}
+              onChange={(e) =>
+                setOverride((ro) => ({ ...ro, notifications: { ...(ro.notifications || {}), lead_whatsapp_to: e.target.value } }))
+              }
+              placeholder="+15551234567"
+            />
+            <small>If set, HOT/WARM lead alerts will also be sent by WhatsApp.</small>
+          </div>
+
+          <div className="field">
+            <label>Twilio SMS Number (site routing + outbound from)</label>
+            <input
+              className="input"
+              name="twilio_phone"
+              value={form.twilio_phone || ''}
+              onChange={handleChange}
+              placeholder="+15551234567"
+            />
+            <small>Inbound SMS to this number routes to this site. Proactive SMS will send from this number when set.</small>
+          </div>
+
+          <div className="field">
+            <label>Twilio WhatsApp Number (site routing + outbound from)</label>
+            <input
+              className="input"
+              name="twilio_whatsapp"
+              value={form.twilio_whatsapp || ''}
+              onChange={handleChange}
+              placeholder="+15551234567"
+            />
+            <small>Inbound WhatsApp to this number routes to this site. Proactive WhatsApp will send from this number when set.</small>
+          </div>
+
+          <div className="field">
+            <label>Lead Form Notification Email</label>
             <input
               className="input"
               value={getOverride('notifications.lead_email', '')}
@@ -220,7 +309,7 @@ export default function EditSitePage() {
               }
               placeholder="leads@yourcompany.com"
             />
-            <small>Requires backend SMTP env vars; otherwise leads still save to the dashboard.</small>
+            <small>Used when a visitor submits the lead form. Requires backend email env vars; otherwise leads still save to the dashboard.</small>
           </div>
 
           <div className="flex gap-2 mt-4">

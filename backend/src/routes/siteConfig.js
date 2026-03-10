@@ -37,6 +37,8 @@ router.get('/:site_id', apiLimiter, async (req, res) => {
         intro_message: raffy?.ui?.intro_message || undefined,
         suggested_questions: suggested,
         booking_url: raffy?.booking?.url || undefined,
+        booking_embed: Boolean(raffy?.booking?.embed),
+        booking_button_text: raffy?.booking?.button_text ? String(raffy.booking.button_text) : undefined,
       },
     });
   } catch (err) {

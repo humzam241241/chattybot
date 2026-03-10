@@ -1,36 +1,44 @@
-// Canonical plan config (limits are messages/month; prices in CAD/month).
+// Canonical plan config (limits are messages/month; prices in USD/month).
+//
+// Plans:
+// - pro   ($50/mo)  -> 5k messages/mo
+// - plus  ($150/mo) -> 10k messages/mo
+// - ultra ($400/mo) -> 20k messages/mo
 const PLANS = {
-  monthly: {
-    name: 'Monthly',
-    plan_key: 'starter',
-    message_limit: 5000,
-    price_cad: 50,
-  },
   pro: {
     name: 'Pro',
     plan_key: 'pro',
-    message_limit: 20000,
-    price_cad: 150,
+    message_limit: 5000,
+    price_usd: 50,
   },
-  agency: {
-    name: 'Agency',
-    plan_key: 'agency',
-    message_limit: 100000,
-    price_cad: 400,
+  plus: {
+    name: 'Plus',
+    plan_key: 'plus',
+    message_limit: 10000,
+    price_usd: 150,
+  },
+  ultra: {
+    name: 'Ultra',
+    plan_key: 'ultra',
+    message_limit: 20000,
+    price_usd: 400,
   },
 };
 
 // Back-compat exports used elsewhere in the codebase.
+// Keep starter as an alias for pro so older rows don't break.
 const PLAN_LIMITS = {
   starter: 5000,
-  pro: 20000,
-  agency: 100000,
+  pro: 5000,
+  plus: 10000,
+  ultra: 20000,
 };
 
 const PLAN_PRICES = {
   starter: 50,
-  pro: 150,
-  agency: 400,
+  pro: 50,
+  plus: 150,
+  ultra: 400,
 };
 
 module.exports = { PLANS, PLAN_LIMITS, PLAN_PRICES };
