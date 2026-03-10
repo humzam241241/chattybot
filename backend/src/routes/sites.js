@@ -5,6 +5,7 @@ const pool = require('../config/database');
 const { apiLimiter } = require('../middleware/rateLimiter');
 const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
 const { clearSettingsCache } = require('../services/raffySettings');
+const { normalizePhoneE164 } = require('../services/twilioClient');
 
 const router = express.Router();
 
@@ -12,14 +13,28 @@ router.use(userAuth);
 router.use(requirePaidOrTrial);
 router.use(apiLimiter);
 
+function normalizeTwilioNumberInput(raw) {
+  if (raw === undefined) return undefined; // omitted
+  if (raw === null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const withoutPrefix = s.replace(/^whatsapp:/i, '');
+  return normalizePhoneE164(withoutPrefix);
+}
+
+function isValidE164OrNull(v) {
+  if (v === null || v === undefined) return true;
+  return /^\+\d{10,15}$/.test(String(v));
+}
+
 /** GET /sites — list sites (all for admin, owned for users) */
 router.get('/', async (req, res) => {
   try {
     const params = [];
     let whereClause = '';
     
-    if (!req.isAdmin && req.ownerId) {
-      params.push(req.ownerId);
+    if (!req.user?.is_admin && req.user?.id) {
+      params.push(req.user.id);
       whereClause = `WHERE s.owner_id = $${params.length}`;
     }
     
@@ -30,6 +45,8 @@ router.get('/', async (req, res) => {
         s.domain, 
         s.primary_color, 
         s.tone, 
+        s.twilio_phone,
+        s.twilio_whatsapp,
         s.owner_id,
         s.created_at,
         COALESCE(l.lead_count, 0)::int as lead_count,
@@ -61,8 +78,8 @@ router.get('/:id', async (req, res) => {
     const params = [req.params.id];
     let query = 'SELECT * FROM sites WHERE id = $1';
     
-    if (!req.isAdmin && req.ownerId) {
-      params.push(req.ownerId);
+    if (!req.user?.is_admin && req.user?.id) {
+      params.push(req.user.id);
       query += ` AND owner_id = $${params.length}`;
     }
     
@@ -84,27 +101,44 @@ router.post(
     body('tone').optional().isString().trim().isLength({ max: 200 }),
     body('system_prompt').optional().isString().trim().isLength({ max: 8000 }),
     body('raffy_overrides').optional().isObject(),
+    body('twilio_phone')
+      .optional({ nullable: true })
+      .customSanitizer(normalizeTwilioNumberInput)
+      .custom((v) => {
+        if (!isValidE164OrNull(v)) throw new Error('twilio_phone must be E.164 (e.g. +15551234567)');
+        return true;
+      }),
+    body('twilio_whatsapp')
+      .optional({ nullable: true })
+      .customSanitizer(normalizeTwilioNumberInput)
+      .custom((v) => {
+        if (!isValidE164OrNull(v)) throw new Error('twilio_whatsapp must be E.164 (e.g. +15551234567)');
+        return true;
+      }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { company_name, domain, primary_color, tone, system_prompt, raffy_overrides } = req.body;
+    const { company_name, domain, primary_color, tone, system_prompt, raffy_overrides, twilio_phone, twilio_whatsapp } = req.body;
 
     try {
       const id = uuidv4();
-      const ownerId = req.ownerId || null;
-      const stripeCustomerId = req.user?.appUser?.stripe_customer_id || null;
+      const ownerId = req.user?.id || null;
+      const stripeCustomerId = req.user?.stripe_customer_id || null;
       const billingPlan = 'starter';
       const result = await pool.query(
-        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, owner_id, stripe_customer_id, billing_plan, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        `INSERT INTO sites (id, company_name, domain, primary_color, tone, system_prompt, raffy_overrides, twilio_phone, twilio_whatsapp, owner_id, stripe_customer_id, billing_plan, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
          RETURNING *`,
-        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null, raffy_overrides || {}, ownerId, stripeCustomerId, billingPlan]
+        [id, company_name, domain, primary_color || '#6366f1', tone || null, system_prompt || null, raffy_overrides || {}, twilio_phone ?? null, twilio_whatsapp ?? null, ownerId, stripeCustomerId, billingPlan]
       );
       return res.status(201).json({ site: result.rows[0] });
     } catch (err) {
       console.error(err);
+      if (err && err.code === '23505') {
+        return res.status(409).json({ error: 'That Twilio number is already assigned to another site.' });
+      }
       return res.status(500).json({ error: 'Failed to create site' });
     }
   }
@@ -120,31 +154,62 @@ router.put(
     body('tone').optional().isString().trim().isLength({ max: 200 }),
     body('system_prompt').optional().isString().trim().isLength({ max: 8000 }),
     body('raffy_overrides').optional().isObject(),
+    body('twilio_phone')
+      .optional({ nullable: true })
+      .customSanitizer(normalizeTwilioNumberInput)
+      .custom((v) => {
+        if (!isValidE164OrNull(v)) throw new Error('twilio_phone must be E.164 (e.g. +15551234567)');
+        return true;
+      }),
+    body('twilio_whatsapp')
+      .optional({ nullable: true })
+      .customSanitizer(normalizeTwilioNumberInput)
+      .custom((v) => {
+        if (!isValidE164OrNull(v)) throw new Error('twilio_whatsapp must be E.164 (e.g. +15551234567)');
+        return true;
+      }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { company_name, domain, primary_color, tone, system_prompt, raffy_overrides } = req.body;
-
     try {
-      const params = [company_name, domain, primary_color, tone, system_prompt, raffy_overrides, req.params.id];
+      const allowed = [
+        'company_name',
+        'domain',
+        'primary_color',
+        'tone',
+        'system_prompt',
+        'raffy_overrides',
+        'twilio_phone',
+        'twilio_whatsapp',
+      ];
+
+      const setParts = [];
+      const params = [];
+      for (const key of allowed) {
+        if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+          params.push(req.body[key]);
+          setParts.push(`${key} = $${params.length}`);
+        }
+      }
+
+      if (setParts.length === 0) {
+        return res.status(400).json({ error: 'No fields provided to update' });
+      }
+
+      params.push(req.params.id);
+      const idParam = `$${params.length}`;
       let ownerCheck = '';
-      
-      if (!req.isAdmin && req.ownerId) {
-        params.push(req.ownerId);
+      if (!req.user?.is_admin && req.user?.id) {
+        params.push(req.user.id);
         ownerCheck = ` AND owner_id = $${params.length}`;
       }
-      
+
       const result = await pool.query(
         `UPDATE sites
-         SET company_name = COALESCE($1, company_name),
-             domain = COALESCE($2, domain),
-             primary_color = COALESCE($3, primary_color),
-             tone = COALESCE($4, tone),
-             system_prompt = COALESCE($5, system_prompt),
-             raffy_overrides = COALESCE($6, raffy_overrides)
-         WHERE id = $7${ownerCheck}
+         SET ${setParts.join(', ')}
+         WHERE id = ${idParam}${ownerCheck}
          RETURNING *`,
         params
       );
@@ -155,6 +220,9 @@ router.put(
       return res.json({ site: result.rows[0] });
     } catch (err) {
       console.error(err);
+      if (err && err.code === '23505') {
+        return res.status(409).json({ error: 'That Twilio number is already assigned to another site.' });
+      }
       return res.status(500).json({ error: 'Failed to update site' });
     }
   }
@@ -166,8 +234,8 @@ router.delete('/:id', async (req, res) => {
     const params = [req.params.id];
     let ownerCheck = '';
     
-    if (!req.isAdmin && req.ownerId) {
-      params.push(req.ownerId);
+    if (!req.user?.is_admin && req.user?.id) {
+      params.push(req.user.id);
       ownerCheck = ` AND owner_id = $${params.length}`;
     }
     

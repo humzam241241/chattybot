@@ -1,26 +1,23 @@
 import { NextResponse } from 'next/server';
+import { requireBackendAuth } from '../../_utils/backend';
 
 const API_URL = process.env.API_URL;
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
-
-function backendHeaders() {
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${ADMIN_SECRET}`,
-  };
-}
 
 export async function GET(request, { params }) {
-  const res = await fetch(`${API_URL}/sites/${params.id}`, { headers: backendHeaders() });
+  const auth = requireBackendAuth(request);
+  if (!auth.ok) return auth.response;
+  const res = await fetch(`${API_URL}/sites/${params.id}`, { headers: auth.headers });
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }
 
 export async function PUT(request, { params }) {
+  const auth = requireBackendAuth(request);
+  if (!auth.ok) return auth.response;
   const body = await request.json();
   const res = await fetch(`${API_URL}/sites/${params.id}`, {
     method: 'PUT',
-    headers: backendHeaders(),
+    headers: auth.headers,
     body: JSON.stringify(body),
   });
   const data = await res.json();
@@ -28,9 +25,11 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+  const auth = requireBackendAuth(request);
+  if (!auth.ok) return auth.response;
   const res = await fetch(`${API_URL}/sites/${params.id}`, {
     method: 'DELETE',
-    headers: backendHeaders(),
+    headers: auth.headers,
   });
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });

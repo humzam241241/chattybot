@@ -57,10 +57,17 @@ async function resolveSiteIdFromTo(toNumberRaw) {
   if (!toE164) return null;
 
   try {
+    // Default to SMS routing unless explicitly requested
+    const channel = arguments.length > 1 ? arguments[1] : 'sms';
+    const where =
+      channel === 'whatsapp'
+        ? 'twilio_whatsapp = $1'
+        : 'twilio_phone = $1';
+
     const r = await pool.query(
       `SELECT id
        FROM sites
-       WHERE twilio_phone = $1 OR twilio_whatsapp = $1
+       WHERE ${where}
        LIMIT 1`,
       [toE164]
     );
@@ -104,7 +111,7 @@ router.post('/sms', async (req, res) => {
     }
     
     // Resolve site by destination number (multi-tenant)
-    const mappedSiteId = await resolveSiteIdFromTo(To);
+    const mappedSiteId = await resolveSiteIdFromTo(To, 'sms');
     const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
     const siteId = mappedSiteId || fallbackSiteId;
     if (!siteId) {
@@ -184,7 +191,7 @@ router.post('/whatsapp', async (req, res) => {
     }
     
     // Resolve site by destination number (multi-tenant)
-    const mappedSiteId = await resolveSiteIdFromTo(To);
+    const mappedSiteId = await resolveSiteIdFromTo(To, 'whatsapp');
     const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
     const siteId = mappedSiteId || fallbackSiteId;
     if (!siteId) {

@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
+import { requireBackendAuth } from '../../_utils/backend';
 
 const API_URL = process.env.API_URL;
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const auth = requireBackendAuth(request);
+    if (!auth.ok) return auth.response;
+
     const res = await fetch(`${API_URL}/api/admin/leads/debug/all`, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${ADMIN_SECRET}`,
-      },
+      headers: auth.headers,
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

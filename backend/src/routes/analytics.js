@@ -7,16 +7,21 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
+const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
+const { checkSiteAccess } = require('../services/siteAccess');
 
 /**
  * GET /api/analytics/:site_id
  * Get comprehensive site analytics
  */
-router.get('/:site_id', async (req, res) => {
+router.get('/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
   const { days = 30 } = req.query;
 
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     const site = await pool.query('SELECT id, company_name FROM sites WHERE id = $1', [site_id]);
     if (site.rows.length === 0) {
       return res.status(404).json({ error: 'Site not found' });

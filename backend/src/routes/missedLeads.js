@@ -8,21 +8,20 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
+const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
+const { checkSiteAccess } = require('../services/siteAccess');
 
 /**
  * GET /api/missed-leads/:site_id
  * Get missed leads for a site with conversation details
  */
-router.get('/:site_id', async (req, res) => {
+router.get('/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
   const { limit = 50, offset = 0 } = req.query;
 
   try {
-    // Validate site exists
-    const site = await pool.query('SELECT id FROM sites WHERE id = $1', [site_id]);
-    if (site.rows.length === 0) {
-      return res.status(404).json({ error: 'Site not found' });
-    }
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
 
     // Fetch missed leads with conversation info
     const result = await pool.query(`
@@ -66,11 +65,14 @@ router.get('/:site_id', async (req, res) => {
  * GET /api/missed-leads/:site_id/stats
  * Get missed lead statistics
  */
-router.get('/:site_id/stats', async (req, res) => {
+router.get('/:site_id/stats', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
   const { days = 7 } = req.query;
 
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     // Total missed leads in time period
     const total = await pool.query(`
       SELECT COUNT(*) as count
@@ -120,10 +122,13 @@ router.get('/:site_id/stats', async (req, res) => {
  * DELETE /api/missed-leads/:site_id/:id
  * Delete a missed lead record
  */
-router.delete('/:site_id/:id', async (req, res) => {
+router.delete('/:site_id/:id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id, id } = req.params;
 
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     const result = await pool.query(
       'DELETE FROM missed_leads WHERE id = $1 AND site_id = $2 RETURNING id',
       [id, site_id]

@@ -3,6 +3,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { requireBackendAuth } from '../../_utils/backend';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -11,13 +12,28 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL;
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+const API_URL = process.env.API_URL || BACKEND_URL;
+
+async function requirePlatformAdmin(request) {
+  const auth = requireBackendAuth(request);
+  if (!auth.ok) return { ok: false, response: auth.response };
+  if (!API_URL) return { ok: false, response: NextResponse.json({ error: 'Server misconfigured' }, { status: 500 }) };
+
+  const r = await fetch(`${API_URL}/api/admin/overview?days=1`, { headers: auth.headers, cache: 'no-store' });
+  if (!r.ok) {
+    return { ok: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+  }
+  return { ok: true, headers: auth.headers };
+}
 
 // GET /api/rag-eval/[site_id] - Get latest evaluation report
 export async function GET(request, { params }) {
   const { site_id } = params;
 
   try {
+    const gate = await requirePlatformAdmin(request);
+    if (!gate.ok) return gate.response;
+
     // Check if report file exists in backend
     const reportPath = path.join(process.cwd(), '..', 'backend', 'tests', 'ragEvaluationReport.json');
     
@@ -45,6 +61,9 @@ export async function POST(request, { params }) {
   const { site_id } = params;
 
   try {
+    const gate = await requirePlatformAdmin(request);
+    if (!gate.ok) return gate.response;
+
     // Run evaluation script
     const backendPath = path.join(process.cwd(), '..', 'backend');
     const { stdout, stderr } = await execAsync(

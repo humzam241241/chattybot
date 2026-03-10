@@ -1,23 +1,17 @@
 import { NextResponse } from 'next/server';
+import { requireBackendAuth } from '../../_utils/backend';
 
 const API_URL = process.env.API_URL;
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-function backendHeaders(request) {
-  const supabaseToken = request.headers.get('x-supabase-token');
-  return {
-    'Content-Type': 'application/json',
-    Authorization: supabaseToken ? `Bearer ${supabaseToken}` : `Bearer ${ADMIN_SECRET}`,
-  };
-}
-
 export async function GET(request, { params }) {
   const { site_id } = params;
+  const auth = requireBackendAuth(request);
+  if (!auth.ok) return auth.response;
   const res = await fetch(`${API_URL}/api/usage/${site_id}`, {
-    headers: backendHeaders(request),
+    headers: auth.headers,
     cache: 'no-store',
   });
   const data = await res.json();

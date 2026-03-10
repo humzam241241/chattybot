@@ -3,10 +3,11 @@ const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
 const { apiLimiter } = require('../middleware/rateLimiter');
-const adminAuth = require('../middleware/adminAuth');
+const { userAuth, requirePaidOrTrial, requireAdmin } = require('../middleware/userAuth');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { sendLeadEmail } = require('../services/mailer');
 const { trackApiUsage } = require('../middleware/usageTracking');
+const { checkSiteAccess } = require('../services/siteAccess');
 
 const router = express.Router();
 
@@ -82,7 +83,7 @@ router.post(
  * GET /lead/debug/all
  * Debug: List ALL leads across all sites (admin only)
  */
-router.get('/debug/all', adminAuth, async (req, res) => {
+router.get('/debug/all', userAuth, requirePaidOrTrial, requireAdmin, async (req, res) => {
   try {
     // Get all sites first
     const sites = await pool.query('SELECT id, company_name FROM sites');
@@ -125,11 +126,13 @@ router.get('/debug/all', adminAuth, async (req, res) => {
 
 /**
  * DELETE /lead/:site_id/:lead_id
- * Delete a single lead (admin only).
+ * Delete a single lead (site owner or admin).
  */
-router.delete('/:site_id/:lead_id', adminAuth, async (req, res) => {
+router.delete('/:site_id/:lead_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id, lead_id } = req.params;
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.status === 404 ? 'Lead not found' : access.error });
     const del = await pool.query(
       `DELETE FROM leads
        WHERE id = $1 AND site_id = $2
@@ -146,12 +149,14 @@ router.delete('/:site_id/:lead_id', adminAuth, async (req, res) => {
 
 /**
  * DELETE /lead/:site_id/clear
- * Delete ALL leads for a site (admin only).
+ * Delete ALL leads for a site (site owner or admin).
  * Use carefully — intended for testing/cleanup.
  */
-router.delete('/:site_id/clear', adminAuth, async (req, res) => {
+router.delete('/:site_id/clear', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
     const del = await pool.query(
       `DELETE FROM leads WHERE site_id = $1`,
       [site_id]
@@ -165,16 +170,19 @@ router.delete('/:site_id/clear', adminAuth, async (req, res) => {
 
 /**
  * GET /lead/:site_id
- * List leads for a site (admin only).
+ * List leads for a site (site owner or admin).
  * Returns enhanced lead data including phone, issue, scoring.
  */
-router.get('/:site_id', adminAuth, async (req, res) => {
+router.get('/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
   const { rating, limit = 200 } = req.query;
 
   console.log(`[Leads API] Fetching leads for site_id: ${site_id}`);
 
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     // Debug: count total leads for this site
     const totalCheck = await pool.query(
       'SELECT COUNT(*) as count FROM leads WHERE site_id = $1',
@@ -262,10 +270,13 @@ router.get('/:site_id', adminAuth, async (req, res) => {
  * POST /lead/:site_id/rescore
  * Re-score all leads for a site that are missing ratings
  */
-router.post('/:site_id/rescore', adminAuth, async (req, res) => {
+router.post('/:site_id/rescore', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
   
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     // Import scoreLead
     const { scoreLead } = require('../services/leadScore');
     

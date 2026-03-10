@@ -60,7 +60,7 @@ router.post('/create-checkout-session', userAuth, async (req, res) => {
   }
   
   let { plan, successUrl, cancelUrl, site_id } = req.body;
-  const appUser = req.user?.appUser;
+  const appUser = req.user;
   
   if (!appUser) {
     return res.status(401).json({ error: 'User not found' });
@@ -139,7 +139,7 @@ router.post('/portal', userAuth, async (req, res) => {
     return res.status(500).json({ error: 'Stripe not configured' });
   }
   
-  const appUser = req.user?.appUser;
+  const appUser = req.user;
   if (!appUser?.stripe_customer_id) {
     return res.status(400).json({ error: 'No subscription found' });
   }
@@ -158,7 +158,7 @@ router.post('/portal', userAuth, async (req, res) => {
 });
 
 router.get('/subscription', userAuth, async (req, res) => {
-  const appUser = req.user?.appUser;
+  const appUser = req.user;
   if (!appUser) {
     return res.status(401).json({ error: 'User not found' });
   }

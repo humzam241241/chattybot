@@ -16,22 +16,37 @@ const AuthContext = createContext({
   refreshSubscription: async () => {},
 });
 
-const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
-  
   const hasAccess = isAdmin || 
     subscription?.status === 'active' || 
     subscription?.status === 'lifetime' ||
     (subscription?.status === 'trialing' && 
      subscription?.trialEndsAt && 
      new Date(subscription.trialEndsAt) > new Date());
+
+  async function fetchMe(accessToken) {
+    if (!accessToken) return;
+    try {
+      const res = await fetch('/api/me', {
+        headers: { 'X-Supabase-Token': accessToken },
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsAdmin(Boolean(data?.user?.is_admin));
+      } else {
+        setIsAdmin(false);
+      }
+    } catch {
+      setIsAdmin(false);
+    }
+  }
 
   async function fetchSubscription(accessToken) {
     if (!accessToken) return;
@@ -58,6 +73,7 @@ export function AuthProvider({ children }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.access_token) {
+        fetchMe(session.access_token);
         fetchSubscription(session.access_token);
       }
       setLoading(false);
@@ -68,9 +84,11 @@ export function AuthProvider({ children }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.access_token) {
+          fetchMe(session.access_token);
           fetchSubscription(session.access_token);
         } else {
           setSubscription(null);
+          setIsAdmin(false);
         }
       }
     );
@@ -98,6 +116,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setSession(null);
     setSubscription(null);
+    setIsAdmin(false);
   }
 
   async function refreshSubscription() {

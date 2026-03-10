@@ -2,15 +2,15 @@ const express = require('express');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
-const adminAuth = require('../middleware/adminAuth');
 const { apiLimiter } = require('../middleware/rateLimiter');
+const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
 const { getSupabaseClient, getUploadsBucket } = require('../services/supabaseStorage');
 const { extractTextFromFile } = require('../services/fileExtract');
 const { chunkText } = require('../services/chunker');
 const { embedBatch, vectorToSql } = require('../services/embeddings');
+const { checkSiteAccess } = require('../services/siteAccess');
 
 const router = express.Router();
-router.use(adminAuth);
 router.use(apiLimiter);
 
 const upload = multer({
@@ -26,11 +26,6 @@ function safeFilename(name) {
     .replace(/[^\w.\- ]+/g, '')
     .replace(/\s+/g, '_')
     .slice(0, 120);
-}
-
-async function ensureSite(siteId) {
-  const siteCheck = await pool.query('SELECT id FROM sites WHERE id = $1', [siteId]);
-  return siteCheck.rows.length > 0;
 }
 
 async function embedAndStoreFileChunks({ siteId, fileId, text }) {
@@ -59,7 +54,7 @@ async function embedAndStoreFileChunks({ siteId, fileId, text }) {
 }
 
 // POST /api/admin/files/upload (multipart)
-router.post('/upload', upload.array('files', 5), async (req, res) => {
+router.post('/upload', userAuth, requirePaidOrTrial, upload.array('files', 5), async (req, res) => {
   const siteId = req.body.site_id;
   if (!siteId) return res.status(400).json({ error: 'site_id required' });
 
@@ -68,9 +63,8 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
     return res.status(400).json({ error: 'No files uploaded. Use form field name "files".' });
   }
 
-  if (!(await ensureSite(siteId))) {
-    return res.status(404).json({ error: 'Site not found' });
-  }
+  const access = await checkSiteAccess(pool, req.user, siteId);
+  if (!access.ok) return res.status(access.status).json({ error: access.error });
 
   const supabase = getSupabaseClient();
   const bucket = getUploadsBucket();
@@ -123,9 +117,11 @@ router.post('/upload', upload.array('files', 5), async (req, res) => {
 });
 
 // GET /api/admin/files/:site_id
-router.get('/:site_id', async (req, res) => {
+router.get('/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
     const result = await pool.query(
       `SELECT id, original_name, mime_type, size_bytes, status, error, created_at
        FROM files
@@ -142,12 +138,15 @@ router.get('/:site_id', async (req, res) => {
 });
 
 // POST /api/admin/files/reprocess/:file_id
-router.post('/reprocess/:file_id', async (req, res) => {
+router.post('/reprocess/:file_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { file_id } = req.params;
   try {
     const fileRes = await pool.query('SELECT * FROM files WHERE id = $1', [file_id]);
     if (fileRes.rows.length === 0) return res.status(404).json({ error: 'File not found' });
     const file = fileRes.rows[0];
+
+    const access = await checkSiteAccess(pool, req.user, file.site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.status === 404 ? 'File not found' : access.error });
 
     const supabase = getSupabaseClient();
     const bucket = getUploadsBucket();
@@ -173,12 +172,15 @@ router.post('/reprocess/:file_id', async (req, res) => {
 });
 
 // DELETE /api/admin/files/:file_id
-router.delete('/file/:file_id', async (req, res) => {
+router.delete('/file/:file_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { file_id } = req.params;
   try {
     const fileRes = await pool.query('SELECT * FROM files WHERE id = $1', [file_id]);
     if (fileRes.rows.length === 0) return res.status(404).json({ error: 'File not found' });
     const file = fileRes.rows[0];
+
+    const access = await checkSiteAccess(pool, req.user, file.site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.status === 404 ? 'File not found' : access.error });
 
     const supabase = getSupabaseClient();
     const bucket = getUploadsBucket();

@@ -7,16 +7,21 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
+const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
+const { checkSiteAccess } = require('../services/siteAccess');
 
 /**
  * GET /api/reports/:site_id
  * Get weekly reports for a site
  */
-router.get('/:site_id', async (req, res) => {
+router.get('/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
   const { limit = 12 } = req.query;
 
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     const site = await pool.query('SELECT id FROM sites WHERE id = $1', [site_id]);
     if (site.rows.length === 0) {
       return res.status(404).json({ error: 'Site not found' });
@@ -55,10 +60,13 @@ router.get('/:site_id', async (req, res) => {
  * GET /api/reports/:site_id/latest
  * Get the most recent report
  */
-router.get('/:site_id/latest', async (req, res) => {
+router.get('/:site_id/latest', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
 
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     const result = await pool.query(`
       SELECT *
       FROM weekly_reports

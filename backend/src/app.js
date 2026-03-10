@@ -34,9 +34,9 @@ const stripeRouter = require('./routes/stripe');
 const stripeWebhookRouter = require('./routes/stripeWebhook');
 const adminOverviewRouter = require('./routes/adminOverview');
 const usageRouter = require('./routes/usage');
-const adminAuth = require('./middleware/adminAuth');
 const { userAuth } = require('./middleware/userAuth');
 const { startUsageResetWorker } = require('./workers/usageResetWorker');
+const meRouter = require('./routes/me');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -114,6 +114,7 @@ app.use('/site-config', siteConfigRouter);
 app.use('/api/site-config', siteConfigRouter);
 app.use('/api/sites', siteConfigRouter); // public alias: /api/sites/:siteId
 app.use('/api/usage', usageRouter);
+app.use('/api/me', meRouter);
 
 // Twilio webhooks (public, no auth required)
 app.use('/webhooks/twilio', twilioWebhookRouter);

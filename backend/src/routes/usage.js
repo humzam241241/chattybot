@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/database');
 const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
 const { getUsage } = require('../services/usageService');
+const { checkSiteAccess } = require('../services/siteAccess');
 
 const router = express.Router();
 
@@ -10,11 +11,8 @@ router.get('/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
   const siteId = req.params.site_id;
 
   try {
-    // Ownership enforcement
-    if (!req.isAdmin && req.ownerId) {
-      const r = await pool.query(`SELECT id FROM sites WHERE id = $1 AND owner_id = $2`, [siteId, req.ownerId]);
-      if (r.rows.length === 0) return res.status(404).json({ error: 'Site not found' });
-    }
+    const access = await checkSiteAccess(pool, req.user, siteId);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
 
     const usage = await getUsage(siteId);
     if (!usage) return res.status(404).json({ error: 'Site not found' });

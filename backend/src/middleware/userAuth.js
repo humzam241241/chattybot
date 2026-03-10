@@ -1,16 +1,12 @@
 /**
  * User Auth Middleware
  * 
- * Supports two auth modes:
- * 1. Bearer token (ADMIN_SECRET) - Legacy admin, full access
- * 2. JWT (Supabase session) - User auth with ownership filtering
+ * Supports JWT (Supabase session) auth.
+ *
+ * Admin rights come ONLY from app_users.is_admin.
  */
-const { timingSafeEqual } = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 const pool = require('../config/database');
-
-const adminSecret = process.env.ADMIN_SECRET || '';
-const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -18,17 +14,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 let supabase = null;
 if (supabaseUrl && supabaseServiceKey) {
   supabase = createClient(supabaseUrl, supabaseServiceKey);
-}
-
-function isAdminToken(token) {
-  if (!adminSecret || adminSecret.length < 16) return false;
-  try {
-    const a = Buffer.from(token.padEnd(adminSecret.length));
-    const b = Buffer.from(adminSecret);
-    return a.length === b.length && timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
 }
 
 async function getOrCreateAppUser(supabaseUser) {
@@ -62,12 +47,6 @@ async function userAuth(req, res, next) {
   
   const token = authHeader.slice(7);
   
-  if (isAdminToken(token)) {
-    req.user = { isAdmin: true, isSuperAdmin: true };
-    req.isAdmin = true;
-    return next();
-  }
-  
   if (!supabase) {
     return res.status(500).json({ error: 'Auth not configured' });
   }
@@ -80,16 +59,8 @@ async function userAuth(req, res, next) {
     }
     
     const appUser = await getOrCreateAppUser(user);
-    const isAdmin = adminEmails.includes(user.email.toLowerCase()) || appUser.is_admin;
-    
-    req.user = {
-      id: user.id,
-      email: user.email,
-      isAdmin,
-      appUser,
-    };
-    req.isAdmin = isAdmin;
-    req.ownerId = user.id;
+    req.supabaseUser = { id: user.id, email: user.email };
+    req.user = appUser; // DB user: {id, email, is_admin, subscription_status, ...}
     
     next();
   } catch (err) {
@@ -99,15 +70,15 @@ async function userAuth(req, res, next) {
 }
 
 function requirePaidOrTrial(req, res, next) {
-  if (req.isAdmin) return next();
+  if (req.user?.is_admin) return next();
   
-  const appUser = req.user?.appUser;
-  if (!appUser) {
+  const dbUser = req.user;
+  if (!dbUser) {
     return res.status(403).json({ error: 'Account required' });
   }
   
-  const status = appUser.subscription_status;
-  const trialEndsAt = appUser.trial_ends_at ? new Date(appUser.trial_ends_at) : null;
+  const status = dbUser.subscription_status;
+  const trialEndsAt = dbUser.trial_ends_at ? new Date(dbUser.trial_ends_at) : null;
   const now = new Date();
   
   const hasAccess = 
@@ -127,7 +98,7 @@ function requirePaidOrTrial(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.isAdmin) {
+  if (!req.user?.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();

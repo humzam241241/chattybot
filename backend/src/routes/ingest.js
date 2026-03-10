@@ -2,8 +2,9 @@ const express = require('express');
 const pool = require('../config/database');
 const { runIngestion } = require('../ingest/ingestRunner');
 const { ingestLimiter } = require('../middleware/rateLimiter');
-const adminAuth = require('../middleware/adminAuth');
+const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
 const { trackApiUsage } = require('../middleware/usageTracking');
+const { checkSiteAccess } = require('../services/siteAccess');
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ const ingestJobs = new Map();
  * Kicks off ingestion in the background and returns immediately.
  * The admin UI polls GET /ingest/:site_id/status for progress.
  */
-router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
+router.post('/:site_id', userAuth, requirePaidOrTrial, ingestLimiter, async (req, res) => {
   const { site_id } = req.params;
 
   if (ingestJobs.has(site_id) && ingestJobs.get(site_id).status === 'running') {
@@ -27,6 +28,9 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
   }
 
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     const siteResult = await pool.query(
       'SELECT id, company_name, domain FROM sites WHERE id = $1',
       [site_id],
@@ -90,10 +94,13 @@ router.post('/:site_id', adminAuth, ingestLimiter, async (req, res) => {
  *
  * Returns current ingestion status: running, done, error, or idle.
  */
-router.get('/:site_id/status', adminAuth, async (req, res) => {
+router.get('/:site_id/status', userAuth, requirePaidOrTrial, async (req, res) => {
   const { site_id } = req.params;
 
   try {
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
     const job = ingestJobs.get(site_id);
 
     // Get document count from DB regardless
