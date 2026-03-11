@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { deleteConversation, getSite } from '../../../../lib/api';
+import { deleteConversation, getConversation, getSite, listConversations } from '../../../../lib/api';
 import SiteLayout from '../../../../components/SiteLayout';
 
 export default function ConversationsPage() {
@@ -22,7 +22,7 @@ export default function ConversationsPage() {
     try {
       const [siteRes, convRes] = await Promise.all([
         getSite(siteId),
-        fetch(`/api/conversations/site/${siteId}`).then(r => r.json())
+        listConversations(siteId)
       ]);
       setSite(siteRes.site);
       setConversations(convRes?.conversations ?? []);
@@ -41,9 +41,7 @@ export default function ConversationsPage() {
     setSelectedConversation(conversationId);
     setShowMessages(true);
     try {
-      const res = await fetch(`/api/conversations/${conversationId}`);
-      if (!res.ok) throw new Error("Failed to load messages");
-      const data = await res.json();
+      const data = await getConversation(conversationId);
       setMessages(data?.messages ?? []);
     } catch (err) {
       console.error("Messages load error:", err);
