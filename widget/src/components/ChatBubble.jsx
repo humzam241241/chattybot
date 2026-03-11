@@ -19,7 +19,7 @@ function RaffyAvatarIcon() {
   );
 }
 
-export default function ChatBubble({ primaryColor, isOpen, onClick, label = 'Chat with Raffy' }) {
+export default function ChatBubble({ primaryColor, isOpen, onClick, label = 'Chat with me' }) {
   return (
     <div className="cb-bubble-wrap">
       {!isOpen && (
