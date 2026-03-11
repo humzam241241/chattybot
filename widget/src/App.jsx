@@ -3,7 +3,7 @@ import ChatBubble from './components/ChatBubble';
 import ChatWindow from './components/ChatWindow';
 import { injectStyles } from './styles';
 
-export default function App({ siteId, apiUrl, shadow }) {
+export default function App({ siteId, apiUrl, shadow, pricingUrl }) {
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState(null);
   const scrollLockRef = useRef(null);
@@ -92,6 +92,7 @@ export default function App({ siteId, apiUrl, shadow }) {
           apiUrl={apiUrl}
           config={config}
           primaryColor={primaryColor}
+          pricingUrl={pricingUrl}
           onClose={() => setIsOpen(false)}
         />
       )}

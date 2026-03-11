@@ -24,6 +24,7 @@ import App from './App';
 
     const siteId = script.getAttribute('data-site-id');
     const apiUrl = script.getAttribute('data-api-url') || 'https://chattybot-backend.onrender.com';
+    const pricingUrl = script.getAttribute('data-pricing-url') || '';
 
     if (!siteId) {
       console.error('[ChattyBot] data-site-id attribute is required.');
@@ -55,7 +56,7 @@ import App from './App';
     shadow.appendChild(mountPoint);
 
     const root = createRoot(mountPoint);
-    root.render(<App siteId={siteId} apiUrl={apiUrl} shadow={shadow} />);
+    root.render(<App siteId={siteId} apiUrl={apiUrl} shadow={shadow} pricingUrl={pricingUrl} />);
   }
 
   if (document.body) {

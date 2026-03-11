@@ -1,10 +1,10 @@
 const express = require('express');
 const { body, param, validationResult } = require('express-validator');
 const { apiLimiter } = require('../middleware/rateLimiter');
-const domainVerify = require('../middleware/domainVerify');
 const pool = require('../config/database');
 const { generateQuote, getQuoteById } = require('../services/quoteGenerator');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
+const { resolveSiteIdFromHeaders } = require('../services/siteLookup');
 
 const router = express.Router();
 
@@ -16,9 +16,7 @@ function cleanString(v) {
 router.post(
   '/',
   apiLimiter,
-  domainVerify,
   [
-    body('site_id').optional({ nullable: true }).isUUID().withMessage('Valid site_id required'),
     body('serviceType').isString().trim().isLength({ min: 1, max: 120 }),
     body('roofSize').optional({ nullable: true }).isFloat({ min: 1, max: 200000 }),
     body('roofType').optional({ nullable: true }).isString().trim().isLength({ max: 40 }),
@@ -29,7 +27,8 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const siteId = req.body.site_id || null;
+    // Endpoint spec doesn't require site_id; we attempt to infer it from Origin/Referer.
+    const siteId = await resolveSiteIdFromHeaders(req.headers);
     const serviceType = req.body.serviceType;
     const roofSize = req.body.roofSize ?? null;
     const roofType = cleanString(req.body.roofType);
@@ -37,11 +36,7 @@ router.post(
     const notes = cleanString(req.body.notes);
 
     try {
-      if (siteId) {
-        // Basic existence check (domainVerify already handles 404 in prod, but dev skips it)
-        const s = await pool.query('SELECT id FROM sites WHERE id = $1', [siteId]);
-        if (!s.rows.length) return res.status(404).json({ error: 'Site not found' });
-      }
+      // If siteId is inferred, it is guaranteed to exist. Otherwise we run off templates.
 
       const quote = await generateQuote({
         serviceType,

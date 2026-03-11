@@ -5,7 +5,7 @@ import TypingIndicator from './TypingIndicator';
 
 const DEFAULT_INTRO = "Hi! I'm here to help. Ask me anything about our products or services.";
 
-export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClose }) {
+export default function ChatWindow({ siteId, apiUrl, config, primaryColor, pricingUrl, onClose }) {
   const [messages, setMessages] = useState(() => [
     {
       role: 'bot',
@@ -77,6 +77,14 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
     setIsTyping(true);
 
     try {
+      // Frontend-only booking trigger (instant UX)
+      const bookingTrigger = /\b(book|schedule|inspection)\b/i.test(text);
+      const configuredBookingUrl = config?.booking_url ? String(config.booking_url) : '';
+      if (bookingTrigger && configuredBookingUrl) {
+        setBookingUrl(configuredBookingUrl);
+        setBookingOpen(true);
+      }
+
       // Try SSE streaming first; fallback to non-streaming /chat.
       const streamRes = await fetch(`${apiUrl}/chat/stream`, {
         method: 'POST',
@@ -191,6 +199,7 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
   const showChips = messages.length <= 1 && suggested.length > 0 && !showLeadForm;
   const bookingEmbed = Boolean(config?.booking_embed);
   const bookingButtonText = (config?.booking_button_text || 'Book a call').trim() || 'Book a call';
+  const configuredBookingUrl = config?.booking_url ? String(config.booking_url) : '';
 
   return (
     <div className="cb-window" style={{ '--cb-primary': primaryColor }}>
@@ -203,7 +212,26 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
             <div className="cb-status">● Online</div>
           </div>
         </div>
-        <button className="cb-close" onClick={onClose} aria-label="Close">&times;</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {configuredBookingUrl ? (
+            <button
+              type="button"
+              className="cb-close"
+              aria-label="Book"
+              title={bookingButtonText}
+              onClick={() => {
+                setBookingUrl(configuredBookingUrl);
+                setBookingOpen(true);
+              }}
+              style={{ fontSize: 16, width: 30, height: 30, display: 'grid', placeItems: 'center' }}
+            >
+              📅
+            </button>
+          ) : null}
+          <button className="cb-close" onClick={onClose} aria-label="Close">
+            &times;
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -245,8 +273,7 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
             type="button"
             className="cb-cta"
             onClick={() => {
-              if (bookingEmbed) setBookingOpen(true);
-              else window.open(bookingUrl, '_blank', 'noopener,noreferrer');
+              setBookingOpen(true);
             }}
           >
             {bookingButtonText}
@@ -255,7 +282,7 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
       )}
 
       {/* Inline booking modal */}
-      {bookingUrl && bookingEmbed && bookingOpen && (
+      {bookingUrl && bookingOpen && (
         <div className="cb-modal-backdrop" role="dialog" aria-label="Booking">
           <div className="cb-modal">
             <div className="cb-modal-header">
@@ -328,7 +355,14 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, onClo
         </button>
       </div>
 
-      <div className="cb-powered">Powered by ChattyBot</div>
+      <div className="cb-powered">
+        <span>Powered by Chattybot</span>
+        {pricingUrl ? (
+          <a href={pricingUrl} target="_blank" rel="noopener noreferrer">
+            Pricing
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }

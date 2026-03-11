@@ -7,10 +7,39 @@ export function injectStyles(shadow) {
   style.textContent = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .cb-bubble {
+    .cb-bubble-wrap {
       position: fixed;
       bottom: 24px;
       right: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 999999;
+      pointer-events: auto;
+    }
+
+    .cb-bubble-label {
+      border: 1px solid rgba(226,232,240,1);
+      background: rgba(255,255,255,0.96);
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.12);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      white-space: nowrap;
+      max-width: min(240px, calc(100vw - 120px));
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cb-bubble-wrap:hover .cb-bubble-label {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 32px rgba(0,0,0,0.14);
+    }
+
+    .cb-bubble {
       width: 56px;
       height: 56px;
       border-radius: 50%;
@@ -21,10 +50,24 @@ export function injectStyles(shadow) {
       justify-content: center;
       box-shadow: 0 4px 20px rgba(0,0,0,0.18);
       transition: transform 0.2s ease, box-shadow 0.2s ease;
-      z-index: 999999;
     }
-    .cb-bubble:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(0,0,0,0.22); }
+    .cb-bubble-wrap:hover .cb-bubble { transform: scale(1.08); box-shadow: 0 6px 24px rgba(0,0,0,0.22); }
     .cb-bubble svg { width: 26px; height: 26px; fill: #fff; }
+
+    .cb-raffy-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22);
+      transition: transform 0.2s ease;
+    }
+    .cb-raffy-avatar svg { width: 38px; height: 38px; }
+    .cb-bubble-wrap:hover .cb-raffy-avatar { transform: translateY(-1px); }
 
     .cb-window {
       position: fixed;
@@ -293,9 +336,23 @@ export function injectStyles(shadow) {
     .cb-lead-dismiss:hover { color: #64748b; }
 
     .cb-powered {
-      text-align: center; font-size: 11px; color: #cbd5e1;
-      padding: 6px 0 4px;
+      text-align: center;
+      font-size: 11px;
+      color: #94a3b8;
+      padding: 8px 10px 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
+    .cb-powered a {
+      color: #64748b;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(100,116,139,0.25);
+      padding-bottom: 1px;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .cb-powered a:hover { color: #334155; border-color: rgba(51,65,85,0.4); }
 
     @media (max-width: 480px) {
       .cb-window { 
@@ -307,12 +364,15 @@ export function injectStyles(shadow) {
         max-height: calc(var(--cb-vh, 1vh) * 100);
         border-radius: 0;
       }
-      .cb-bubble {
+      .cb-bubble-wrap {
         bottom: 16px;
         right: 16px;
+      }
+      .cb-bubble {
         width: 60px;
         height: 60px;
       }
+      .cb-bubble-label { display: none; }
       .cb-chip {
         font-size: 13px;
         padding: 8px 12px;
