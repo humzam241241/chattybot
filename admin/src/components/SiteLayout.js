@@ -10,6 +10,7 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
+    { href: `/dashboard/sites/${id}`, label: 'Overview', icon: '🏠', exact: true },
     { href: `/dashboard/sites/${id}/leads`, label: 'Leads', icon: '👥' },
     { href: `/dashboard/sites/${id}/conversations`, label: 'Chats', icon: '💬' },
     { href: `/dashboard/sites/${id}/missed-leads`, label: 'Missed Leads', icon: '⚠️' },
@@ -65,10 +66,10 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
         </Link>
 
         {/* Client Name */}
-        <div className="client-badge">
+        <Link href={`/dashboard/sites/${id}`} className="client-badge" title="Client overview">
           <div className="badge-label">CLIENT</div>
           <div className="badge-name">{siteName}</div>
-        </div>
+        </Link>
 
         {/* Navigation */}
         <nav className="site-nav">
@@ -153,6 +154,11 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
           padding: 16px 20px;
           background: var(--bg);
           border-bottom: 1px solid var(--border);
+          text-decoration: none;
+          display: block;
+        }
+        .client-badge:hover .badge-name {
+          text-decoration: underline;
         }
         
         .badge-label {
