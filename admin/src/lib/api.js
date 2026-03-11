@@ -60,7 +60,18 @@ export async function uploadFiles(siteId, files) {
   formData.append('site_id', siteId);
   for (const f of files) formData.append('files', f);
 
-  const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('Unauthorized (no session). Please sign in again.');
+  }
+
+  const res = await fetch('/api/files/upload', {
+    method: 'POST',
+    headers: {
+      'X-Supabase-Token': accessToken,
+    },
+    body: formData,
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'Upload failed');
