@@ -37,6 +37,7 @@ const usageRouter = require('./routes/usage');
 const { userAuth } = require('./middleware/userAuth');
 const { startUsageResetWorker } = require('./workers/usageResetWorker');
 const meRouter = require('./routes/me');
+const estimateRouter = require('./routes/estimate');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -115,6 +116,7 @@ app.use('/api/site-config', siteConfigRouter);
 app.use('/api/sites', siteConfigRouter); // public alias: /api/sites/:siteId
 app.use('/api/usage', usageRouter);
 app.use('/api/me', meRouter);
+app.use('/api/estimate', estimateRouter);
 
 // Twilio webhooks (public, no auth required)
 app.use('/webhooks/twilio', twilioWebhookRouter);

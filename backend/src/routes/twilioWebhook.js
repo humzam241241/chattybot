@@ -15,6 +15,9 @@ const { getOrCreateConversation, appendMessage, getRecentMessages } = require('.
 const { processConversationForLead } = require('../services/leadPipeline');
 const { validateWebhookSignature, normalizePhoneE164 } = require('../services/twilioClient');
 const { trackSmsUsage } = require('../middleware/usageTracking');
+const { downloadTwilioMedia } = require('../services/twilioMedia');
+const { analyzeImageWithClaude } = require('../services/claudeVision');
+const { formatSMSResponse } = require('../utils/formatSMSResponse');
 const OpenAI = require('openai');
 
 const router = express.Router();
@@ -57,19 +60,14 @@ async function resolveSiteIdFromTo(toNumberRaw) {
   if (!toE164) return null;
 
   try {
-    // Default to SMS routing unless explicitly requested
     const channel = arguments.length > 1 ? arguments[1] : 'sms';
-    const where =
-      channel === 'whatsapp'
-        ? 'twilio_whatsapp = $1'
-        : 'twilio_phone = $1';
-
     const r = await pool.query(
       `SELECT id
        FROM sites
-       WHERE ${where}
+       WHERE ($2::text = 'whatsapp' AND twilio_whatsapp = $1)
+          OR ($2::text <> 'whatsapp' AND twilio_phone = $1)
        LIMIT 1`,
-      [toE164]
+      [toE164, channel]
     );
     return r.rows?.[0]?.id || null;
   } catch (e) {
@@ -93,11 +91,9 @@ function shouldAllowDefaultFallback() {
  * Inbound SMS webhook
  */
 router.post('/sms', async (req, res) => {
-  console.log('[TwilioWebhook] SMS received:', req.body.Body);
-  
-  const { From, To, Body, MessageSid } = req.body;
-  
-  console.log(`[TwilioWebhook] From: ${From}, To: ${To}, MessageSid: ${MessageSid}`);
+  const { From, To, Body, MessageSid, NumMedia, MediaUrl0, MediaContentType0 } = req.body;
+  const numMedia = Number(NumMedia || 0) || 0;
+  console.log(`[TwilioWebhook] SMS received (sid=${MessageSid || 'n/a'}, media=${numMedia})`);
   
   try {
     // Verify Twilio signature
@@ -110,10 +106,10 @@ router.post('/sms', async (req, res) => {
     }
     
     const userPhone = normalizePhoneE164(From);
-    const botPhone = normalizePhoneE164(To);
+    const baseText = String(Body || '').trim();
     
-    if (!Body || !userPhone) {
-      console.error('[TwilioWebhook] Missing From or Body');
+    if (!userPhone || (!baseText && numMedia <= 0)) {
+      console.error('[TwilioWebhook] Missing From or message content');
       const twiml = new MessagingResponse();
       twiml.message('Sorry, I could not process your message.');
       res.set('Content-Type', 'text/xml');
@@ -144,16 +140,42 @@ router.post('/sms', async (req, res) => {
     console.log(`[TwilioWebhook] resolved site: ${siteId}`);
     
     trackSmsUsage(siteId, 'inbound').catch(() => {});
+
+    // MMS photo support (first media item only)
+    let mediaAnalysis = null;
+    if (numMedia > 0 && MediaUrl0) {
+      try {
+        const { buffer, contentType } = await downloadTwilioMedia(MediaUrl0);
+        const effectiveType = String(MediaContentType0 || contentType || '').toLowerCase();
+        if (effectiveType.startsWith('image/')) {
+          mediaAnalysis = await analyzeImageWithClaude({
+            buffer,
+            contentType: effectiveType,
+            prompt:
+              'Analyze the image for customer-support context. Extract any visible text and describe key details that would help answer the user.',
+          });
+        } else {
+          console.warn('[TwilioWebhook] SMS media is not an image; skipping vision analysis');
+        }
+      } catch (e) {
+        console.warn('[TwilioWebhook] SMS media download/analyze failed (non-fatal):', e.message);
+      }
+    }
+
+    const composedUserMessage = baseText || (numMedia > 0 ? '[User sent an image]' : '');
+    const userMessage = mediaAnalysis
+      ? `${composedUserMessage}\n\n[Image analysis]\n${mediaAnalysis}`
+      : composedUserMessage;
     
     // Generate AI response
-    const aiResponse = await generateChatResponse({
+    const aiRaw = await generateChatResponse({
       siteId,
-      userMessage: Body,
+      userMessage,
       visitorId: `sms:${userPhone}`,
       conversationId: null,
     });
-    
-    console.log('[TwilioWebhook] Responding with:', aiResponse);
+    const aiResponse = formatSMSResponse(aiRaw);
+    console.log('[TwilioWebhook] SMS response prepared (sid=%s, chars=%s)', MessageSid || 'n/a', aiResponse.length);
     
     trackSmsUsage(siteId, 'outbound').catch(() => {});
     

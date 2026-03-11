@@ -48,6 +48,27 @@ async function appendMessage({ conversationId, siteId, role, content }) {
   };
 }
 
+async function getMisunderstoodCount({ conversationId, siteId }) {
+  const r = await pool.query(
+    `SELECT misunderstood_count
+     FROM conversations
+     WHERE id = $1 AND site_id = $2`,
+    [conversationId, siteId]
+  );
+  return r.rows?.[0]?.misunderstood_count ?? 0;
+}
+
+async function setMisunderstoodCount({ conversationId, siteId, misunderstoodCount }) {
+  await pool.query(
+    `UPDATE conversations
+     SET misunderstood_count = $3::int,
+         misunderstood_updated_at = NOW(),
+         updated_at = NOW()
+     WHERE id = $1 AND site_id = $2`,
+    [conversationId, siteId, misunderstoodCount]
+  );
+}
+
 async function getRecentMessages(conversationId, limit = 12) {
   const res = await pool.query(
     `SELECT role, content
@@ -67,6 +88,8 @@ async function updateConversationSummary(conversationId, summary) {
 module.exports = {
   getOrCreateConversation,
   appendMessage,
+  getMisunderstoodCount,
+  setMisunderstoodCount,
   getRecentMessages,
   updateConversationSummary,
 };

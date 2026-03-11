@@ -4,7 +4,14 @@ const OpenAI = require('openai');
 const pool = require('../config/database');
 const { retrieveContext, buildSystemPrompt } = require('../services/rag');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
-const { getOrCreateConversation, appendMessage, getRecentMessages, updateConversationSummary } = require('../services/conversationLog');
+const {
+  getOrCreateConversation,
+  appendMessage,
+  getRecentMessages,
+  updateConversationSummary,
+  getMisunderstoodCount,
+  setMisunderstoodCount,
+} = require('../services/conversationLog');
 const { notifyOwnerOfLead } = require('../services/leadNotifier');
 const { processConversationForLead } = require('../services/leadPipeline');
 const { detectContactInfo } = require('../services/leadDetector');
@@ -12,6 +19,15 @@ const { chatLimiter } = require('../middleware/rateLimiter');
 const domainVerify = require('../middleware/domainVerify');
 const { trackApiUsage } = require('../middleware/usageTracking');
 const { checkLimit, recordUsage } = require('../services/usageService');
+const { generateQuote } = require('../services/quoteGenerator');
+const {
+  detectRyanTrigger,
+  buildRyanEscalationMessage,
+  buildMisunderstoodFallbackMessage,
+  nextMisunderstoodCount,
+  clampMisunderstoodCount,
+} = require('../services/raffyEscalation');
+const { isLifeThreateningEmergency } = require('../services/emergencyDetection');
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -43,6 +59,24 @@ function detectLeadCaptureOpportunity(message, raffy) {
     'repair', 'inspection', 'quote', 'estimate', 'pricing', 'leak', 'damage', 'help', 'service'
   ];
   return keywords.some((kw) => lower.includes(String(kw).toLowerCase()));
+}
+
+function detectEstimateIntent(message) {
+  const lower = String(message || '').toLowerCase();
+  const keywords = ['how much', 'price', 'pricing', 'quote', 'estimate'];
+  return keywords.some((kw) => lower.includes(kw));
+}
+
+function inferServiceType(message) {
+  const t = String(message || '').toLowerCase();
+  if (t.includes('flat')) return 'flat roof repair';
+  if (t.includes('vent')) return 'attic ventilation';
+  if (t.includes('inspect')) return 'roof inspection';
+  if (t.includes('emergency') || t.includes('urgent')) return 'emergency repair';
+  if (t.includes('replace') || t.includes('replacement') || t.includes('new roof') || t.includes('shingle')) {
+    return 'shingle roof replacement';
+  }
+  return 'roof inspection';
 }
 
 function parseYesNo(message) {
@@ -123,6 +157,97 @@ router.post(
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 
+      // Track consecutive misunderstood turns per conversation
+      const prevMisunderstoodCount = clampMisunderstoodCount(
+        await getMisunderstoodCount({ conversationId: convoId, siteId: site_id })
+      );
+
+      // ─── Smart Quote Tool trigger ─────────────────────────────────────
+      if (detectEstimateIntent(user_message)) {
+        const inferredServiceType = inferServiceType(user_message);
+        const urgency = /emergency|urgent|asap|right now|today/.test(String(user_message || '').toLowerCase())
+          ? 'emergency'
+          : 'standard';
+
+        const quote = await generateQuote({
+          serviceType: inferredServiceType,
+          roofSize: null,
+          roofType: null,
+          urgency,
+          notes: user_message,
+          siteId: site_id,
+        });
+
+        const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
+        const quoteUrl = process.env.QUOTE_PAGE_BASE_URL
+          ? `${String(process.env.QUOTE_PAGE_BASE_URL).replace(/\/$/, '')}/quote/${quote.quote_id}`
+          : null;
+
+        const answerLines = [];
+        answerLines.push(`Here’s a quick estimate for **${inferredServiceType}** (Ontario):`);
+        answerLines.push(`- **Price range**: $${Math.round(quote.price_low).toLocaleString('en-CA')}–$${Math.round(quote.price_high).toLocaleString('en-CA')} CAD`);
+        if (quote.timeline_estimate) answerLines.push(`- **Timeline**: ${quote.timeline_estimate}`);
+        if (quote.recommended_service) answerLines.push(`- **Recommended**: ${quote.recommended_service}`);
+        answerLines.push('');
+        answerLines.push('If you can share your approximate roof size (sq ft) and roof type, I can narrow this down.');
+        if (quoteUrl) answerLines.push(`View this quote: ${quoteUrl}`);
+
+        const answer = answerLines.join('\n');
+        await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+        await setMisunderstoodCount({ conversationId: convoId, siteId: site_id, misunderstoodCount: 0 });
+
+        recordUsage(site.id).catch(() => {});
+
+        return res.json({
+          answer,
+          intent: 'estimate',
+          quote,
+          quote_url: quoteUrl,
+          should_capture_lead: false,
+          should_offer_booking: Boolean(bookingUrl),
+          booking_url: bookingUrl || null,
+          booking_embed: Boolean(raffy?.booking?.embed),
+          booking_button_text: raffy?.booking?.button_text ? String(raffy.booking.button_text) : null,
+          context_used: 0,
+          conversation_id: convoId,
+        });
+      }
+
+      // ─── Ryan escalation (explicit trigger) ───────────────────────────
+      if (detectRyanTrigger(user_message)) {
+        const ownerPhone = raffy?.owner?.phone || raffy?.owner_phone || null;
+        const answer = buildRyanEscalationMessage(ownerPhone);
+        const intent = 'escalation';
+
+        await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+        await setMisunderstoodCount({ conversationId: convoId, siteId: site_id, misunderstoodCount: 0 });
+
+        recordUsage(site.id).catch(() => {});
+
+        processConversationForLead({
+          conversationId: convoId,
+          siteId: site_id,
+          userMessage: user_message,
+          intent,
+        }).catch((err) => console.warn('[Chat] Lead pipeline failed (non-fatal):', err.message));
+
+        notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent }).catch((err) => {
+          console.warn('[Chat] Lead notification failed (non-fatal):', err.message);
+        });
+
+        return res.json({
+          answer,
+          intent,
+          should_capture_lead: true,
+          should_offer_booking: false,
+          booking_url: null,
+          booking_embed: false,
+          booking_button_text: null,
+          context_used: 0,
+          conversation_id: convoId,
+        });
+      }
+
       // ─── Consent handling ────────────────────────────────────────────────
       // If the user provided an email in chat, we must ask explicit permission
       // before claiming we will email them. We track consent per-conversation.
@@ -162,14 +287,7 @@ router.post(
       const emergencyKeywords = raffy?.emergency?.keywords || [];
       const emergencyResponse = raffy?.emergency?.response;
       const msgLower = user_message.toLowerCase();
-      
-      // More specific emergency detection - avoid false positives for business emergencies
-      const isLifeThreateningEmergency = Array.isArray(emergencyKeywords) && emergencyKeywords.some((k) => {
-        const keyword = String(k).toLowerCase();
-        // Only trigger on specific life-threatening keywords, not generic "emergency" or "urgent"
-        const criticalKeywords = ['suicide', 'self-harm', 'harm myself', 'kill myself', '911', 'ambulance', 'overdose', 'dying'];
-        return criticalKeywords.includes(keyword) && msgLower.includes(keyword);
-      });
+      const lifeThreatening = isLifeThreateningEmergency({ message: user_message, raffy });
 
       // RAG: retrieve relevant chunks
       console.log(`[Chat] Retrieving context...`);
@@ -191,7 +309,7 @@ router.post(
         ? `\n\nSales CTA (when relevant): ${raffy.sales_prompts.cta}`
         : '';
       const identity = `You are ${raffy?.name || 'Assistant'}, the ${raffy?.role || 'AI assistant'} for ${site.company_name}.`;
-      const emergency = emergencyResponse && isLifeThreateningEmergency
+      const emergency = emergencyResponse && lifeThreatening
         ? `\n\nCRITICAL EMERGENCY RULE: If the user mentions suicide, self-harm, or life-threatening crisis, respond with:\n"${emergencyResponse}"`
         : '';
       
@@ -222,7 +340,7 @@ router.post(
       }));
       console.log(`[Chat] Conversation history: ${conversationHistory.length} messages loaded, conversation has ${recent.length} total messages`);
 
-      let answer = emergencyResponse && isLifeThreateningEmergency
+      let answer = emergencyResponse && lifeThreatening
         ? emergencyResponse
         : null;
 
@@ -240,6 +358,18 @@ router.post(
         answer = completion.choices[0].message.content;
       }
 
+      // ─── Fallback handler: escalate after 2 misunderstood turns ─────────
+      const newMisunderstoodCount = nextMisunderstoodCount(prevMisunderstoodCount, { answer });
+      await setMisunderstoodCount({
+        conversationId: convoId,
+        siteId: site_id,
+        misunderstoodCount: newMisunderstoodCount,
+      });
+
+      if (newMisunderstoodCount >= 2) {
+        answer = buildMisunderstoodFallbackMessage();
+      }
+
       if (mustAskConsentNow && emailInMessage) {
         const consentLine = `\n\nBefore we reach out, is it okay if we email you at ${emailInMessage}? Reply YES or NO.`;
         if (!answer.toLowerCase().includes('reply yes or no') && !answer.toLowerCase().includes('is it okay if we email')) {
@@ -249,7 +379,7 @@ router.post(
 
       const escalationKeywords = raffy?.escalation_triggers?.keywords || [];
       const wantsHuman = Array.isArray(escalationKeywords) && escalationKeywords.some((k) => msgLower.includes(String(k).toLowerCase()));
-      const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer);
+      const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer) || newMisunderstoodCount >= 2;
 
       const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
       const wantsBooking = detectBookingIntent(user_message, raffy);
@@ -257,7 +387,7 @@ router.post(
       const bookingEmbed = Boolean(raffy?.booking?.embed);
       const bookingButtonText = raffy?.booking?.button_text ? String(raffy.booking.button_text) : null;
 
-      const intent = isLifeThreateningEmergency
+      const intent = lifeThreatening
         ? 'emergency'
         : shouldOfferBooking
           ? 'booking'
@@ -317,6 +447,8 @@ router.post(
       return res.json({
         answer,
         intent,
+        quote: null,
+        quote_url: null,
         should_capture_lead: shouldCaptureLead,
         should_offer_booking: shouldOfferBooking,
         booking_url: shouldOfferBooking ? bookingUrl : null,
@@ -387,6 +519,101 @@ router.post(
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 
+      const prevMisunderstoodCount = clampMisunderstoodCount(
+        await getMisunderstoodCount({ conversationId: convoId, siteId: site_id })
+      );
+
+      // ─── Smart Quote Tool trigger ─────────────────────────────────────
+      if (detectEstimateIntent(user_message)) {
+        const inferredServiceType = inferServiceType(user_message);
+        const urgency = /emergency|urgent|asap|right now|today/.test(String(user_message || '').toLowerCase())
+          ? 'emergency'
+          : 'standard';
+
+        const quote = await generateQuote({
+          serviceType: inferredServiceType,
+          roofSize: null,
+          roofType: null,
+          urgency,
+          notes: user_message,
+          siteId: site_id,
+        });
+
+        const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
+        const quoteUrl = process.env.QUOTE_PAGE_BASE_URL
+          ? `${String(process.env.QUOTE_PAGE_BASE_URL).replace(/\/$/, '')}/quote/${quote.quote_id}`
+          : null;
+
+        const answerLines = [];
+        answerLines.push(`Here’s a quick estimate for **${inferredServiceType}** (Ontario):`);
+        answerLines.push(`- **Price range**: $${Math.round(quote.price_low).toLocaleString('en-CA')}–$${Math.round(quote.price_high).toLocaleString('en-CA')} CAD`);
+        if (quote.timeline_estimate) answerLines.push(`- **Timeline**: ${quote.timeline_estimate}`);
+        if (quote.recommended_service) answerLines.push(`- **Recommended**: ${quote.recommended_service}`);
+        answerLines.push('');
+        answerLines.push('If you can share your approximate roof size (sq ft) and roof type, I can narrow this down.');
+        if (quoteUrl) answerLines.push(`View this quote: ${quoteUrl}`);
+
+        const answer = answerLines.join('\n');
+
+        res.write(`event: meta\ndata: ${JSON.stringify({ conversation_id: convoId, intent: 'estimate', context_used: 0 })}\n\n`);
+        res.write(`event: token\ndata: ${JSON.stringify({ token: answer })}\n\n`);
+
+        await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+        await setMisunderstoodCount({ conversationId: convoId, siteId: site_id, misunderstoodCount: 0 });
+
+        recordUsage(site.id).catch(() => {});
+
+        res.write(
+          `event: done\ndata: ${JSON.stringify({
+            should_capture_lead: false,
+            should_offer_booking: Boolean(bookingUrl),
+            booking_url: bookingUrl || null,
+            booking_embed: Boolean(raffy?.booking?.embed),
+            booking_button_text: raffy?.booking?.button_text ? String(raffy.booking.button_text) : null,
+            quote,
+            quote_url: quoteUrl,
+          })}\n\n`
+        );
+        return res.end();
+      }
+
+      // ─── Ryan escalation (explicit trigger) ───────────────────────────
+      if (detectRyanTrigger(user_message)) {
+        const ownerPhone = raffy?.owner?.phone || raffy?.owner_phone || null;
+        const answer = buildRyanEscalationMessage(ownerPhone);
+        const intent = 'escalation';
+
+        res.write(`event: meta\ndata: ${JSON.stringify({ conversation_id: convoId, intent, context_used: 0 })}\n\n`);
+        res.write(`event: token\ndata: ${JSON.stringify({ token: answer })}\n\n`);
+
+        await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+        await setMisunderstoodCount({ conversationId: convoId, siteId: site_id, misunderstoodCount: 0 });
+
+        recordUsage(site.id).catch(() => {});
+
+        processConversationForLead({
+          conversationId: convoId,
+          siteId: site_id,
+          userMessage: user_message,
+          intent,
+        }).catch((err) => console.warn('[Chat/Stream] Lead pipeline failed (non-fatal):', err.message));
+
+        notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent }).catch((err) => {
+          console.warn('[Chat/Stream] Lead notification failed (non-fatal):', err.message);
+        });
+
+        res.write(
+          `event: done\ndata: ${JSON.stringify({
+            should_capture_lead: true,
+            should_offer_booking: false,
+            booking_url: null,
+            booking_embed: false,
+            booking_button_text: null,
+          })}\n\n`
+        );
+        return res.end();
+      }
+
       // ─── Consent handling (stream) ────────────────────────────────────────
       let consentState = await getConversationConsent(convoId);
       if (consentState.email_consent_status === 'pending' && consentState.email_consent_email) {
@@ -419,13 +646,7 @@ router.post(
       const emergencyKeywords = raffy?.emergency?.keywords || [];
       const emergencyResponse = raffy?.emergency?.response;
       const msgLower = String(user_message || '').toLowerCase();
-      
-      // More specific emergency detection - only for life-threatening emergencies
-      const isLifeThreateningEmergency = Array.isArray(emergencyKeywords) && emergencyKeywords.some((k) => {
-        const keyword = String(k).toLowerCase();
-        const criticalKeywords = ['suicide', 'self-harm', 'harm myself', 'kill myself', '911', 'ambulance', 'overdose', 'dying'];
-        return criticalKeywords.includes(keyword) && msgLower.includes(keyword);
-      });
+      const lifeThreatening = isLifeThreateningEmergency({ message: user_message, raffy });
 
       const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
       const wantsBooking = detectBookingIntent(user_message, raffy);
@@ -435,11 +656,40 @@ router.post(
 
       const escalationKeywords = raffy?.escalation_triggers?.keywords || [];
       const wantsHuman = Array.isArray(escalationKeywords) && escalationKeywords.some((k) => msgLower.includes(String(k).toLowerCase()));
-      const intent = isLifeThreateningEmergency ? 'emergency' : shouldOfferBooking ? 'booking' : wantsHuman ? 'escalation' : 'kb';
+      const intent = lifeThreatening ? 'emergency' : shouldOfferBooking ? 'booking' : wantsHuman ? 'escalation' : 'kb';
 
       // RAG: retrieve relevant chunks
       const contextChunks = await retrieveContext(site_id, user_message);
       console.log(`[Chat/Stream] Context chunks: ${contextChunks.length}`);
+
+      // ─── Fallback handler (stream): second misunderstood turn ────────────
+      // If we already had one misunderstood turn and we still find no KB context,
+      // proactively offer escalation without calling the LLM.
+      if (prevMisunderstoodCount >= 1 && contextChunks.length === 0 && intent === 'kb') {
+        const answer = buildMisunderstoodFallbackMessage();
+        await setMisunderstoodCount({ conversationId: convoId, siteId: site_id, misunderstoodCount: 2 });
+
+        res.write(`event: meta\ndata: ${JSON.stringify({ conversation_id: convoId, intent: 'escalation', context_used: 0 })}\n\n`);
+        res.write(`event: token\ndata: ${JSON.stringify({ token: answer })}\n\n`);
+        await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
+
+        recordUsage(site.id).catch(() => {});
+
+        notifyOwnerOfLead({ conversationId: convoId, siteId: site_id, intent: 'escalation' }).catch((err) => {
+          console.warn('[Chat/Stream] Lead notification failed (non-fatal):', err.message);
+        });
+
+        res.write(
+          `event: done\ndata: ${JSON.stringify({
+            should_capture_lead: true,
+            should_offer_booking: false,
+            booking_url: null,
+            booking_embed: false,
+            booking_button_text: null,
+          })}\n\n`
+        );
+        return res.end();
+      }
       
       // ALWAYS build the prompt with RAG context, even if custom system_prompt exists
       const basePrompt = buildSystemPrompt(site, contextChunks);
@@ -455,7 +705,7 @@ router.post(
         ? `\n\nSales CTA (when relevant): ${raffy.sales_prompts.cta}`
         : '';
       const identity = `You are ${raffy?.name || 'Assistant'}, the ${raffy?.role || 'AI assistant'} for ${site.company_name}.`;
-      const emergency = emergencyResponse && isLifeThreateningEmergency
+      const emergency = emergencyResponse && lifeThreatening
         ? `\n\nCRITICAL EMERGENCY RULE: If the user mentions suicide, self-harm, or life-threatening crisis, respond with:\n"${emergencyResponse}"`
         : '';
       
@@ -486,7 +736,7 @@ router.post(
 
       res.write(`event: meta\ndata: ${JSON.stringify({ conversation_id: convoId, intent, context_used: contextChunks.length })}\n\n`);
 
-      if (emergencyResponse && isLifeThreateningEmergency) {
+      if (emergencyResponse && lifeThreatening) {
         res.write(`event: token\ndata: ${JSON.stringify({ token: emergencyResponse })}\n\n`);
         await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: emergencyResponse });
 
@@ -525,6 +775,19 @@ router.post(
       }
 
       if (!closed) {
+        let newMisunderstoodCount = nextMisunderstoodCount(prevMisunderstoodCount, { answer });
+        await setMisunderstoodCount({
+          conversationId: convoId,
+          siteId: site_id,
+          misunderstoodCount: newMisunderstoodCount,
+        });
+
+        if (newMisunderstoodCount >= 2) {
+          const extra = `\n\n${buildMisunderstoodFallbackMessage()}`;
+          answer += extra;
+          res.write(`event: token\ndata: ${JSON.stringify({ token: extra })}\n\n`);
+        }
+
         if (mustAskConsentNow && emailInMessage) {
           const consentLine = `\n\nBefore we reach out, is it okay if we email you at ${emailInMessage}? Reply YES or NO.`;
           if (!answer.toLowerCase().includes('reply yes or no') && !answer.toLowerCase().includes('is it okay if we email')) {
@@ -533,7 +796,7 @@ router.post(
           }
         }
 
-        const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer);
+        const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer) || newMisunderstoodCount >= 2;
         const afterAssistant = await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
         console.log(`[Chat/Stream] Assistant response saved to conversation ${convoId}. Total messages: ${afterAssistant.message_count}`);
 
