@@ -7,8 +7,15 @@ function normalize(text) {
 }
 
 async function extractPdf(buffer) {
-  const data = await pdfParse(buffer);
-  return normalize(data.text);
+  console.log('[FileExtract] Extracting PDF...');
+  try {
+    const data = await pdfParse(buffer);
+    console.log('[FileExtract] PDF text length:', data.text.length);
+    return data.text;
+  } catch (err) {
+    console.error('[FileExtract] PDF extraction failed:', err);
+    throw err;
+  }
 }
 
 async function extractDocx(buffer) {
@@ -36,6 +43,9 @@ async function extractTextFromFile({ buffer, mimeType, filename }) {
   const name = (filename || '').toLowerCase();
   const mime = (mimeType || '').toLowerCase();
 
+  if (mimeType === 'application/pdf') {
+    return await extractPdf(buffer);
+  }
   if (mime.includes('pdf') || name.endsWith('.pdf')) return await extractPdf(buffer);
   if (mime.includes('word') || name.endsWith('.docx')) return await extractDocx(buffer);
   if (mime.includes('spreadsheet') || name.endsWith('.xlsx')) return extractXlsx(buffer);

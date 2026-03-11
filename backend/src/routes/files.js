@@ -99,6 +99,9 @@ router.post('/upload', userAuth, requirePaidOrTrial, upload.array('files', 5), a
       });
       if (!text || text.length < 50) throw new Error('No extractable text found');
 
+      // 3.5) Persist extracted text for debugging/reprocessing
+      await pool.query(`UPDATE files SET extracted_text = $2 WHERE id = $1`, [fileId, text]);
+
       // 4) Embed + store chunks immediately
       const chunksStored = await embedAndStoreFileChunks({ siteId, fileId, text });
 
@@ -160,6 +163,7 @@ router.post('/reprocess/:file_id', userAuth, requirePaidOrTrial, async (req, res
     const buffer = Buffer.from(arrayBuffer);
 
     const text = await extractTextFromFile({ buffer, mimeType: file.mime_type, filename: file.original_name });
+    await pool.query(`UPDATE files SET extracted_text = $2 WHERE id = $1`, [file_id, text]);
     const chunksStored = await embedAndStoreFileChunks({ siteId: file.site_id, fileId: file_id, text });
 
     await pool.query(`UPDATE files SET status='ready', error=NULL WHERE id=$1`, [file_id]);
