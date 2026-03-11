@@ -39,15 +39,34 @@ import App from './App';
     host.id = 'chattybot-root';
     document.body.appendChild(host);
 
-    // Keep a JS-driven viewport unit for mobile keyboards (works inside shadow DOM via CSS var inheritance)
-    const updateVh = () => {
-      const h = window.visualViewport?.height || window.innerHeight || 0;
-      if (h) host.style.setProperty('--cb-vh', `${h * 0.01}px`);
+    // Keep JS-driven viewport variables for mobile keyboards (iOS Safari especially).
+    // visualViewport gives us the *actual* visible area when the on-screen keyboard is open.
+    let rafId = null;
+    const updateViewportVars = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const vv = window.visualViewport;
+        const layoutH = window.innerHeight || 0;
+        const layoutW = window.innerWidth || 0;
+
+        const vvHeight = Math.round(vv?.height ?? layoutH);
+        const vvWidth = Math.round(vv?.width ?? layoutW);
+        const vvTop = Math.round(vv?.offsetTop ?? 0);
+        const vvLeft = Math.round(vv?.offsetLeft ?? 0);
+
+        if (vvHeight) {
+          host.style.setProperty('--cb-vh', `${vvHeight * 0.01}px`);
+          host.style.setProperty('--cb-vv-height', `${vvHeight}px`);
+        }
+        if (vvWidth) host.style.setProperty('--cb-vv-width', `${vvWidth}px`);
+        host.style.setProperty('--cb-vv-top', `${vvTop}px`);
+        host.style.setProperty('--cb-vv-left', `${vvLeft}px`);
+      });
     };
-    updateVh();
-    window.addEventListener('resize', updateVh, { passive: true });
-    window.visualViewport?.addEventListener?.('resize', updateVh, { passive: true });
-    window.visualViewport?.addEventListener?.('scroll', updateVh, { passive: true });
+    updateViewportVars();
+    window.addEventListener('resize', updateViewportVars, { passive: true });
+    window.visualViewport?.addEventListener?.('resize', updateViewportVars, { passive: true });
+    window.visualViewport?.addEventListener?.('scroll', updateViewportVars, { passive: true });
 
     // Use Shadow DOM to isolate styles from the host page
     const shadow = host.attachShadow({ mode: 'open' });

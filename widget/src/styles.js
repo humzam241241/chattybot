@@ -355,14 +355,25 @@ export function injectStyles(shadow) {
     .cb-powered a:hover { color: #334155; border-color: rgba(51,65,85,0.4); }
 
     @media (max-width: 480px) {
-      .cb-window { 
-        width: 100vw;
+      /*
+       * Mobile full-screen widget positioning.
+       * We anchor from the TOP using visualViewport.offsetTop so the widget
+       * tracks the *visible* viewport when the iOS keyboard opens/closes.
+       * This eliminates the "website strip" above the chat.
+       */
+      .cb-window {
+        position: fixed;
+        top: var(--cb-vv-top, 0px);
+        left: var(--cb-vv-left, 0px);
+        right: auto;
+        bottom: auto;
+        width: var(--cb-vv-width, 100vw);
         max-width: 100vw;
-        right: 0;
-        bottom: 0;
-        height: calc(var(--cb-vh, 1vh) * 100);
-        max-height: calc(var(--cb-vh, 1vh) * 100);
+        height: var(--cb-vv-height, 100vh);
+        max-height: var(--cb-vv-height, 100vh);
         border-radius: 0;
+        /* Ensure the widget is above everything */
+        z-index: 2147483647;
       }
       .cb-bubble-wrap {
         bottom: 16px;
@@ -379,8 +390,7 @@ export function injectStyles(shadow) {
       }
       .cb-input-row {
         padding: 14px;
-        /* Prevent keyboard from covering input on iOS */
-        padding-bottom: calc(14px + env(safe-area-inset-bottom));
+        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
       }
       .cb-send {
         width: 44px;
@@ -389,7 +399,7 @@ export function injectStyles(shadow) {
       }
 
       .cb-cta-row {
-        padding-bottom: env(safe-area-inset-bottom);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
       }
 
       .cb-modal {
@@ -398,7 +408,7 @@ export function injectStyles(shadow) {
       }
 
       .cb-powered {
-        padding-bottom: env(safe-area-inset-bottom);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
       }
     }
   `;

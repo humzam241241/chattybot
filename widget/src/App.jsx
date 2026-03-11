@@ -59,6 +59,11 @@ export default function App({ siteId, apiUrl, shadow, pricingUrl }) {
 
       docEl.style.overflow = 'hidden';
       docEl.style.height = '100%';
+
+      // On iOS Safari, scroll the visual viewport to top so our widget anchors correctly
+      if (window.visualViewport) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      }
       return;
     }
 
