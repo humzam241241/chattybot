@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../contexts/AuthContext';
 import dynamic from 'next/dynamic';
@@ -23,6 +24,30 @@ const HologramBot = dynamic(
   () => import('../components/ui/hologram-bot'),
   { ssr: false }
 );
+
+class HeroHologramErrorBoundary extends React.Component {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          className="hero-hologram"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--muted-foreground)',
+            fontSize: 14,
+          }}
+        >
+          <span>3D preview</span>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const FEATURES = [
   { icon: '💬', title: 'Smart AI Conversations', description: 'Powered by GPT-4, your chatbot understands context and provides accurate, helpful responses.' },
@@ -95,7 +120,9 @@ export default function LandingPage() {
                 </div>
                 <div className="hero-demo">
                   <div className="hero-hologram">
-                    <HologramBot />
+                    <HeroHologramErrorBoundary>
+                      <HologramBot />
+                    </HeroHologramErrorBoundary>
                   </div>
                   <ChatDemo />
                 </div>

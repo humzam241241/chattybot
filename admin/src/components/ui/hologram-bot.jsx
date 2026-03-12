@@ -1,7 +1,6 @@
 'use client';
 
-import React, { Suspense, useRef, useState, useMemo } from 'react';
-import dynamic from 'next/dynamic';
+import React, { Suspense, useRef, useState, useMemo, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import {
   useGLTF,
@@ -143,8 +142,10 @@ function HologramBotInner({ dragRotationRef }) {
 }
 
 function HologramBotWithDrag() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const dragRotationRef = useRef([0, 0]);
-  const isDragging = useRef(false);
   const prev = useRef([0, 0]);
 
   const onPointerDown = (e) => {
@@ -164,6 +165,14 @@ function HologramBotWithDrag() {
   const onPointerUp = () => { isDragging.current = false; };
   const onPointerLeave = () => { isDragging.current = false; };
 
+  if (!mounted) {
+    return (
+      <div style={{ width: '100%', height: '100%', minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)', fontSize: 14 }}>
+        <span>Loading…</span>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320, cursor: 'grab' }}
@@ -177,7 +186,4 @@ function HologramBotWithDrag() {
   );
 }
 
-export default dynamic(
-  () => Promise.resolve({ default: HologramBotWithDrag }),
-  { ssr: false }
-);
+export default HologramBotWithDrag;
