@@ -146,6 +146,7 @@ function HologramBotWithDrag() {
   useEffect(() => setMounted(true), []);
 
   const dragRotationRef = useRef([0, 0]);
+  const isDragging = useRef(false);
   const prev = useRef([0, 0]);
 
   const onPointerDown = (e) => {
