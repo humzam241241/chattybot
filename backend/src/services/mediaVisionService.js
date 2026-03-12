@@ -103,7 +103,17 @@ async function downloadTwilioMedia(mediaUrl, meta) {
     },
   });
 
-  const buffer = Buffer.from(resp.data);
+  let buffer;
+  if (Buffer.isBuffer(resp.data)) {
+    buffer = resp.data;
+  } else if (resp.data instanceof ArrayBuffer) {
+    buffer = Buffer.from(resp.data);
+  } else if (resp.data?.data) {
+    buffer = Buffer.from(resp.data.data);
+  } else {
+    throw new Error('Invalid media response type');
+  }
+
   if (!buffer.length) throw new Error('Empty image');
   if (buffer.length > MAX_IMAGE_BYTES) {
     visionLog('[Vision] Media rejected (too large)', meta, { bytes: buffer.length, max: MAX_IMAGE_BYTES });
@@ -118,12 +128,14 @@ async function downloadTwilioMedia(mediaUrl, meta) {
     throw new Error(`Unsupported media type: ${mime || 'unknown'}`);
   }
 
-  visionLog('[Vision] Media downloaded', meta, { bytes: buffer.length, mime });
+  const base64 = buffer.toString('base64');
+  visionLog('[Vision] Media downloaded', meta, { mime });
+  visionLog('[Vision] Media size', meta, { bytes: buffer.length });
 
   return {
     buffer,
     mime,
-    base64: buffer.toString('base64'),
+    base64,
   };
 }
 
