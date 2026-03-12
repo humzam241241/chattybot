@@ -16,7 +16,7 @@ export default function CTAButton({
 
   return (
     <motion.span
-      whileHover={{ scale: 1.03 }}
+      whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.98 }}
       transition={{ type: 'spring', stiffness: 400, damping: 17 }}
     >

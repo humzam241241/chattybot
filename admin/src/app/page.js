@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '../contexts/AuthContext';
+import dynamic from 'next/dynamic';
 import {
   AnimatedGradientHero,
   SpotlightCursor,
@@ -17,6 +18,11 @@ import {
   HeroCTA,
   HeroNote,
 } from '../components/landing';
+
+const HologramBot = dynamic(
+  () => import('../components/ui/hologram-bot'),
+  { ssr: false }
+);
 
 const FEATURES = [
   { icon: '💬', title: 'Smart AI Conversations', description: 'Powered by GPT-4, your chatbot understands context and provides accurate, helpful responses.' },
@@ -43,9 +49,9 @@ export default function LandingPage() {
             <span className="logo-text">ChattyBot</span>
           </Link>
           <nav className="header-nav">
-            <Link href="/about">About</Link>
-            <Link href="/pricing">Pricing</Link>
-            <Link href="/contact">Contact</Link>
+            <Link href="/about" className="header-nav-btn">About</Link>
+            <Link href="/pricing" className="header-nav-btn">Pricing</Link>
+            <Link href="/contact" className="header-nav-btn">Contact</Link>
           </nav>
           <div className="header-actions">
             {user ? (
@@ -88,6 +94,9 @@ export default function LandingPage() {
                   </HeroContent>
                 </div>
                 <div className="hero-demo">
+                  <div className="hero-hologram">
+                    <HologramBot />
+                  </div>
                   <ChatDemo />
                 </div>
               </div>
@@ -175,15 +184,19 @@ export default function LandingPage() {
           <div className="footer-links">
             <div className="footer-col">
               <h4>Product</h4>
-              <Link href="/pricing">Pricing</Link>
-              <Link href="/about">About</Link>
-              <Link href="/contact">Contact</Link>
+              <div className="footer-col-buttons">
+                <Link href="/pricing" className="footer-btn">Pricing</Link>
+                <Link href="/about" className="footer-btn">About</Link>
+                <Link href="/contact" className="footer-btn">Contact</Link>
+              </div>
             </div>
             <div className="footer-col">
               <h4>Account</h4>
-              <Link href="/sign-in">Sign In</Link>
-              <Link href="/sign-up">Sign Up</Link>
-              <Link href="/dashboard">Dashboard</Link>
+              <div className="footer-col-buttons">
+                <Link href="/sign-in" className="footer-btn">Sign In</Link>
+                <Link href="/sign-up" className="footer-btn">Sign Up</Link>
+                <Link href="/dashboard" className="footer-btn">Dashboard</Link>
+              </div>
             </div>
           </div>
         </div>
@@ -214,23 +227,32 @@ export default function LandingPage() {
 
         .header-nav {
           display: flex;
-          gap: 28px;
+          align-items: center;
+          gap: 12px;
         }
 
-        .header-nav a {
+        .header-nav-btn {
+          display: inline-block;
+          padding: 8px 16px;
+          border-radius: var(--radius);
           color: var(--muted-foreground);
           text-decoration: none;
           font-weight: 500;
           font-size: 14px;
-          transition: color var(--transition);
+          background: transparent;
+          border: 1px solid var(--border);
+          transition: color var(--transition), background var(--transition), border-color var(--transition);
         }
 
-        .header-nav a:hover {
+        .header-nav-btn:hover {
           color: var(--foreground);
+          background: var(--muted);
+          border-color: var(--ring);
         }
 
         .header-actions {
           display: flex;
+          align-items: center;
           gap: 12px;
         }
 
@@ -301,8 +323,20 @@ export default function LandingPage() {
 
         .hero-demo {
           display: flex;
+          flex-direction: column;
           justify-content: center;
           align-items: center;
+          gap: 24px;
+        }
+
+        .hero-hologram {
+          width: 100%;
+          max-width: 340px;
+          height: 320px;
+          border-radius: 16px;
+          overflow: hidden;
+          background: linear-gradient(180deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.04) 100%);
+          border: 1px solid rgba(99, 102, 241, 0.15);
         }
 
         .features {
@@ -443,17 +477,30 @@ export default function LandingPage() {
           margin-bottom: 14px;
         }
 
-        .footer-col a {
-          display: block;
+        .footer-col-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .footer-btn {
+          display: inline-block;
+          padding: 8px 14px;
+          border-radius: var(--radius);
           color: var(--muted-foreground);
           text-decoration: none;
           font-size: 14px;
-          margin-bottom: 8px;
-          transition: color var(--transition);
+          font-weight: 500;
+          background: var(--muted);
+          border: 1px solid var(--border);
+          width: fit-content;
+          transition: color var(--transition), background var(--transition), border-color var(--transition);
         }
 
-        .footer-col a:hover {
+        .footer-btn:hover {
           color: var(--foreground);
+          background: var(--accent);
+          border-color: var(--ring);
         }
 
         .footer-bottom {
