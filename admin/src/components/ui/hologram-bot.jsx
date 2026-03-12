@@ -21,7 +21,7 @@ function EnergyRing({ radius = 0.6, color = HOLO_CYAN }) {
         emissive={color}
         emissiveIntensity={1.2}
         transparent
-        opacity={0.85}
+        opacity={0.38}
       />
     </mesh>
   );
@@ -158,7 +158,7 @@ function HologramBot() {
       <OuterErrorBoundary>
         <Canvas
           dpr={[1, 2]}
-          camera={{ position: [0, 0, 8.125], fov: 38 }}
+          camera={{ position: [0, 0, 8.125], fov: 46 }}
           gl={{ antialias: true, alpha: true }}
           style={{ width: '100%', height: '100%', background: 'transparent' }}
         >
