@@ -24,13 +24,6 @@ const OpenAI = require('openai');
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-function sendImmediateAck(res) {
-  const twiml = new MessagingResponse();
-  twiml.message('Got it — give me a moment while I check that for you.');
-  res.type('text/xml');
-  res.send(twiml.toString());
-}
-
 function normalizeTwilioAddress(raw, { channel }) {
   const s = String(raw || '').trim();
   if (!s) return null;
@@ -40,22 +33,8 @@ function normalizeTwilioAddress(raw, { channel }) {
   return channel === 'whatsapp' ? `whatsapp:${e164}` : e164;
 }
 
-async function sendTwilioOutboundMessage({ channel, fromRaw, toRaw, body }) {
-  const client = getTwilioClient();
-  if (!client) {
-    console.warn('[TwilioWebhook] Outbound send skipped - Twilio not configured');
-    return;
-  }
-
-  const from = normalizeTwilioAddress(fromRaw, { channel });
-  const to = normalizeTwilioAddress(toRaw, { channel });
-  if (!from || !to) {
-    console.warn('[TwilioWebhook] Outbound send skipped - invalid from/to', { fromRaw, toRaw, channel });
-    return;
-  }
-
-  await client.messages.create({ body, from, to });
-}
+// IMPORTANT: Do not send outbound Twilio messages from async post-processing.
+// Replies to inbound messages must be returned ONLY via this webhook's TwiML response.
 
 async function findOrCreateConversationIdForTwilio({ siteId, from }) {
   if (!siteId || !from) return null;
@@ -222,85 +201,67 @@ router.post('/sms', async (req, res) => {
       return res.status(200).send(twiml.toString());
     }
 
-    // Respond immediately to avoid Twilio timeouts (no AI/DB work before responding)
-    sendImmediateAck(res);
+    // Resolve site by destination number (multi-tenant)
+    const mappedSiteId = await resolveSiteIdFromTo(To, 'sms');
+    const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
+    const allowFallback = shouldAllowDefaultFallback();
+    const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
 
-    // Heavy work happens after response is sent
-    setImmediate(async () => {
+    if (!siteId) {
+      const twiml = new MessagingResponse();
+      twiml.message('This number is not configured yet. Please contact the business directly.');
+      res.type('text/xml');
+      return res.status(200).send(twiml.toString());
+    }
+
+    trackSmsUsage(siteId, 'inbound').catch(() => {});
+
+    // MMS photo support (first media item only)
+    let mediaAnalysis = null;
+    if (numMedia > 0 && MediaUrl0) {
       try {
-        // Resolve site by destination number (multi-tenant)
-        const mappedSiteId = await resolveSiteIdFromTo(To, 'sms');
-        const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
-        const allowFallback = shouldAllowDefaultFallback();
-        const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
-
-        if (!siteId) {
-          await sendTwilioOutboundMessage({
-            channel: 'sms',
-            fromRaw: To,
-            toRaw: From,
-            body: 'This number is not configured yet. Please contact the business directly.',
+        const { buffer, contentType } = await downloadTwilioMedia(MediaUrl0);
+        const effectiveType = String(MediaContentType0 || contentType || '').toLowerCase();
+        if (effectiveType.startsWith('image/')) {
+          mediaAnalysis = await analyzeImageWithClaude({
+            buffer,
+            contentType: effectiveType,
+            prompt:
+              'Analyze the image for customer-support context. Extract any visible text and describe key details that would help answer the user.',
           });
-          return;
+        } else {
+          console.warn('[TwilioWebhook] SMS media is not an image; skipping vision analysis');
         }
-
-        trackSmsUsage(siteId, 'inbound').catch(() => {});
-
-        // MMS photo support (first media item only)
-        let mediaAnalysis = null;
-        if (numMedia > 0 && MediaUrl0) {
-          try {
-            const { buffer, contentType } = await downloadTwilioMedia(MediaUrl0);
-            const effectiveType = String(MediaContentType0 || contentType || '').toLowerCase();
-            if (effectiveType.startsWith('image/')) {
-              mediaAnalysis = await analyzeImageWithClaude({
-                buffer,
-                contentType: effectiveType,
-                prompt:
-                  'Analyze the image for customer-support context. Extract any visible text and describe key details that would help answer the user.',
-              });
-            } else {
-              console.warn('[TwilioWebhook] SMS media is not an image; skipping vision analysis');
-            }
-          } catch (e) {
-            console.warn('[TwilioWebhook] SMS media download/analyze failed (non-fatal):', e.message);
-          }
-        }
-
-        const composedUserMessage = baseText || (numMedia > 0 ? '[User sent an image]' : '');
-        const userMessage = mediaAnalysis
-          ? `${composedUserMessage}\n\n[Image analysis]\n${mediaAnalysis}`
-          : composedUserMessage;
-
-        const from = req.body.From; // e.g. "whatsapp:+19057496855"
-        console.log('[Twilio] visitor:', from);
-        const conversationId = await findOrCreateConversationIdForTwilio({ siteId, from });
-        console.log('[Twilio] using conversation:', conversationId);
-
-        // Generate AI response
-        const aiRaw = await generateChatResponse({
-          siteId,
-          userMessage,
-          visitorId: `sms:${userPhone}`,
-          conversationId,
-        });
-        const aiResponse = formatSMSResponse(aiRaw);
-        console.log('[TwilioWebhook] SMS response prepared (sid=%s, chars=%s)', MessageSid || 'n/a', aiResponse.length);
-
-        trackSmsUsage(siteId, 'outbound').catch(() => {});
-
-        await sendTwilioOutboundMessage({
-          channel: 'sms',
-          fromRaw: To,
-          toRaw: From,
-          body: aiResponse || 'Thanks for contacting us. How can we help?',
-        });
       } catch (e) {
-        console.error('[TwilioWebhook] Async SMS processing failed:', e?.message || e);
+        console.warn('[TwilioWebhook] SMS media download/analyze failed (non-fatal):', e.message);
       }
-    });
+    }
 
-    return;
+    const composedUserMessage = baseText || (numMedia > 0 ? '[User sent an image]' : '');
+    const userMessage = mediaAnalysis
+      ? `${composedUserMessage}\n\n[Image analysis]\n${mediaAnalysis}`
+      : composedUserMessage;
+
+    const from = req.body.From; // e.g. "whatsapp:+19057496855"
+    console.log('[Twilio] visitor:', from);
+    const conversationId = await findOrCreateConversationIdForTwilio({ siteId, from });
+    console.log('[Twilio] using conversation:', conversationId);
+
+    const aiRaw = await generateChatResponse({
+      siteId,
+      userMessage,
+      visitorId: `sms:${userPhone}`,
+      conversationId,
+    });
+    const aiResponse = formatSMSResponse(aiRaw);
+    console.log('[TwilioWebhook] SMS response prepared (sid=%s, chars=%s)', MessageSid || 'n/a', aiResponse.length);
+
+    trackSmsUsage(siteId, 'outbound').catch(() => {});
+
+    const twiml = new MessagingResponse();
+    twiml.message(aiResponse || 'Thanks for contacting us. How can we help?');
+    res.type('text/xml');
+    return res.status(200).send(twiml.toString());
   } catch (err) {
     console.error('[TwilioWebhook] Error processing SMS:', err.message, err.stack);
     const twiml = new MessagingResponse();
@@ -345,59 +306,41 @@ router.post('/whatsapp', async (req, res) => {
       return res.status(200).send(twiml.toString());
     }
 
-    // Respond immediately to avoid Twilio timeouts (no AI/DB work before responding)
-    sendImmediateAck(res);
+    // Resolve site by destination number (multi-tenant)
+    const mappedSiteId = await resolveSiteIdFromTo(To, 'whatsapp');
+    const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
+    const allowFallback = shouldAllowDefaultFallback();
+    const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
 
-    // Heavy work happens after response is sent
-    setImmediate(async () => {
-      try {
-        // Resolve site by destination number (multi-tenant)
-        const mappedSiteId = await resolveSiteIdFromTo(To, 'whatsapp');
-        const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
-        const allowFallback = shouldAllowDefaultFallback();
-        const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
+    if (!siteId) {
+      const twiml = new MessagingResponse();
+      twiml.message('This number is not configured yet. Please contact the business directly.');
+      res.type('text/xml');
+      return res.status(200).send(twiml.toString());
+    }
 
-        if (!siteId) {
-          await sendTwilioOutboundMessage({
-            channel: 'whatsapp',
-            fromRaw: To,
-            toRaw: From,
-            body: 'This number is not configured yet. Please contact the business directly.',
-          });
-          return;
-        }
+    trackSmsUsage(siteId, 'inbound').catch(() => {});
 
-        trackSmsUsage(siteId, 'inbound').catch(() => {});
+    const from = req.body.From; // e.g. "whatsapp:+19057496855"
+    console.log('[Twilio] visitor:', from);
+    const conversationId = await findOrCreateConversationIdForTwilio({ siteId, from });
+    console.log('[Twilio] using conversation:', conversationId);
 
-        const from = req.body.From; // e.g. "whatsapp:+19057496855"
-        console.log('[Twilio] visitor:', from);
-        const conversationId = await findOrCreateConversationIdForTwilio({ siteId, from });
-        console.log('[Twilio] using conversation:', conversationId);
-
-        // Generate AI response
-        const aiResponse = await generateChatResponse({
-          siteId,
-          userMessage: Body,
-          visitorId: `whatsapp:${userPhone}`,
-          conversationId,
-        });
-
-        console.log('[TwilioWebhook] Responding with:', aiResponse);
-
-        trackSmsUsage(siteId, 'outbound').catch(() => {});
-
-        await sendTwilioOutboundMessage({
-          channel: 'whatsapp',
-          fromRaw: To,
-          toRaw: From,
-          body: aiResponse || 'Thanks for contacting us. How can we help?',
-        });
-      } catch (e) {
-        console.error('[TwilioWebhook] Async WhatsApp processing failed:', e?.message || e);
-      }
+    const aiResponse = await generateChatResponse({
+      siteId,
+      userMessage: Body,
+      visitorId: `whatsapp:${userPhone}`,
+      conversationId,
     });
 
-    return;
+    console.log('[TwilioWebhook] Responding with:', aiResponse);
+
+    trackSmsUsage(siteId, 'outbound').catch(() => {});
+
+    const twiml = new MessagingResponse();
+    twiml.message(aiResponse || 'Thanks for contacting us. How can we help?');
+    res.type('text/xml');
+    return res.status(200).send(twiml.toString());
   } catch (err) {
     console.error('[TwilioWebhook] Error processing WhatsApp:', err.message, err.stack);
     const twiml = new MessagingResponse();
@@ -443,13 +386,17 @@ async function generateChatResponse({ siteId, userMessage, visitorId, conversati
       throw new Error('Conversation not found for site');
     }
 
-    // Save user message
-    await appendMessage({
-      conversationId: convoId,
-      siteId,
-      role: 'user',
-      content: userMessage,
-    });
+    console.log('[Chat] conversation:', convoId);
+
+    const history = await pool.query(
+      `SELECT role, content
+       FROM messages
+       WHERE conversation_id = $1
+       ORDER BY created_at ASC
+       LIMIT 20`,
+      [convoId]
+    );
+    console.log('[Chat] history length:', history.rows.length);
 
     // Retrieve RAG context
     const contextChunks = await retrieveContext(siteId, userMessage);
@@ -461,26 +408,28 @@ async function generateChatResponse({ siteId, userMessage, visitorId, conversati
     const tone = raffy?.tone ? `\n\nTone: ${raffy.tone}.` : '';
     const systemPrompt = `${identity}\n\n${basePrompt}${tone}`;
 
-    // Load recent messages
-    const recent = await getRecentMessages(convoId, 11); // Last 5 turns + current
-    const conversationHistory = recent.slice(0, -1).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...history.rows.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: userMessage },
+    ];
 
-    // Generate response
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...conversationHistory,
-        { role: 'user', content: userMessage },
-      ],
+      messages,
       max_tokens: 300, // SMS/WhatsApp have length limits
       temperature: 0.3,
     });
 
     const answer = completion.choices[0].message.content;
+
+    // Save user message
+    await appendMessage({
+      conversationId: convoId,
+      siteId,
+      role: 'user',
+      content: userMessage,
+    });
 
     // Save assistant response
     await appendMessage({
