@@ -1,13 +1,7 @@
 const { Resend } = require('resend');
-const twilio = require('twilio');
+const client = require('./twilioClient');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-
-console.log('[Twilio] SID loaded:', process.env.TWILIO_ACCOUNT_SID?.slice(0, 6));
-console.log('[Twilio] WhatsApp sender:', process.env.TWILIO_WHATSAPP_NUMBER);
-console.log('[Twilio] SMS sender:', process.env.TWILIO_PHONE_NUMBER);
 
 const FROM_PHONE = process.env.TWILIO_PHONE_NUMBER;
 const WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_NUMBER || null;
@@ -57,27 +51,28 @@ async function sendSMS(to, message, options = {}) {
 
   try {
     await client.messages.create({
+      body: message,
       from: from,
       to: phone,
-      body: message,
     });
     console.log('[Notify] SMS sent');
   } catch (err) {
-    console.error('[Notify] SMS error:', err.message);
-    if (err && typeof err === 'object') {
-      console.error('[Notify] SMS details:', {
-        code: err.code,
-        status: err.status,
-        moreInfo: err.moreInfo,
-      });
-    }
+    console.error('[Twilio] Send failed:', {
+      code: err?.code,
+      status: err?.status,
+      message: err?.message,
+      moreInfo: err?.moreInfo,
+    });
   }
 }
 
 async function sendWhatsApp(to, message, options = {}) {
   const fromOverride = options && typeof options === 'object' ? options.from : null;
   const overrideE164 = normalizeE164(String(fromOverride || '').replace(/^whatsapp:/i, '')) || null;
-  const from = overrideE164 ? `whatsapp:${overrideE164}` : WHATSAPP_FROM;
+  const baseFrom = overrideE164 || WHATSAPP_FROM || FROM_PHONE || null;
+  const from = baseFrom
+    ? (String(baseFrom).startsWith('whatsapp:') ? String(baseFrom) : `whatsapp:${String(baseFrom)}`)
+    : null;
 
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !from) {
     console.log('[Notify] WhatsApp skipped (Twilio env missing)');
@@ -91,20 +86,18 @@ async function sendWhatsApp(to, message, options = {}) {
 
   try {
     await client.messages.create({
+      body: message,
       from: from,
       to: `whatsapp:${phone}`,
-      body: message,
     });
     console.log('[Notify] WhatsApp sent');
   } catch (err) {
-    console.error('[Notify] WhatsApp error:', err.message);
-    if (err && typeof err === 'object') {
-      console.error('[Notify] WhatsApp details:', {
-        code: err.code,
-        status: err.status,
-        moreInfo: err.moreInfo,
-      });
-    }
+    console.error('[Twilio] Send failed:', {
+      code: err?.code,
+      status: err?.status,
+      message: err?.message,
+      moreInfo: err?.moreInfo,
+    });
   }
 }
 

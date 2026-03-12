@@ -8,6 +8,7 @@ dns.setDefaultResultOrder('ipv4first');
 require('dotenv').config();
 
 // Validate environment on startup
+require('./config/envCheck');
 const { logEnvironmentStatus } = require('./config/env');
 logEnvironmentStatus();
 

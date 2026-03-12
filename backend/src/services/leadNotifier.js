@@ -11,7 +11,7 @@ const { buildTranscript } = require('./transcript');
 const { isConfigured } = require('./emailService');
 const { sendEmail, sendSMS, sendWhatsApp } = require('./notificationService');
 const { getEffectiveRaffySettings } = require('./raffySettings');
-const { normalizePhoneE164 } = require('./twilioClient');
+const { normalizePhoneE164 } = require('../utils/phone');
 
 async function getBookingUrlForSite(siteId) {
   try {

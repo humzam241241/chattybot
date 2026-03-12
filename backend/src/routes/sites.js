@@ -5,7 +5,7 @@ const pool = require('../config/database');
 const { apiLimiter } = require('../middleware/rateLimiter');
 const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
 const { clearSettingsCache } = require('../services/raffySettings');
-const { normalizePhoneE164 } = require('../services/twilioClient');
+const { normalizePhoneE164 } = require('../utils/phone');
 
 const router = express.Router();
 
