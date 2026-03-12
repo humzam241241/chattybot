@@ -286,9 +286,9 @@ export default function LandingPage() {
         }
 
         .hero {
-          padding: 80px 24px 100px;
+          padding: 60px 24px 80px;
           position: relative;
-          min-height: 520px;
+          min-height: auto;
         }
 
         .hero-gradient-wrap {
@@ -302,35 +302,31 @@ export default function LandingPage() {
         }
 
         .hero-inner {
-          max-width: 1200px;
+          max-width: 720px;
           margin: 0 auto;
-          display: grid;
-          grid-template-columns: 1fr auto;
-          gap: 48px;
+          display: flex;
+          flex-direction: column;
           align-items: center;
-          position: relative;
+          gap: 48px;
+          padding-bottom: 24px;
         }
 
         .hero-hologram-bg {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 600px;
-          height: 600px;
-          z-index: 0;
+          width: 100%;
+          max-width: 520px;
+          height: 420px;
+          flex-shrink: 0;
           pointer-events: none;
-          opacity: 0.5;
+          opacity: 0.85;
         }
 
         .hero-content-card {
-          position: relative;
-          z-index: 2;
-          background: rgba(255, 255, 255, 0.92);
+          width: 100%;
+          background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(12px);
           border-radius: var(--radius-lg);
-          padding: 28px 32px;
-          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+          padding: 32px 36px;
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.06);
           max-width: 560px;
         }
 
@@ -377,17 +373,16 @@ export default function LandingPage() {
         }
 
         .hero-demo-card {
-          position: relative;
-          z-index: 2;
-          background: rgba(255, 255, 255, 0.92);
+          width: 100%;
+          max-width: 380px;
+          background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(12px);
           border-radius: var(--radius-lg);
           padding: 0;
-          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.06);
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          justify-content: center;
           align-items: center;
         }
 
@@ -580,19 +575,19 @@ export default function LandingPage() {
           }
 
           .hero-inner {
-            grid-template-columns: 1fr;
-            text-align: center;
+            gap: 36px;
+            padding-left: 16px;
+            padding-right: 16px;
           }
 
           .hero-hologram-bg {
-            width: min(100vw, 480px);
-            height: min(100vw, 480px);
-            opacity: 0.62;
+            max-width: 100%;
+            height: 320px;
+            opacity: 0.88;
           }
 
           .hero-content-card {
             padding: 24px 20px;
-            margin: 0 16px;
           }
 
           .hero-content {
@@ -604,11 +599,6 @@ export default function LandingPage() {
           }
 
           .hero-demo-card {
-            max-width: 360px;
-            margin: 0 auto;
-          }
-
-          .hero-demo {
             max-width: 100%;
           }
 
