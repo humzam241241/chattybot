@@ -247,21 +247,6 @@ export function injectStyles(shadow) {
     .cb-msg-time { font-size: 10px; color: #94a3b8; padding: 0 4px; }
     .cb-msg.user .cb-msg-time { text-align: right; }
 
-    .cb-msg-image-wrap {
-      margin-bottom: 6px;
-      border-radius: 8px;
-      overflow: hidden;
-      max-width: 220px;
-      max-height: 180px;
-    }
-    .cb-msg-image {
-      display: block;
-      width: 100%;
-      height: auto;
-      max-height: 180px;
-      object-fit: cover;
-    }
-
     .cb-typing {
       display: flex; align-items: center; gap: 5px;
       padding: 10px 13px;
@@ -314,21 +299,6 @@ export function injectStyles(shadow) {
     }
     .cb-send:disabled { opacity: 0.5; cursor: not-allowed; }
     .cb-send svg { width: 19px; height: 19px; fill: #fff; }
-    .cb-upload-btn {
-      min-width: 42px; height: 42px; padding: 0 10px; border-radius: 21px; border: 1.5px solid #e2e8f0;
-      background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-      flex-shrink: 0; align-self: flex-end; color: #64748b; transition: border-color 0.15s, color 0.15s;
-    }
-    .cb-upload-btn:hover { border-color: var(--cb-primary); color: var(--cb-primary); }
-    .cb-upload-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
-    .cb-upload-label { font-size: 13px; font-weight: 500; white-space: nowrap; }
-    .cb-attach-preview {
-      padding: 8px 12px; display: flex; align-items: center; gap: 8px;
-      background: #f8fafc; border-radius: 12px; margin-bottom: 8px; max-width: 100%;
-    }
-    .cb-attach-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
-    .cb-attach-preview span { font-size: 12px; color: #64748b; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .cb-attach-remove { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; line-height: 1; }
 
     /* Lead form */
     .cb-lead-form {

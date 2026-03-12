@@ -100,10 +100,10 @@ app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.disable('x-powered-by'); // helmet also does this, belt-and-suspenders
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.get('/health', (req, res) => res.json({
-  status: 'ok',
+app.get('/health', (req, res) => res.json({ 
+  status: 'ok', 
   uptime: process.uptime(),
-  ts: new Date().toISOString(),
+  ts: new Date().toISOString() 
 }));
 
 app.use('/chat', chatRouter);

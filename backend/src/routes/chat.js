@@ -29,40 +29,6 @@ const {
   clampMisunderstoodCount,
 } = require('../services/raffyEscalation');
 const { isLifeThreateningEmergency } = require('../services/emergencyDetection');
-const { getSupabaseClient, getUploadsBucket, isStorageConfigured } = require('../services/supabaseStorage');
-const { v4: uuidv4 } = require('uuid');
-
-const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const MAX_IMAGE_BASE64_SIZE = 6 * 1024 * 1024; // ~6MB decoded
-
-function getImageExt(contentType) {
-  if (contentType === 'image/png') return 'png';
-  if (contentType === 'image/webp') return 'webp';
-  if (contentType === 'image/gif') return 'gif';
-  return 'jpg';
-}
-
-async function uploadChatImage({ siteId, conversationId, base64, contentType }) {
-  if (!isStorageConfigured()) {
-    console.warn('[Chat] Supabase storage not configured, skipping image upload');
-    return null;
-  }
-  const type = (contentType || '').split(';')[0].trim().toLowerCase();
-  if (!ALLOWED_IMAGE_TYPES.has(type)) throw new Error('Unsupported image type');
-  const buffer = Buffer.from(base64, 'base64');
-  if (buffer.length > MAX_IMAGE_BASE64_SIZE) throw new Error('Image too large');
-  const supabase = getSupabaseClient();
-  const bucket = getUploadsBucket();
-  const fileId = uuidv4();
-  const ext = getImageExt(type);
-  const path = `chat-media/${siteId}/${conversationId}/${fileId}.${ext}`;
-  await supabase.storage.from(bucket).upload(path, buffer, {
-    contentType: type,
-    upsert: false,
-  });
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
-}
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -151,9 +117,7 @@ router.post(
   domainVerify,
   [
     body('site_id').isUUID().withMessage('Valid site_id required'),
-    body('user_message').optional({ nullable: true, checkFalsy: true }).isString().trim().isLength({ max: 2000 }),
-    body('user_image_base64').optional({ nullable: true, checkFalsy: true }).isString(),
-    body('user_image_content_type').optional({ nullable: true, checkFalsy: true }).isString().trim().isLength({ max: 64 }),
+    body('user_message').isString().trim().isLength({ min: 1, max: 2000 }),
     body('conversation_id').optional({ nullable: true, checkFalsy: false }).isUUID(),
     body('visitor_id').optional().isString().trim().isLength({ max: 128 }),
     body('current_page_url').optional().isString().trim().isLength({ max: 500 }),
@@ -164,12 +128,7 @@ router.post(
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { site_id, user_message, user_image_base64, user_image_content_type, current_page_url, conversation_id, visitor_id } = req.body;
-    const text = (user_message && String(user_message).trim()) || '';
-    const hasImage = user_image_base64 && String(user_image_base64).trim().length > 0;
-    if (!text && !hasImage) {
-      return res.status(400).json({ error: 'Provide a message or an image' });
-    }
+    const { site_id, user_message, current_page_url, conversation_id, visitor_id } = req.body;
 
     trackApiUsage(site_id, 'chat').catch(() => {});
 
@@ -200,31 +159,7 @@ router.post(
       }
       console.log(`[Chat] Conversation: ${convoId}, Site: ${site_id}, Visitor: ${visitor_id}`);
 
-      let mediaUrl = null;
-      let mediaContentType = null;
-      if (hasImage) {
-        try {
-          mediaUrl = await uploadChatImage({
-            siteId: site_id,
-            conversationId: convoId,
-            base64: String(user_image_base64).trim(),
-            contentType: (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg',
-          });
-          if (mediaUrl) {
-            mediaContentType = (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg';
-          }
-        } catch (err) {
-          console.warn('[Chat] Image upload failed:', err.message);
-        }
-      }
-      await appendMessage({
-        conversationId: convoId,
-        siteId: site_id,
-        role: 'user',
-        content: text || 'Image shared',
-        mediaUrl: mediaUrl || undefined,
-        mediaContentType: mediaContentType || undefined,
-      });
+      await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 
       // Track consecutive misunderstood turns per conversation
       const prevMisunderstoodCount = clampMisunderstoodCount(
@@ -232,9 +167,9 @@ router.post(
       );
 
       // ─── Smart Quote Tool trigger ─────────────────────────────────────
-      if (detectEstimateIntent(text)) {
-        const inferredServiceType = inferServiceType(text);
-        const urgency = /emergency|urgent|asap|right now|today/.test(String(text || '').toLowerCase())
+      if (detectEstimateIntent(user_message)) {
+        const inferredServiceType = inferServiceType(user_message);
+        const urgency = /emergency|urgent|asap|right now|today/.test(String(user_message || '').toLowerCase())
           ? 'emergency'
           : 'standard';
 
@@ -243,7 +178,7 @@ router.post(
           roofSize: null,
           roofType: null,
           urgency,
-          notes: text,
+          notes: user_message,
           siteId: site_id,
         });
 
@@ -283,7 +218,7 @@ router.post(
       }
 
       // ─── Ryan escalation (explicit trigger) ───────────────────────────
-      if (detectRyanTrigger(text)) {
+      if (detectRyanTrigger(user_message)) {
         const ownerPhone = raffy?.owner?.phone || raffy?.owner_phone || null;
         const answer = buildRyanEscalationMessage(ownerPhone);
         const intent = 'escalation';
@@ -296,7 +231,7 @@ router.post(
         processConversationForLead({
           conversationId: convoId,
           siteId: site_id,
-          userMessage: text,
+          userMessage: user_message,
           intent,
         }).catch((err) => console.warn('[Chat] Lead pipeline failed (non-fatal):', err.message));
 
@@ -324,7 +259,7 @@ router.post(
 
       // Resolve pending consent if user replied yes/no
       if (consentState.email_consent_status === 'pending' && consentState.email_consent_email) {
-        const yn = parseYesNo(text);
+        const yn = parseYesNo(user_message);
         if (yn === 'yes') {
           await setConversationConsent(convoId, 'granted', consentState.email_consent_email);
           console.log(`[Consent] Email consent granted for ${consentState.email_consent_email} (conversation ${convoId})`);
@@ -336,7 +271,7 @@ router.post(
         }
       }
 
-      const contactInMessage = detectContactInfo(text);
+      const contactInMessage = detectContactInfo(user_message);
       const emailInMessage = contactInMessage?.emails?.[0] || null;
       let mustAskConsentNow = false;
       if (emailInMessage) {
@@ -355,12 +290,12 @@ router.post(
       // Emergency handling (keyword-based MVP) - only for life-threatening emergencies
       const emergencyKeywords = raffy?.emergency?.keywords || [];
       const emergencyResponse = raffy?.emergency?.response;
-      const msgLower = (text || '').toLowerCase();
-      const lifeThreatening = isLifeThreateningEmergency({ message: text, raffy });
+      const msgLower = user_message.toLowerCase();
+      const lifeThreatening = isLifeThreateningEmergency({ message: user_message, raffy });
 
       // RAG: retrieve relevant chunks
       console.log(`[Chat] Retrieving context...`);
-      const contextChunks = await retrieveContext(site_id, text);
+      const contextChunks = await retrieveContext(site_id, user_message);
       console.log(`[Chat] Context chunks retrieved: ${contextChunks.length}`);
 
       // ALWAYS build the prompt with RAG context, even if custom system_prompt exists
@@ -396,21 +331,10 @@ router.post(
       
       console.log(`[Chat] SYSTEM PROMPT USED (first 200 chars):\n${systemPrompt.substring(0, 200)}...`);
 
-      // Build messages array; optionally hint on the current page for context; support vision when image present
-      const textWithPage = current_page_url
-        ? `[User is on page: ${current_page_url}]\n\n${text || ''}`
-        : (text || '');
-      const userContent = hasImage
-        ? [
-            { type: 'text', text: textWithPage || 'What do you see in this image?' },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${(user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg'};base64,${String(user_image_base64).trim()}`,
-              },
-            },
-          ]
-        : textWithPage;
+      // Build messages array; optionally hint on the current page for context
+      const userContent = current_page_url
+        ? `[User is on page: ${current_page_url}]\n\n${user_message}`
+        : user_message;
 
       // Load conversation history for context (exclude current user message - we add it with page context)
       const recent = await getRecentMessages(convoId, 201); // 201 = up to 100 turns + current
@@ -426,7 +350,7 @@ router.post(
 
       if (!answer) {
         const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini', // Vision-capable; good for RAG and images
+          model: 'gpt-4o-mini', // Fast, cheap, good enough for RAG answers
           messages: [
             { role: 'system', content: systemPrompt },
             ...conversationHistory,
@@ -459,10 +383,10 @@ router.post(
 
       const escalationKeywords = raffy?.escalation_triggers?.keywords || [];
       const wantsHuman = Array.isArray(escalationKeywords) && escalationKeywords.some((k) => msgLower.includes(String(k).toLowerCase()));
-      const shouldCaptureLead = wantsHuman || detectLeadIntent(text) || detectLeadIntent(answer) || newMisunderstoodCount >= 2;
+      const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer) || newMisunderstoodCount >= 2;
 
       const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
-      const wantsBooking = detectBookingIntent(text, raffy);
+      const wantsBooking = detectBookingIntent(user_message, raffy);
       const shouldOfferBooking = Boolean(bookingUrl) && wantsBooking;
       const bookingEmbed = Boolean(raffy?.booking?.embed);
       const bookingButtonText = raffy?.booking?.button_text ? String(raffy.booking.button_text) : null;
@@ -511,7 +435,7 @@ router.post(
       processConversationForLead({
         conversationId: convoId,
         siteId: site_id,
-        userMessage: text,
+        userMessage: user_message,
         intent,
       }).catch((err) => {
         console.warn('[Chat] Lead pipeline failed (non-fatal):', err.message);
@@ -555,9 +479,7 @@ router.post(
   domainVerify,
   [
     body('site_id').isUUID().withMessage('Valid site_id required'),
-    body('user_message').optional({ nullable: true, checkFalsy: true }).isString().trim().isLength({ max: 2000 }),
-    body('user_image_base64').optional({ nullable: true, checkFalsy: true }).isString(),
-    body('user_image_content_type').optional({ nullable: true, checkFalsy: true }).isString().trim().isLength({ max: 64 }),
+    body('user_message').isString().trim().isLength({ min: 1, max: 2000 }),
     body('conversation_id').optional({ nullable: true, checkFalsy: false }).isUUID(),
     body('visitor_id').optional().isString().trim().isLength({ max: 128 }),
     body('current_page_url').optional().isString().trim().isLength({ max: 500 }),
@@ -568,13 +490,7 @@ router.post(
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { site_id, user_message, user_image_base64, user_image_content_type, current_page_url, conversation_id, visitor_id } = req.body;
-    const text = (user_message && String(user_message).trim()) || '';
-    const hasImage = user_image_base64 && String(user_image_base64).trim().length > 0;
-    if (!text && !hasImage) {
-      res.setHeader('Content-Type', 'application/json');
-      return res.status(400).json({ error: 'Provide a message or an image' });
-    }
+    const { site_id, user_message, current_page_url, conversation_id, visitor_id } = req.body;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -608,40 +524,16 @@ router.post(
         convoId = await twilioWebhookRouter.findOrCreateConversationIdForTwilio({ siteId: site_id, from: visitor_id });
       }
 
-      let mediaUrl = null;
-      let mediaContentType = null;
-      if (hasImage) {
-        try {
-          mediaUrl = await uploadChatImage({
-            siteId: site_id,
-            conversationId: convoId,
-            base64: String(user_image_base64).trim(),
-            contentType: (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg',
-          });
-          if (mediaUrl) {
-            mediaContentType = (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg';
-          }
-        } catch (err) {
-          console.warn('[Chat/Stream] Image upload failed:', err.message);
-        }
-      }
-      await appendMessage({
-        conversationId: convoId,
-        siteId: site_id,
-        role: 'user',
-        content: text || 'Image shared',
-        mediaUrl: mediaUrl || undefined,
-        mediaContentType: mediaContentType || undefined,
-      });
+      await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 
       const prevMisunderstoodCount = clampMisunderstoodCount(
         await getMisunderstoodCount({ conversationId: convoId, siteId: site_id })
       );
 
       // ─── Smart Quote Tool trigger ─────────────────────────────────────
-      if (detectEstimateIntent(text)) {
-        const inferredServiceType = inferServiceType(text);
-        const urgency = /emergency|urgent|asap|right now|today/.test(String(text || '').toLowerCase())
+      if (detectEstimateIntent(user_message)) {
+        const inferredServiceType = inferServiceType(user_message);
+        const urgency = /emergency|urgent|asap|right now|today/.test(String(user_message || '').toLowerCase())
           ? 'emergency'
           : 'standard';
 
@@ -650,7 +542,7 @@ router.post(
           roofSize: null,
           roofType: null,
           urgency,
-          notes: text,
+          notes: user_message,
           siteId: site_id,
         });
 
@@ -693,7 +585,7 @@ router.post(
       }
 
       // ─── Ryan escalation (explicit trigger) ───────────────────────────
-      if (detectRyanTrigger(text)) {
+      if (detectRyanTrigger(user_message)) {
         const ownerPhone = raffy?.owner?.phone || raffy?.owner_phone || null;
         const answer = buildRyanEscalationMessage(ownerPhone);
         const intent = 'escalation';
@@ -709,7 +601,7 @@ router.post(
         processConversationForLead({
           conversationId: convoId,
           siteId: site_id,
-          userMessage: text,
+          userMessage: user_message,
           intent,
         }).catch((err) => console.warn('[Chat/Stream] Lead pipeline failed (non-fatal):', err.message));
 
@@ -732,7 +624,7 @@ router.post(
       // ─── Consent handling (stream) ────────────────────────────────────────
       let consentState = await getConversationConsent(convoId);
       if (consentState.email_consent_status === 'pending' && consentState.email_consent_email) {
-        const yn = parseYesNo(text);
+        const yn = parseYesNo(user_message);
         if (yn === 'yes') {
           await setConversationConsent(convoId, 'granted', consentState.email_consent_email);
           console.log(`[Consent] Email consent granted for ${consentState.email_consent_email} (conversation ${convoId})`);
@@ -744,7 +636,7 @@ router.post(
         }
       }
 
-      const contactInMessage = detectContactInfo(text);
+      const contactInMessage = detectContactInfo(user_message);
       const emailInMessage = contactInMessage?.emails?.[0] || null;
       let mustAskConsentNow = false;
       if (emailInMessage) {
@@ -760,11 +652,11 @@ router.post(
 
       const emergencyKeywords = raffy?.emergency?.keywords || [];
       const emergencyResponse = raffy?.emergency?.response;
-      const msgLower = String(text || '').toLowerCase();
-      const lifeThreatening = isLifeThreateningEmergency({ message: text, raffy });
+      const msgLower = String(user_message || '').toLowerCase();
+      const lifeThreatening = isLifeThreateningEmergency({ message: user_message, raffy });
 
       const bookingUrl = raffy?.booking?.url ? String(raffy.booking.url) : '';
-      const wantsBooking = detectBookingIntent(text, raffy);
+      const wantsBooking = detectBookingIntent(user_message, raffy);
       const shouldOfferBooking = Boolean(bookingUrl) && wantsBooking;
       const bookingEmbed = Boolean(raffy?.booking?.embed);
       const bookingButtonText = raffy?.booking?.button_text ? String(raffy.booking.button_text) : null;
@@ -774,7 +666,7 @@ router.post(
       const intent = lifeThreatening ? 'emergency' : shouldOfferBooking ? 'booking' : wantsHuman ? 'escalation' : 'kb';
 
       // RAG: retrieve relevant chunks
-      const contextChunks = await retrieveContext(site_id, text);
+      const contextChunks = await retrieveContext(site_id, user_message);
       console.log(`[Chat/Stream] Context chunks: ${contextChunks.length}`);
 
       // ─── Fallback handler (stream): second misunderstood turn ────────────
@@ -837,20 +729,9 @@ router.post(
       
       console.log(`[Chat/Stream] SYSTEM PROMPT (first 200 chars):\n${systemPrompt.substring(0, 200)}...`);
 
-      const textWithPage = current_page_url
-        ? `[User is on page: ${current_page_url}]\n\n${text || ''}`
-        : (text || '');
-      const userContent = hasImage
-        ? [
-            { type: 'text', text: textWithPage || 'What do you see in this image?' },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${(user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg'};base64,${String(user_image_base64).trim()}`,
-              },
-            },
-          ]
-        : textWithPage;
+      const userContent = current_page_url
+        ? `[User is on page: ${current_page_url}]\n\n${user_message}`
+        : user_message;
 
       // Load conversation history for context (exclude current user message)
       const recent = await getRecentMessages(convoId, 201);
@@ -922,7 +803,7 @@ router.post(
           }
         }
 
-        const shouldCaptureLead = wantsHuman || detectLeadIntent(text) || detectLeadIntent(answer) || newMisunderstoodCount >= 2;
+        const shouldCaptureLead = wantsHuman || detectLeadIntent(user_message) || detectLeadIntent(answer) || newMisunderstoodCount >= 2;
         const afterAssistant = await appendMessage({ conversationId: convoId, siteId: site_id, role: 'assistant', content: answer });
         console.log(`[Chat/Stream] Assistant response saved to conversation ${convoId}. Total messages: ${afterAssistant.message_count}`);
 
@@ -961,7 +842,7 @@ router.post(
         processConversationForLead({
           conversationId: convoId,
           siteId: site_id,
-          userMessage: text,
+          userMessage: user_message,
           intent,
         }).catch((err) => {
           console.warn('[Chat/Stream] Lead pipeline failed (non-fatal):', err.message);

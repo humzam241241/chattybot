@@ -21,10 +21,8 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, prici
   const [bookingOpen, setBookingOpen] = useState(false);
   const [visitorId, setVisitorId] = useState(null);
   const [conversationId, setConversationId] = useState(null);
-  const [attachedImage, setAttachedImage] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -69,58 +67,35 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, prici
     }
   }
 
-  function handleFileSelect(e) {
-    const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      const base64 = dataUrl.split(',')[1];
-      if (base64) setAttachedImage({ dataUrl, base64, contentType: file.type || 'image/jpeg' });
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  }
-
   async function sendMessageText(rawText) {
     const text = String(rawText || '').trim();
-    const hasImage = attachedImage && attachedImage.base64;
-    if ((!text && !hasImage) || isTyping) return;
+    if (!text || isTyping) return;
 
     setInput('');
-    setAttachedImage(null);
     setBookingUrl(null);
-    const userMsg = { role: 'user', content: text || 'Photo', timestamp: new Date() };
-    if (hasImage) userMsg.imageUrl = attachedImage.dataUrl;
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, { role: 'user', content: text, timestamp: new Date() }]);
     setIsTyping(true);
 
-    const payload = {
-      site_id: siteId,
-      user_message: text || '',
-      current_page_url: window.location.href,
-      visitor_id: visitorId,
-      conversation_id: conversationId || undefined,
-    };
-    if (hasImage) {
-      payload.user_image_base64 = attachedImage.base64;
-      payload.user_image_content_type = attachedImage.contentType;
-    }
-
     try {
-      if (text) {
-        const bookingTrigger = /\b(book|schedule|inspection)\b/i.test(text);
-        const configuredBookingUrl = config?.booking_url ? String(config.booking_url) : '';
-        if (bookingTrigger && configuredBookingUrl) {
-          setBookingUrl(configuredBookingUrl);
-          setBookingOpen(true);
-        }
+      // Frontend-only booking trigger (instant UX)
+      const bookingTrigger = /\b(book|schedule|inspection)\b/i.test(text);
+      const configuredBookingUrl = config?.booking_url ? String(config.booking_url) : '';
+      if (bookingTrigger && configuredBookingUrl) {
+        setBookingUrl(configuredBookingUrl);
+        setBookingOpen(true);
       }
 
+      // Try SSE streaming first; fallback to non-streaming /chat.
       const streamRes = await fetch(`${apiUrl}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          site_id: siteId,
+          user_message: text,
+          current_page_url: window.location.href,
+          visitor_id: visitorId,
+          conversation_id: conversationId || undefined,
+        }),
       });
 
       if (streamRes.ok && streamRes.body) {
@@ -181,7 +156,13 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, prici
       const res = await fetch(`${apiUrl}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          site_id: siteId,
+          user_message: text,
+          current_page_url: window.location.href,
+          visitor_id: visitorId,
+          conversation_id: conversationId || undefined,
+        }),
       });
 
       const data = await res.json();
@@ -262,7 +243,6 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, prici
             content={msg.content}
             timestamp={msg.timestamp}
             primaryColor={primaryColor}
-            imageUrl={msg.imageUrl}
           />
         ))}
         {isTyping && <TypingIndicator />}
@@ -351,40 +331,11 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, prici
       )}
 
       {/* Input */}
-      {attachedImage && (
-        <div className="cb-attach-preview">
-          <img src={attachedImage.dataUrl} alt="Attach" />
-          <span>Photo attached</span>
-          <button type="button" className="cb-attach-remove" onClick={() => setAttachedImage(null)} aria-label="Remove">×</button>
-        </div>
-      )}
       <div className="cb-input-row">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
-        <button
-          type="button"
-          className="cb-upload-btn"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isTyping}
-          aria-label="Add photo"
-          title="Add photo"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <polyline points="21 15 16 10 5 21" />
-          </svg>
-          <span className="cb-upload-label">Photo</span>
-        </button>
         <textarea
           ref={inputRef}
           className="cb-input"
-          placeholder="Type a message or add a photo..."
+          placeholder="Type a message..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -395,7 +346,7 @@ export default function ChatWindow({ siteId, apiUrl, config, primaryColor, prici
           className="cb-send"
           style={{ background: primaryColor }}
           onClick={() => sendMessageText(input)}
-          disabled={(!input.trim() && !attachedImage) || isTyping}
+          disabled={!input.trim() || isTyping}
           aria-label="Send"
         >
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
