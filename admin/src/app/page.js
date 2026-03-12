@@ -311,10 +311,14 @@ export default function LandingPage() {
 
         .hero-hologram-bg {
           position: absolute;
-          inset: -60px -80px;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 600px;
+          height: 600px;
           z-index: 0;
           pointer-events: none;
-          opacity: 0.45;
+          opacity: 0.5;
         }
 
         .hero-content {
@@ -553,8 +557,9 @@ export default function LandingPage() {
           }
 
           .hero-hologram-bg {
-            inset: -40px -20px;
-            opacity: 0.3;
+            width: 400px;
+            height: 400px;
+            opacity: 0.35;
           }
 
           .hero-content {
