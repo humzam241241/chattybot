@@ -56,7 +56,7 @@ function BotModel() {
   });
 
   return (
-    <group ref={groupRef} scale={1.4} position={[0, -1.01, 0]}>
+    <group ref={groupRef} scale={1.4} position={[0, -1.01, 0]} rotation={[0, Math.PI, 0]}>
       <primitive object={cloned} />
       <EnergyRing />
       <EnergyRing radius={0.72} color={HOLO_PURPLE} />
@@ -158,7 +158,7 @@ function HologramBot() {
       <OuterErrorBoundary>
         <Canvas
           dpr={[1, 2]}
-          camera={{ position: [0, 0, 8.125], fov: 46 }}
+          camera={{ position: [0, 0.2, 8.125], fov: 46 }}
           gl={{ antialias: true, alpha: true }}
           style={{ width: '100%', height: '100%', background: 'transparent' }}
         >
