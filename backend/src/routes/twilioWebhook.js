@@ -6,14 +6,14 @@
  */
 
 const express = require('express');
-const { MessagingResponse } = require('twilio').twiml;
+const MessagingResponse = require('twilio').twiml.MessagingResponse;
 const twilio = require('twilio');
 const pool = require('../config/database');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { retrieveContext, buildSystemPrompt } = require('../services/rag');
 const { getOrCreateConversation, appendMessage, getRecentMessages } = require('../services/conversationLog');
 const { processConversationForLead } = require('../services/leadPipeline');
-const { validateWebhookSignature, normalizePhoneE164 } = require('../services/twilioClient');
+const { validateWebhookSignature, normalizePhoneE164, getTwilioClient } = require('../services/twilioClient');
 const { trackSmsUsage } = require('../middleware/usageTracking');
 const { downloadTwilioMedia } = require('../services/twilioMedia');
 const { analyzeImageWithClaude } = require('../services/claudeVision');
@@ -22,6 +22,39 @@ const OpenAI = require('openai');
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+function sendImmediateAck(res) {
+  const twiml = new MessagingResponse();
+  twiml.message('Got it — give me a moment while I check that for you.');
+  res.type('text/xml');
+  res.send(twiml.toString());
+}
+
+function normalizeTwilioAddress(raw, { channel }) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const withoutPrefix = s.replace(/^whatsapp:/i, '');
+  const e164 = normalizePhoneE164(withoutPrefix);
+  if (!e164) return null;
+  return channel === 'whatsapp' ? `whatsapp:${e164}` : e164;
+}
+
+async function sendTwilioOutboundMessage({ channel, fromRaw, toRaw, body }) {
+  const client = getTwilioClient();
+  if (!client) {
+    console.warn('[TwilioWebhook] Outbound send skipped - Twilio not configured');
+    return;
+  }
+
+  const from = normalizeTwilioAddress(fromRaw, { channel });
+  const to = normalizeTwilioAddress(toRaw, { channel });
+  if (!from || !to) {
+    console.warn('[TwilioWebhook] Outbound send skipped - invalid from/to', { fromRaw, toRaw, channel });
+    return;
+  }
+
+  await client.messages.create({ body, from, to });
+}
 
 function getFullUrl(req) {
   // trust proxy is enabled in app.js so req.protocol should reflect X-Forwarded-Proto
@@ -122,7 +155,7 @@ router.post('/sms', async (req, res) => {
       console.warn('[TwilioWebhook] Invalid Twilio signature (sms)');
       const twiml = new MessagingResponse();
       twiml.message('Invalid request.');
-      res.set('Content-Type', 'text/xml');
+      res.type('text/xml');
       return res.status(200).send(twiml.toString());
     }
     
@@ -133,84 +166,89 @@ router.post('/sms', async (req, res) => {
       console.error('[TwilioWebhook] Missing From or message content');
       const twiml = new MessagingResponse();
       twiml.message('Sorry, I could not process your message.');
-      res.set('Content-Type', 'text/xml');
+      res.type('text/xml');
       return res.status(200).send(twiml.toString());
     }
-    
-    // Resolve site by destination number (multi-tenant)
-    const mappedSiteId = await resolveSiteIdFromTo(To, 'sms');
-    const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
-    const allowFallback = shouldAllowDefaultFallback();
-    const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
-    if (!siteId) {
-      if (mappedSiteId) {
-        console.error('[TwilioWebhook] Site resolution failed unexpectedly');
-      } else if (!allowFallback) {
-        console.warn('[TwilioWebhook] No site mapping found; default fallback disabled');
-      } else {
-        console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
-      }
-      const twiml = new MessagingResponse();
-      twiml.message('This number is not configured yet. Please contact the business directly.');
-      res.set('Content-Type', 'text/xml');
-      return res.status(200).send(twiml.toString());
-    }
-    if (!mappedSiteId) {
-      console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID fallback');
-    }
-    console.log(`[TwilioWebhook] resolved site: ${siteId}`);
-    
-    trackSmsUsage(siteId, 'inbound').catch(() => {});
 
-    // MMS photo support (first media item only)
-    let mediaAnalysis = null;
-    if (numMedia > 0 && MediaUrl0) {
+    // Respond immediately to avoid Twilio timeouts (no AI/DB work before responding)
+    sendImmediateAck(res);
+
+    // Heavy work happens after response is sent
+    setImmediate(async () => {
       try {
-        const { buffer, contentType } = await downloadTwilioMedia(MediaUrl0);
-        const effectiveType = String(MediaContentType0 || contentType || '').toLowerCase();
-        if (effectiveType.startsWith('image/')) {
-          mediaAnalysis = await analyzeImageWithClaude({
-            buffer,
-            contentType: effectiveType,
-            prompt:
-              'Analyze the image for customer-support context. Extract any visible text and describe key details that would help answer the user.',
+        // Resolve site by destination number (multi-tenant)
+        const mappedSiteId = await resolveSiteIdFromTo(To, 'sms');
+        const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
+        const allowFallback = shouldAllowDefaultFallback();
+        const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
+
+        if (!siteId) {
+          await sendTwilioOutboundMessage({
+            channel: 'sms',
+            fromRaw: To,
+            toRaw: From,
+            body: 'This number is not configured yet. Please contact the business directly.',
           });
-        } else {
-          console.warn('[TwilioWebhook] SMS media is not an image; skipping vision analysis');
+          return;
         }
+
+        trackSmsUsage(siteId, 'inbound').catch(() => {});
+
+        // MMS photo support (first media item only)
+        let mediaAnalysis = null;
+        if (numMedia > 0 && MediaUrl0) {
+          try {
+            const { buffer, contentType } = await downloadTwilioMedia(MediaUrl0);
+            const effectiveType = String(MediaContentType0 || contentType || '').toLowerCase();
+            if (effectiveType.startsWith('image/')) {
+              mediaAnalysis = await analyzeImageWithClaude({
+                buffer,
+                contentType: effectiveType,
+                prompt:
+                  'Analyze the image for customer-support context. Extract any visible text and describe key details that would help answer the user.',
+              });
+            } else {
+              console.warn('[TwilioWebhook] SMS media is not an image; skipping vision analysis');
+            }
+          } catch (e) {
+            console.warn('[TwilioWebhook] SMS media download/analyze failed (non-fatal):', e.message);
+          }
+        }
+
+        const composedUserMessage = baseText || (numMedia > 0 ? '[User sent an image]' : '');
+        const userMessage = mediaAnalysis
+          ? `${composedUserMessage}\n\n[Image analysis]\n${mediaAnalysis}`
+          : composedUserMessage;
+
+        // Generate AI response
+        const aiRaw = await generateChatResponse({
+          siteId,
+          userMessage,
+          visitorId: `sms:${userPhone}`,
+          conversationId: null,
+        });
+        const aiResponse = formatSMSResponse(aiRaw);
+        console.log('[TwilioWebhook] SMS response prepared (sid=%s, chars=%s)', MessageSid || 'n/a', aiResponse.length);
+
+        trackSmsUsage(siteId, 'outbound').catch(() => {});
+
+        await sendTwilioOutboundMessage({
+          channel: 'sms',
+          fromRaw: To,
+          toRaw: From,
+          body: aiResponse || 'Thanks for contacting us. How can we help?',
+        });
       } catch (e) {
-        console.warn('[TwilioWebhook] SMS media download/analyze failed (non-fatal):', e.message);
+        console.error('[TwilioWebhook] Async SMS processing failed:', e?.message || e);
       }
-    }
-
-    const composedUserMessage = baseText || (numMedia > 0 ? '[User sent an image]' : '');
-    const userMessage = mediaAnalysis
-      ? `${composedUserMessage}\n\n[Image analysis]\n${mediaAnalysis}`
-      : composedUserMessage;
-    
-    // Generate AI response
-    const aiRaw = await generateChatResponse({
-      siteId,
-      userMessage,
-      visitorId: `sms:${userPhone}`,
-      conversationId: null,
     });
-    const aiResponse = formatSMSResponse(aiRaw);
-    console.log('[TwilioWebhook] SMS response prepared (sid=%s, chars=%s)', MessageSid || 'n/a', aiResponse.length);
-    
-    trackSmsUsage(siteId, 'outbound').catch(() => {});
-    
-    // ALWAYS return TwiML
-    const twiml = new MessagingResponse();
-    twiml.message(aiResponse || 'Thanks for contacting us. How can we help?');
 
-    res.set('Content-Type', 'text/xml');
-    return res.status(200).send(twiml.toString());
+    return;
   } catch (err) {
     console.error('[TwilioWebhook] Error processing SMS:', err.message, err.stack);
     const twiml = new MessagingResponse();
     twiml.message('Sorry, something went wrong. Please try again.');
-    res.set('Content-Type', 'text/xml');
+    res.type('text/xml');
     return res.status(200).send(twiml.toString());
   }
 });
@@ -236,7 +274,7 @@ router.post('/whatsapp', async (req, res) => {
       console.warn('[TwilioWebhook] Invalid Twilio signature (whatsapp)');
       const twiml = new MessagingResponse();
       twiml.message('Invalid request.');
-      res.set('Content-Type', 'text/xml');
+      res.type('text/xml');
       return res.status(200).send(twiml.toString());
     }
     
@@ -246,58 +284,63 @@ router.post('/whatsapp', async (req, res) => {
       console.error('[TwilioWebhook] Missing From or Body');
       const twiml = new MessagingResponse();
       twiml.message('Sorry, I could not process your message.');
-      res.set('Content-Type', 'text/xml');
+      res.type('text/xml');
       return res.status(200).send(twiml.toString());
     }
-    
-    // Resolve site by destination number (multi-tenant)
-    const mappedSiteId = await resolveSiteIdFromTo(To, 'whatsapp');
-    const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
-    const allowFallback = shouldAllowDefaultFallback();
-    const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
-    if (!siteId) {
-      if (mappedSiteId) {
-        console.error('[TwilioWebhook] Site resolution failed unexpectedly');
-      } else if (!allowFallback) {
-        console.warn('[TwilioWebhook] No site mapping found; default fallback disabled');
-      } else {
-        console.error('[TwilioWebhook] No site mapping and TWILIO_DEFAULT_SITE_ID not configured');
+
+    // Respond immediately to avoid Twilio timeouts (no AI/DB work before responding)
+    sendImmediateAck(res);
+
+    // Heavy work happens after response is sent
+    setImmediate(async () => {
+      try {
+        // Resolve site by destination number (multi-tenant)
+        const mappedSiteId = await resolveSiteIdFromTo(To, 'whatsapp');
+        const fallbackSiteId = process.env.TWILIO_DEFAULT_SITE_ID || null;
+        const allowFallback = shouldAllowDefaultFallback();
+        const siteId = mappedSiteId || (allowFallback ? fallbackSiteId : null);
+
+        if (!siteId) {
+          await sendTwilioOutboundMessage({
+            channel: 'whatsapp',
+            fromRaw: To,
+            toRaw: From,
+            body: 'This number is not configured yet. Please contact the business directly.',
+          });
+          return;
+        }
+
+        trackSmsUsage(siteId, 'inbound').catch(() => {});
+
+        // Generate AI response
+        const aiResponse = await generateChatResponse({
+          siteId,
+          userMessage: Body,
+          visitorId: `whatsapp:${userPhone}`,
+          conversationId: null,
+        });
+
+        console.log('[TwilioWebhook] Responding with:', aiResponse);
+
+        trackSmsUsage(siteId, 'outbound').catch(() => {});
+
+        await sendTwilioOutboundMessage({
+          channel: 'whatsapp',
+          fromRaw: To,
+          toRaw: From,
+          body: aiResponse || 'Thanks for contacting us. How can we help?',
+        });
+      } catch (e) {
+        console.error('[TwilioWebhook] Async WhatsApp processing failed:', e?.message || e);
       }
-      const twiml = new MessagingResponse();
-      twiml.message('This number is not configured yet. Please contact the business directly.');
-      res.set('Content-Type', 'text/xml');
-      return res.status(200).send(twiml.toString());
-    }
-    if (!mappedSiteId) {
-      console.warn('[TwilioWebhook] No site mapping found; using TWILIO_DEFAULT_SITE_ID fallback');
-    }
-    console.log(`[TwilioWebhook] resolved site: ${siteId}`);
-    
-    trackSmsUsage(siteId, 'inbound').catch(() => {});
-    
-    // Generate AI response
-    const aiResponse = await generateChatResponse({
-      siteId,
-      userMessage: Body,
-      visitorId: `whatsapp:${userPhone}`,
-      conversationId: null,
     });
-    
-    console.log('[TwilioWebhook] Responding with:', aiResponse);
-    
-    trackSmsUsage(siteId, 'outbound').catch(() => {});
-    
-    // ALWAYS return TwiML
-    const twiml = new MessagingResponse();
-    twiml.message(aiResponse || 'Thanks for contacting us. How can we help?');
-    
-    res.set('Content-Type', 'text/xml');
-    return res.status(200).send(twiml.toString());
+
+    return;
   } catch (err) {
     console.error('[TwilioWebhook] Error processing WhatsApp:', err.message, err.stack);
     const twiml = new MessagingResponse();
     twiml.message('Sorry, something went wrong. Please try again.');
-    res.set('Content-Type', 'text/xml');
+    res.type('text/xml');
     return res.status(200).send(twiml.toString());
   }
 });
