@@ -29,7 +29,7 @@ const {
   clampMisunderstoodCount,
 } = require('../services/raffyEscalation');
 const { isLifeThreateningEmergency } = require('../services/emergencyDetection');
-const { getSupabaseClient, getUploadsBucket } = require('../services/supabaseStorage');
+const { getSupabaseClient, getUploadsBucket, isStorageConfigured } = require('../services/supabaseStorage');
 const { v4: uuidv4 } = require('uuid');
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -43,6 +43,10 @@ function getImageExt(contentType) {
 }
 
 async function uploadChatImage({ siteId, conversationId, base64, contentType }) {
+  if (!isStorageConfigured()) {
+    console.warn('[Chat] Supabase storage not configured, skipping image upload');
+    return null;
+  }
   const type = (contentType || '').split(';')[0].trim().toLowerCase();
   if (!ALLOWED_IMAGE_TYPES.has(type)) throw new Error('Unsupported image type');
   const buffer = Buffer.from(base64, 'base64');
@@ -206,10 +210,11 @@ router.post(
             base64: String(user_image_base64).trim(),
             contentType: (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg',
           });
-          mediaContentType = (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg';
+          if (mediaUrl) {
+            mediaContentType = (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg';
+          }
         } catch (err) {
           console.warn('[Chat] Image upload failed:', err.message);
-          return res.status(400).json({ error: err.message || 'Image upload failed' });
         }
       }
       await appendMessage({
@@ -613,11 +618,11 @@ router.post(
             base64: String(user_image_base64).trim(),
             contentType: (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg',
           });
-          mediaContentType = (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg';
+          if (mediaUrl) {
+            mediaContentType = (user_image_content_type && String(user_image_content_type).trim()) || 'image/jpeg';
+          }
         } catch (err) {
           console.warn('[Chat/Stream] Image upload failed:', err.message);
-          res.write(`event: error\ndata: ${JSON.stringify({ error: err.message || 'Image upload failed' })}\n\n`);
-          return res.end();
         }
       }
       await appendMessage({
