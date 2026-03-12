@@ -56,7 +56,7 @@ function BotModel() {
   });
 
   return (
-    <group ref={groupRef} scale={1.4} position={[0, -1.01, 0]} rotation={[0, Math.PI, 0]}>
+    <group ref={groupRef} scale={1.4} position={[0, -1.01, 0]} rotation={[0, Math.PI + 25 * (Math.PI / 180), 0]}>
       <primitive object={cloned} />
       <EnergyRing />
       <EnergyRing radius={0.72} color={HOLO_PURPLE} />
