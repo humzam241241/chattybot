@@ -2,10 +2,10 @@ const axios = require('axios');
 const OpenAI = require('openai');
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MAX_DOWNLOAD_TIME_MS = 5000;
+const DOWNLOAD_TIMEOUT_MS = 10000;
 const MAX_VISION_TIME_MS = 15000;
 const OPENAI_VISION_ABORT_MS = 7000;
-const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const BOOKING_URL = 'https://cal.com/ryans-roofing';
 const DISCLAIMER =
   'Photos give a general idea, but a professional inspection is required for an accurate assessment.';
@@ -23,12 +23,8 @@ function normalizeImageContentType(type) {
 }
 
 function isAllowedTwilioMediaUrl(url) {
-  const u = String(url || '').trim();
-  if (!u) return false;
   try {
-    const parsed = new URL(u);
-    if (parsed.protocol !== 'https:') return false;
-    const host = parsed.hostname.toLowerCase();
+    const host = new URL(String(url || '').trim()).hostname.toLowerCase();
     return (
       host === 'api.twilio.com' ||
       host === 'mms.twiliocdn.com' ||
@@ -67,7 +63,7 @@ function isAbortError(err) {
   );
 }
 
-async function downloadTwilioImageToBase64({ mediaUrl, mediaContentType, meta }) {
+async function downloadTwilioMedia(mediaUrl, meta) {
   const accountSid = String(process.env.TWILIO_ACCOUNT_SID || '').trim();
   const authToken = String(process.env.TWILIO_AUTH_TOKEN || '').trim();
 
@@ -75,7 +71,7 @@ async function downloadTwilioImageToBase64({ mediaUrl, mediaContentType, meta })
   if (!mediaUrl) throw new Error('Missing MediaUrl0');
   if (!isAllowedTwilioMediaUrl(mediaUrl)) throw new Error('MediaUrl host not allowed');
 
-  visionLog('[Vision] Media received', meta, { mediaUrlHost: new URL(mediaUrl).hostname });
+  visionLog('[Vision] Media downloading', meta, { mediaUrlHost: new URL(mediaUrl).hostname });
 
   const resp = await axios.get(mediaUrl, {
     auth: {
@@ -83,20 +79,23 @@ async function downloadTwilioImageToBase64({ mediaUrl, mediaContentType, meta })
       password: process.env.TWILIO_AUTH_TOKEN,
     },
     responseType: 'arraybuffer',
-    timeout: MAX_DOWNLOAD_TIME_MS,
-    maxContentLength: MAX_IMAGE_BYTES,
+    timeout: DOWNLOAD_TIMEOUT_MS,
     maxRedirects: 5,
-    beforeRedirect: (options, { headers }) => {
-      // Validate redirect target is allowed Twilio domain
-      const redirectUrl = options.href || options.url;
-      if (redirectUrl && !isAllowedTwilioMediaUrl(redirectUrl)) {
-        visionLog('[Vision] Redirect blocked - untrusted host', meta, {
-          redirectUrl,
-          host: new URL(redirectUrl).hostname,
-        });
+    maxContentLength: MAX_IMAGE_BYTES,
+    beforeRedirect: (options) => {
+      let redirectUrl;
+      if (typeof options.href === 'string') {
+        redirectUrl = options.href;
+      } else {
+        redirectUrl = `${options.protocol}//${options.hostname}${options.path}`;
+      }
+      if (!isAllowedTwilioMediaUrl(redirectUrl)) {
+        visionLog('[Vision] Redirect blocked - untrusted host', meta, { redirectUrl });
         throw new Error('Redirect to untrusted host blocked');
       }
-      // Preserve auth on redirects
+      visionLog('[Vision] Redirect validated', meta, {
+        redirectHost: new URL(redirectUrl).hostname,
+      });
       options.auth = {
         username: process.env.TWILIO_ACCOUNT_SID,
         password: process.env.TWILIO_AUTH_TOKEN,
@@ -104,24 +103,28 @@ async function downloadTwilioImageToBase64({ mediaUrl, mediaContentType, meta })
     },
   });
 
-  const declaredLen = Number(resp.headers?.['content-length'] || '0') || 0;
-  if (declaredLen && declaredLen > MAX_IMAGE_BYTES) throw new Error(`Image too large (${declaredLen} bytes)`);
-
-  const headerType = normalizeImageContentType(resp.headers?.['content-type']);
-  const hintedType = normalizeImageContentType(mediaContentType);
-  const contentType = headerType || hintedType;
-
-  if (!ALLOWED_IMAGE_MIME_TYPES.has(contentType)) {
-    throw new Error(`Unsupported media type: ${contentType || 'unknown'}`);
-  }
-
   const buffer = Buffer.from(resp.data);
   if (!buffer.length) throw new Error('Empty image');
-  if (buffer.length > MAX_IMAGE_BYTES) throw new Error(`Image too large (${buffer.length} bytes)`);
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    visionLog('[Vision] Media rejected (too large)', meta, { bytes: buffer.length, max: MAX_IMAGE_BYTES });
+    throw new Error(`Image too large (${buffer.length} bytes)`);
+  }
 
-  visionLog('[Vision] Download success', meta, { bytes: buffer.length, contentType });
+  const headerType = normalizeImageContentType(resp.headers?.['content-type']);
+  const mime = headerType || 'image/jpeg';
 
-  return { base64: buffer.toString('base64'), contentType };
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(mime)) {
+    visionLog('[Vision] Media rejected (invalid type)', meta, { mime });
+    throw new Error(`Unsupported media type: ${mime || 'unknown'}`);
+  }
+
+  visionLog('[Vision] Media downloaded', meta, { bytes: buffer.length, mime });
+
+  return {
+    buffer,
+    mime,
+    base64: buffer.toString('base64'),
+  };
 }
 
 async function analyzeRoofImage(base64Image, contentType, meta) {
@@ -208,8 +211,9 @@ async function buildRoofAssessmentFromTwilioMedia({
   const meta = { requestId, conversationId, siteId, channel };
 
   try {
-    const { base64, contentType } = await downloadTwilioImageToBase64({ mediaUrl, mediaContentType, meta });
-    const analysis = await analyzeRoofImage(base64, contentType, meta);
+    const { base64, mime } = await downloadTwilioMedia(mediaUrl, meta);
+    const imageForVision = { mimeType: mime, data: base64 };
+    const analysis = await analyzeRoofImage(imageForVision.data, imageForVision.mimeType, meta);
     return formatRoofAssessment(analysis);
   } catch (e) {
     if (isAbortError(e)) {
