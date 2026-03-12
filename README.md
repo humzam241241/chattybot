@@ -1,25 +1,48 @@
 ## ChattyBot
 
-ChattyBot is a **multi-tenant, white-label AI chatbot platform**. It lets you create a “site” (tenant), ingest that site’s content (website + files), then embed a branded chat widget on the customer’s website. The backend uses **RAG (retrieval-augmented generation)** over **pgvector** embeddings and generates answers via OpenAI.
+ChattyBot is a **multi-tenant, white-label AI chatbot platform**. It lets you create a tenant (“site”), ingest that site’s content (website + files), and embed a branded chat widget on the customer’s website. The backend uses **RAG (retrieval-augmented generation)** over **pgvector** embeddings and generates answers via OpenAI.
 
-This `README.md` is intended to be the **single source of truth** for engineers onboarding to the repository (architecture, setup, deployment, operations).
+This `README.md` is the **single source of truth** for engineers onboarding to the repository (architecture, setup, deployment, operations).
 
-> You’ll see “raffy” in code and DB fields. That’s historical naming; it represents per-site chatbot configuration.
+> You’ll see “raffy” in code and DB fields. That’s historical naming; it represents per-site chatbot configuration (stored primarily under `sites.raffy_overrides`).
 
 ---
 
 ## 1. Product Overview
 
-ChattyBot provides:
+Core capabilities:
 
-- **Embeddable widget** that can be installed on any customer website with a single `<script>` tag.
-- **RAG chatbot** with multi-turn conversation history and streaming responses (SSE).
-- **Website ingestion** via Playwright crawling (multi-page, SPA-friendly).
-- **File ingestion** (PDF/DOCX/XLSX) with extracted text persisted for reprocessing/debugging.
-- **Lead intelligence**: lead scoring (HOT/WARM/COLD), extraction, missed-lead detection, notifications.
-- **Twilio messaging**: inbound SMS/WhatsApp webhooks and outbound notifications.
-- **White-label configuration**: per-site name, tone, colors, prompts, booking link, and behavior.
-- **Admin + analytics dashboards** for site management and operational monitoring.
+- Embeddable widget installed via a single `<script>` tag
+- RAG chat with multi-turn context + streaming (SSE)
+- Website ingestion via Playwright crawling
+- File ingestion (PDF/DOCX/XLSX) with extracted text persisted for reprocessing/debugging
+- Lead intelligence (extraction + scoring + notifications + missed-lead detection)
+- Twilio SMS/WhatsApp inbound webhooks and outbound notifications
+- White-label configuration per tenant (branding + behavior)
+- Admin + analytics dashboards
+
+### Quick Start (Local Dev)
+
+Minimal runnable path for engineers:
+
+```bash
+# 1) Backend
+cd backend
+npm install
+copy .env.example .env
+npm run dev
+
+# 2) Admin
+cd ..\admin
+npm install
+copy .env.example .env.local
+npm run dev
+
+# 3) Widget (build)
+cd ..\widget
+npm install
+npm run build
+```
 
 ---
 
@@ -42,6 +65,60 @@ High-level request path for chat:
 3. Backend retrieves relevant chunks via pgvector similarity search (tenant scoped by `site_id`).
 4. Backend calls OpenAI to generate a response using retrieved context.
 5. Backend persists conversation/messages and returns the assistant response (streaming for SSE endpoints).
+
+### Architecture diagram (component boundaries)
+
+```
+Customer Website
+   │
+   ▼
+Widget (Vite bundle)
+   │
+   ▼
+Backend API (Express)
+   │
+   ├── RAG Engine
+   │      ├ Embeddings (OpenAI)
+   │      ├ Retrieval (pgvector)
+   │      └ Prompt assembly
+   │
+   ├── Ingestion Pipeline
+   │      ├ Playwright crawler
+   │      ├ File processors (PDF/DOCX/XLSX)
+   │      └ Chunk + embed → store
+   │
+   ├── Messaging
+   │      ├ Twilio webhooks (TwiML replies)
+   │      └ Outbound notifications (Twilio REST)
+   │
+   └── Workers
+          ├ Summaries
+          ├ Lead extraction
+          ├ Missed-lead detection
+          └ Reports / reconciliation
+   ▼
+Postgres (Supabase)
+   ├ sites
+   ├ conversations
+   ├ messages
+   ├ documents (pgvector)
+   ├ leads
+   ├ files
+   └ usage tables
+```
+
+### RAG Pipeline
+
+1. User message arrives (widget → backend)
+2. Backend generates an embedding for the query
+3. Similarity search against `documents.embedding` (tenant scoped by `site_id`)
+4. Top \(K\) chunks retrieved
+5. Prompt constructed with:
+   - system prompt + “raffy” configuration
+   - recent conversation history
+   - retrieved chunks
+6. OpenAI completion generates response
+7. Response returned (optionally streamed via SSE)
 
 ---
 
@@ -78,15 +155,71 @@ chattybot/
   - AI extraction + scoring
   - Missed-lead detection and reconciliation
   - Notifications (email + optional SMS/WhatsApp)
+
+  Lead data flow:
+
+  ```
+  Conversation → lead signals
+          ↓
+    AI extraction
+          ↓
+   Lead scoring
+  (HOT/WARM/COLD)
+          ↓
+ Notification pipeline
+   (email/SMS/WA)
+  ```
+
 - **Twilio messaging**
   - Inbound SMS/WhatsApp webhooks (TwiML replies)
   - Outbound sends from notification pipeline (Twilio REST API)
 - **White-label configuration**
   - Per-site branding (colors, company name)
-  - Per-site behavior via system prompt + “raffy overrides”
+  - Per-site behavior via system prompt + `raffy_overrides`
+
+  White-label layers:
+
+  - Level 1: Branding (name, color)
+  - Level 2: Behavior (system prompt + tone/guardrails)
+  - Level 3: Communication (Twilio routing + lead notifications)
+
+  `raffy_overrides` (legacy naming) typically contains:
+
+  - `name`
+  - `role`
+  - `tone`
+  - `notifications` (lead destinations)
+  - `booking` (URL / embed settings)
 - **Analytics**
   - Conversation summaries and lead extraction workers
   - Dashboards for stats and transcripts
+
+### Core API Endpoints (minimal reference)
+
+Public/widget:
+
+- `GET /site-config/:site_id`
+- `POST /chat`
+- `POST /chat/stream` (SSE)
+- `POST /lead`
+
+Ingestion:
+
+- `POST /ingest/:site_id` (admin-auth)
+
+Admin (mounted under `/api/admin`):
+
+- `GET /api/admin/sites`
+- `POST /api/admin/ingest/:site_id`
+- `GET /api/admin/conversations/site/:site_id`
+- `GET /api/admin/conversations/:conversation_id`
+- `GET /api/admin/files/:site_id`
+- `POST /api/admin/files/upload`
+
+Messaging:
+
+- `POST /webhooks/twilio/sms`
+- `POST /webhooks/twilio/whatsapp`
 
 ---
 
@@ -355,6 +488,26 @@ Render notes for ingestion:
 - Deploy `admin-dashboard/`
 - Set `REACT_APP_API_URL` + `REACT_APP_ADMIN_SECRET`
 
+### Scaling Strategy (notes)
+
+Current architecture is designed to scale incrementally:
+
+- **Backend**
+  - Stateless Express servers (scale horizontally via Render replicas)
+  - Keep ingestion-heavy workloads bounded via limits and/or separate worker processes
+- **Database**
+  - Supabase Postgres + pgvector
+  - Index tuning and query hygiene matter as tenant count grows
+- **Workers**
+  - Can be separated from web process (PM2 or dedicated worker service)
+  - Future-friendly to queue-backed ingestion (Redis/BullMQ) if needed
+
+Future improvements typically considered:
+
+- caching layer (Redis) for hot site config and repeated retrieval patterns
+- embedding batching / backpressure for high ingestion throughput
+- pgvector index tuning for your dataset and recall/latency targets
+
 ---
 
 ## 13. Workers / Background Jobs
@@ -422,6 +575,17 @@ Typical steps to onboard a new customer:
 - **SQL safety**
   - Parameterized queries only; no string concatenation
 
+### Production Checklist
+
+- `NODE_ENV=production` set
+- `ADMIN_SECRET` is strong and rotated if leaked
+- CORS allowlist (`ALLOWED_ORIGINS`) set for admin origins
+- Rate limiting enabled on public endpoints
+- Twilio webhook signature validation enabled in production
+- `phone_numbers` mappings configured for all inbound numbers (avoid relying on fallback)
+- Ingestion limits tuned for your compute (Render: `PLAYWRIGHT_BROWSERS_PATH=0`, `INGEST_MAX_PAGES`, `INGEST_CONCURRENCY`)
+- Monitoring/log access confirmed (Render/Vercel dashboards)
+
 ---
 
 ## 17. Troubleshooting
@@ -449,4 +613,22 @@ Common causes:
 
 - Confirm `pdf-parse` is installed and the backend logs show non-zero extracted text length.
 - Use the admin “reprocess” action for files to regenerate embeddings after fixes.
+
+---
+
+## Common Development Tasks
+
+### Add a new tenant setting
+
+1. Add a column (or JSON field) on `sites` via migration in `backend/migrations/`
+2. Update backend services that read/write site configuration
+3. Update admin UI to manage the setting
+4. Ensure widget config fetch includes it (if needed client-side)
+
+### Add a new ingestion type
+
+1. Add a parser/extractor in the backend file ingestion service
+2. Normalize extracted text
+3. Reuse the chunk + embedding pipeline and store in `documents` scoped by `site_id`
+4. Add UI support (upload + reprocess) and validate end-to-end retrieval
 
