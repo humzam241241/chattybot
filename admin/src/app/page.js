@@ -97,36 +97,40 @@ export default function LandingPage() {
             <FloatingParticles style={{ zIndex: 0 }} />
             <SpotlightCursor className="hero-spotlight-wrap">
               <div className="hero-inner">
-                <div className="hero-hologram-bg">
-                  <HeroHologramErrorBoundary>
-                    <HologramBot />
-                  </HeroHologramErrorBoundary>
-                </div>
-                <div className="hero-content-card">
-                  <div className="hero-content">
-                    <HeroContent>
-                      <HeroTitle className="hero-title">
-                        AI-Powered Chatbots{' '}
-                        <span className="gradient-text">That Convert Visitors to Leads</span>
-                      </HeroTitle>
-                      <HeroSubtitle className="hero-subtitle">
-                        Deploy intelligent chatbots on your website in minutes.
-                        Capture leads 24/7, answer questions instantly, and never miss an opportunity.
-                      </HeroSubtitle>
-                      <HeroCTA className="hero-cta">
-                        <CTAButton href="/sign-up" primary size="lg">
-                          Start Free Trial
-                        </CTAButton>
-                        <CTAButton href="/pricing" primary={false} size="lg">
-                          View Pricing
-                        </CTAButton>
-                      </HeroCTA>
-                      <HeroNote className="hero-note">14-day free trial. No credit card required.</HeroNote>
-                    </HeroContent>
+                <div className="hero-left">
+                  <div className="hero-content-card">
+                    <div className="hero-content">
+                      <HeroContent>
+                        <HeroTitle className="hero-title">
+                          AI-Powered Chatbots{' '}
+                          <span className="gradient-text">That Convert Visitors to Leads</span>
+                        </HeroTitle>
+                        <HeroSubtitle className="hero-subtitle">
+                          Deploy intelligent chatbots on your website in minutes.
+                          Capture leads 24/7, answer questions instantly, and never miss an opportunity.
+                        </HeroSubtitle>
+                        <HeroCTA className="hero-cta">
+                          <CTAButton href="/sign-up" primary size="lg">
+                            Start Free Trial
+                          </CTAButton>
+                          <CTAButton href="/pricing" primary={false} size="lg">
+                            View Pricing
+                          </CTAButton>
+                        </HeroCTA>
+                        <HeroNote className="hero-note">14-day free trial. No credit card required.</HeroNote>
+                      </HeroContent>
+                    </div>
+                  </div>
+                  <div className="hero-demo-card">
+                    <ChatDemo />
                   </div>
                 </div>
-                <div className="hero-demo-card">
-                  <ChatDemo />
+                <div className="hero-right">
+                  <div className="hero-hologram-bg">
+                    <HeroHologramErrorBoundary>
+                      <HologramBot />
+                    </HeroHologramErrorBoundary>
+                  </div>
                 </div>
               </div>
             </SpotlightCursor>
@@ -302,18 +306,29 @@ export default function LandingPage() {
         }
 
         .hero-inner {
-          max-width: 720px;
+          max-width: 1200px;
           margin: 0 auto;
+          display: grid;
+          grid-template-columns: 1fr 520px;
+          gap: 48px;
+          align-items: start;
+          padding-bottom: 24px;
+        }
+
+        .hero-left {
           display: flex;
           flex-direction: column;
-          align-items: center;
-          gap: 48px;
-          padding-bottom: 24px;
+          gap: 24px;
+          min-width: 0;
+        }
+
+        .hero-right {
+          position: sticky;
+          top: 100px;
         }
 
         .hero-hologram-bg {
           width: 100%;
-          max-width: 520px;
           height: 420px;
           flex-shrink: 0;
           pointer-events: none;
@@ -385,6 +400,7 @@ export default function LandingPage() {
           flex-direction: column;
           align-items: center;
         }
+
 
         .hero-demo {
           display: flex;
@@ -575,9 +591,23 @@ export default function LandingPage() {
           }
 
           .hero-inner {
+            grid-template-columns: 1fr;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             gap: 36px;
             padding-left: 16px;
             padding-right: 16px;
+          }
+
+          .hero-right {
+            order: -1;
+            position: static;
+          }
+
+          .hero-left {
+            width: 100%;
+            max-width: 100%;
           }
 
           .hero-hologram-bg {
@@ -588,6 +618,7 @@ export default function LandingPage() {
 
           .hero-content-card {
             padding: 24px 20px;
+            max-width: 100%;
           }
 
           .hero-content {
