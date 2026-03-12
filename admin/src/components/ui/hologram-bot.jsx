@@ -1,170 +1,180 @@
 'use client';
 
-import React, { Suspense, useRef, useState, useMemo, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import {
-  useGLTF,
-  Float,
-  Sparkles,
-  Environment,
-  useCursor,
-} from '@react-three/drei';
 import * as THREE from 'three';
 
 const HOLO_COLOR = new THREE.Color(0x00e5ff);
+const HOLO_COLOR_2 = new THREE.Color(0x8b5cf6);
 
 function EnergyRing() {
+  const ref = useRef();
+  useFrame((_, delta) => {
+    if (ref.current) ref.current.rotation.z += delta * 0.5;
+  });
   return (
-    <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.8, 0]}>
-      <torusGeometry args={[0.6, 0.03, 16, 48]} />
+    <mesh ref={ref} rotation={[Math.PI / 2, 0, 0]} position={[0, -0.6, 0]}>
+      <torusGeometry args={[0.5, 0.02, 16, 48]} />
       <meshStandardMaterial
         color={HOLO_COLOR}
         emissive={HOLO_COLOR}
-        emissiveIntensity={1}
+        emissiveIntensity={1.5}
         transparent
-        opacity={0.9}
+        opacity={0.85}
       />
     </mesh>
   );
 }
 
-class HologramErrorBoundary extends React.Component {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  render() {
-    return this.state.hasError ? this.props.fallback : this.props.children;
-  }
-}
-
-function BotModel({ dragRotationRef }) {
+function HologramBot3D() {
   const groupRef = useRef();
-  const [hovered, setHover] = useState(false);
-  useCursor(hovered, 'grab');
+  const coreRef = useRef();
 
-  const { scene } = useGLTF('/models/bot.glb', true);
-  const cloned = useMemo(() => {
-    const s = scene.clone();
-    s.traverse((child) => {
-      if (child.isMesh) {
-        child.material = new THREE.MeshStandardMaterial({
-          color: HOLO_COLOR,
-          emissive: HOLO_COLOR,
-          emissiveIntensity: 0.7,
-          transparent: true,
-          opacity: 0.9,
-          roughness: 0.3,
-          metalness: 0.5,
-        });
-      }
-    });
-    return s;
-  }, [scene]);
-
-  const idleY = useRef(0);
-  useFrame((_, delta) => {
-    if (!groupRef.current || !dragRotationRef.current) return;
-    const [dx, dy] = dragRotationRef.current;
-    idleY.current += delta * 0.12;
-    groupRef.current.rotation.x = dx;
-    groupRef.current.rotation.y = dy + idleY.current;
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.15;
+      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 1.2) * 0.08;
+    }
+    if (coreRef.current) {
+      coreRef.current.rotation.x += delta * 0.3;
+      coreRef.current.rotation.z += delta * 0.2;
+    }
   });
 
   return (
-    <group ref={groupRef} scale={1.4} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
-      <primitive object={cloned} />
-      <EnergyRing />
-    </group>
-  );
-}
-
-function FallbackBot() {
-  const ref = useRef();
-  useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.y += delta * 0.2;
-  });
-  return (
-    <group ref={ref}>
-      <mesh>
-        <sphereGeometry args={[0.4, 32, 32]} />
+    <group ref={groupRef}>
+      {/* Main body - octahedron */}
+      <mesh ref={coreRef}>
+        <octahedronGeometry args={[0.4, 0]} />
         <meshStandardMaterial
           color={HOLO_COLOR}
           emissive={HOLO_COLOR}
-          emissiveIntensity={0.8}
+          emissiveIntensity={0.6}
           transparent
           opacity={0.9}
           roughness={0.2}
-          metalness={0.6}
+          metalness={0.8}
+          wireframe={false}
         />
       </mesh>
+
+      {/* Inner glow sphere */}
+      <mesh>
+        <sphereGeometry args={[0.25, 24, 24]} />
+        <meshStandardMaterial
+          color={HOLO_COLOR_2}
+          emissive={HOLO_COLOR_2}
+          emissiveIntensity={1}
+          transparent
+          opacity={0.5}
+        />
+      </mesh>
+
+      {/* Outer wireframe */}
+      <mesh>
+        <icosahedronGeometry args={[0.55, 1]} />
+        <meshBasicMaterial
+          color={HOLO_COLOR}
+          wireframe
+          transparent
+          opacity={0.3}
+        />
+      </mesh>
+
       <EnergyRing />
+
+      {/* Second ring */}
+      <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, 0]}>
+        <torusGeometry args={[0.65, 0.015, 16, 48]} />
+        <meshStandardMaterial
+          color={HOLO_COLOR_2}
+          emissive={HOLO_COLOR_2}
+          emissiveIntensity={1}
+          transparent
+          opacity={0.6}
+        />
+      </mesh>
     </group>
   );
 }
 
-function Scene({ dragRotationRef }) {
+function Particles() {
+  const count = 50;
+  const ref = useRef();
+  
+  const positions = React.useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 1.5 + Math.random() * 1;
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      pos[i * 3 + 2] = r * Math.cos(phi);
+    }
+    return pos;
+  }, []);
+
+  useFrame((state) => {
+    if (ref.current) {
+      ref.current.rotation.y = state.clock.elapsedTime * 0.05;
+    }
+  });
+
+  return (
+    <points ref={ref}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={count}
+          array={positions}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        size={0.03}
+        color={HOLO_COLOR}
+        transparent
+        opacity={0.6}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
+function Scene() {
   return (
     <>
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[5, 5, 5]} intensity={1.2} />
-      <directionalLight position={[-3, 2, 2]} intensity={0.5} />
-      <Environment preset="night" />
-      <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.4}>
-        <HologramErrorBoundary fallback={<FallbackBot />}>
-          <Suspense fallback={<FallbackBot />}>
-            <BotModel dragRotationRef={dragRotationRef} />
-          </Suspense>
-        </HologramErrorBoundary>
-      </Float>
-      <Sparkles
-        count={80}
-        scale={4}
-        size={1.2}
-        speed={0.3}
-        color={HOLO_COLOR}
-        opacity={0.6}
-      />
+      <ambientLight intensity={0.3} />
+      <directionalLight position={[5, 5, 5]} intensity={1} />
+      <directionalLight position={[-3, 2, 2]} intensity={0.4} color="#8b5cf6" />
+      <pointLight position={[0, 0, 0]} intensity={0.5} color={HOLO_COLOR} />
+      <HologramBot3D />
+      <Particles />
     </>
   );
 }
 
-function HologramBotInner({ dragRotationRef }) {
+function HologramCanvas() {
   return (
     <Canvas
       dpr={[1, 2]}
-      camera={{ position: [0, 0, 5], fov: 42 }}
-      frameloop="always"
+      camera={{ position: [0, 0, 3], fov: 50 }}
       gl={{ antialias: true, alpha: true }}
       style={{ width: '100%', height: '100%', minHeight: 320, background: 'transparent' }}
     >
-      <Scene dragRotationRef={dragRotationRef} />
+      <Scene />
     </Canvas>
   );
 }
 
 function HologramBotWithDrag() {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [error, setError] = useState(false);
 
-  const dragRotationRef = useRef([0, 0]);
-  const isDragging = useRef(false);
-  const prev = useRef([0, 0]);
-
-  const onPointerDown = (e) => {
-    isDragging.current = true;
-    prev.current = [e.clientX, e.clientY];
-  };
-  const onPointerMove = (e) => {
-    if (!isDragging.current) return;
-    const dx = (e.clientX - prev.current[0]) * 0.01;
-    const dy = (e.clientY - prev.current[1]) * 0.01;
-    prev.current = [e.clientX, e.clientY];
-    dragRotationRef.current = [
-      dragRotationRef.current[0] + dy,
-      dragRotationRef.current[1] + dx,
-    ];
-  };
-  const onPointerUp = () => { isDragging.current = false; };
-  const onPointerLeave = () => { isDragging.current = false; };
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!mounted) {
     return (
@@ -174,17 +184,39 @@ function HologramBotWithDrag() {
     );
   }
 
+  if (error) {
+    return (
+      <div style={{ width: '100%', height: '100%', minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)', fontSize: 14 }}>
+        <span>3D preview</span>
+      </div>
+    );
+  }
+
   return (
-    <div
-      style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320, cursor: 'grab' }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerLeave}
-    >
-      <HologramBotInner dragRotationRef={dragRotationRef} />
+    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320 }}>
+      <ErrorBoundary onError={() => setError(true)}>
+        <HologramCanvas />
+      </ErrorBoundary>
     </div>
   );
+}
+
+class ErrorBoundary extends React.Component {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch() {
+    if (this.props.onError) this.props.onError();
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ width: '100%', height: '100%', minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)', fontSize: 14 }}>
+          <span>3D preview</span>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default HologramBotWithDrag;
