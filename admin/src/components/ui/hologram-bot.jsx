@@ -56,7 +56,7 @@ function BotModel() {
   });
 
   return (
-    <group ref={groupRef} scale={1.4}>
+    <group ref={groupRef} scale={1.4} position={[0, -0.35, 0]}>
       <primitive object={cloned} />
       <EnergyRing />
       <EnergyRing radius={0.72} color={HOLO_PURPLE} />
@@ -77,7 +77,7 @@ function FallbackGeometry() {
   });
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} position={[0, -0.35, 0]}>
       <mesh ref={coreRef}>
         <octahedronGeometry args={[0.4, 0]} />
         <meshStandardMaterial
@@ -158,7 +158,7 @@ function HologramBot() {
       <OuterErrorBoundary>
         <Canvas
           dpr={[1, 2]}
-          camera={{ position: [0, 0, 4], fov: 45 }}
+          camera={{ position: [0, 0, 5.2], fov: 38 }}
           gl={{ antialias: true, alpha: true }}
           style={{ width: '100%', height: '100%', background: 'transparent' }}
         >
