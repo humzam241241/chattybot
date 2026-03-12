@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useRef, useState, useMemo, useEffect } from 'react';
+import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Float, Sparkles, Environment } from '@react-three/drei';
 import * as THREE from 'three';
@@ -27,7 +27,7 @@ function EnergyRing({ radius = 0.6, color = HOLO_CYAN }) {
   );
 }
 
-function BotModel({ dragRotationRef }) {
+function BotModel() {
   const groupRef = useRef();
   const { scene } = useGLTF('/models/bot.glb', true);
 
@@ -49,13 +49,10 @@ function BotModel({ dragRotationRef }) {
     return s;
   }, [scene]);
 
-  const idleY = useRef(0);
   useFrame((_, delta) => {
-    if (!groupRef.current) return;
-    idleY.current += delta * 0.12;
-    const dr = dragRotationRef?.current || [0, 0];
-    groupRef.current.rotation.x = dr[0];
-    groupRef.current.rotation.y = dr[1] + idleY.current;
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.12;
+    }
   });
 
   return (
@@ -67,18 +64,12 @@ function BotModel({ dragRotationRef }) {
   );
 }
 
-function FallbackGeometry({ dragRotationRef }) {
+function FallbackGeometry() {
   const groupRef = useRef();
   const coreRef = useRef();
-  const idleY = useRef(0);
 
-  useFrame((state, delta) => {
-    if (groupRef.current) {
-      idleY.current += delta * 0.12;
-      const dr = dragRotationRef?.current || [0, 0];
-      groupRef.current.rotation.x = dr[0];
-      groupRef.current.rotation.y = dr[1] + idleY.current;
-    }
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.12;
     if (coreRef.current) {
       coreRef.current.rotation.x += delta * 0.3;
       coreRef.current.rotation.z += delta * 0.2;
@@ -127,7 +118,7 @@ class ModelErrorBoundary extends React.Component {
   }
 }
 
-function Scene({ dragRotationRef }) {
+function Scene() {
   return (
     <>
       <ambientLight intensity={0.4} />
@@ -136,27 +127,14 @@ function Scene({ dragRotationRef }) {
       <pointLight position={[0, 0, 0]} intensity={0.5} color="#00e5ff" />
       <Environment preset="night" />
       <Float speed={1.5} rotationIntensity={0.15} floatIntensity={0.4}>
-        <ModelErrorBoundary fallback={<FallbackGeometry dragRotationRef={dragRotationRef} />}>
-          <Suspense fallback={<FallbackGeometry dragRotationRef={dragRotationRef} />}>
-            <BotModel dragRotationRef={dragRotationRef} />
+        <ModelErrorBoundary fallback={<FallbackGeometry />}>
+          <Suspense fallback={<FallbackGeometry />}>
+            <BotModel />
           </Suspense>
         </ModelErrorBoundary>
       </Float>
       <Sparkles count={60} scale={3.5} size={1} speed={0.3} color="#00e5ff" opacity={0.5} />
     </>
-  );
-}
-
-function HologramCanvas({ dragRotationRef }) {
-  return (
-    <Canvas
-      dpr={[1, 2]}
-      camera={{ position: [0, 0, 4], fov: 45 }}
-      gl={{ antialias: true, alpha: true }}
-      style={{ width: '100%', height: '100%', minHeight: 320, background: 'transparent' }}
-    >
-      <Scene dragRotationRef={dragRotationRef} />
-    </Canvas>
   );
 }
 
@@ -169,46 +147,26 @@ class OuterErrorBoundary extends React.Component {
   }
 }
 
-function HologramBotWithDrag() {
+function HologramBot() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-
-  const dragRotationRef = useRef([0, 0]);
-  const isDragging = useRef(false);
-  const prev = useRef([0, 0]);
-
-  const onPointerDown = (e) => {
-    isDragging.current = true;
-    prev.current = [e.clientX, e.clientY];
-  };
-  const onPointerMove = (e) => {
-    if (!isDragging.current) return;
-    const dx = (e.clientX - prev.current[0]) * 0.01;
-    const dy = (e.clientY - prev.current[1]) * 0.01;
-    prev.current = [e.clientX, e.clientY];
-    dragRotationRef.current = [
-      dragRotationRef.current[0] + dy,
-      dragRotationRef.current[1] + dx,
-    ];
-  };
-  const onPointerUp = () => { isDragging.current = false; };
-  const onPointerLeave = () => { isDragging.current = false; };
 
   if (!mounted) return null;
 
   return (
-    <div
-      style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320, cursor: 'grab' }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerLeave}
-    >
+    <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
       <OuterErrorBoundary>
-        <HologramCanvas dragRotationRef={dragRotationRef} />
+        <Canvas
+          dpr={[1, 2]}
+          camera={{ position: [0, 0, 4], fov: 45 }}
+          gl={{ antialias: true, alpha: true }}
+          style={{ width: '100%', height: '100%', background: 'transparent' }}
+        >
+          <Scene />
+        </Canvas>
       </OuterErrorBoundary>
     </div>
   );
 }
 
-export default HologramBotWithDrag;
+export default HologramBot;

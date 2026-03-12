@@ -97,6 +97,11 @@ export default function LandingPage() {
             <FloatingParticles style={{ zIndex: 0 }} />
             <SpotlightCursor className="hero-spotlight-wrap">
               <div className="hero-inner">
+                <div className="hero-hologram-bg">
+                  <HeroHologramErrorBoundary>
+                    <HologramBot />
+                  </HeroHologramErrorBoundary>
+                </div>
                 <div className="hero-content">
                   <HeroContent>
                     <HeroTitle className="hero-title">
@@ -119,11 +124,6 @@ export default function LandingPage() {
                   </HeroContent>
                 </div>
                 <div className="hero-demo">
-                  <div className="hero-hologram">
-                    <HeroHologramErrorBoundary>
-                      <HologramBot />
-                    </HeroHologramErrorBoundary>
-                  </div>
                   <ChatDemo />
                 </div>
               </div>
@@ -306,11 +306,22 @@ export default function LandingPage() {
           grid-template-columns: 1fr auto;
           gap: 48px;
           align-items: center;
+          position: relative;
+        }
+
+        .hero-hologram-bg {
+          position: absolute;
+          inset: -60px -80px;
+          z-index: 0;
+          pointer-events: none;
+          opacity: 0.45;
         }
 
         .hero-content {
           text-align: left;
           max-width: 560px;
+          position: relative;
+          z-index: 2;
         }
 
         .hero-title {
@@ -353,17 +364,8 @@ export default function LandingPage() {
           flex-direction: column;
           justify-content: center;
           align-items: center;
-          gap: 24px;
-        }
-
-        .hero-hologram {
-          width: 100%;
-          max-width: 340px;
-          height: 320px;
-          border-radius: 16px;
-          overflow: hidden;
-          background: linear-gradient(180deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.04) 100%);
-          border: 1px solid rgba(99, 102, 241, 0.15);
+          position: relative;
+          z-index: 2;
         }
 
         .features {
@@ -550,6 +552,11 @@ export default function LandingPage() {
             text-align: center;
           }
 
+          .hero-hologram-bg {
+            inset: -40px -20px;
+            opacity: 0.3;
+          }
+
           .hero-content {
             text-align: center;
           }
@@ -559,7 +566,6 @@ export default function LandingPage() {
           }
 
           .hero-demo {
-            order: -1;
             max-width: 360px;
             margin: 0 auto;
           }
