@@ -15,14 +15,9 @@ async function getOrCreateConversation({ siteId, visitorId, conversationId, curr
       return conversationId;
     }
   }
-
-  const id = uuidv4();
-  await pool.query(
-    `INSERT INTO conversations (id, site_id, user_phone, visitor_id, current_page_url, summary, message_count, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, '', 0, NOW(), NOW())`,
-    [id, siteId, userPhone || null, visitorId || null, currentPageUrl || null]
-  );
-  return id;
+  // IMPORTANT: Do not create conversations in shared services.
+  // Conversation creation is handled by entrypoint routes (e.g. web chat, Twilio webhook).
+  return null;
 }
 
 async function appendMessage({ conversationId, siteId, role, content }) {

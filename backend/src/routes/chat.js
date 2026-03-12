@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const OpenAI = require('openai');
 const pool = require('../config/database');
+const { v4: uuidv4 } = require('uuid');
 const { retrieveContext, buildSystemPrompt } = require('../services/rag');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const {
@@ -110,6 +111,16 @@ async function setConversationConsent(conversationId, status, email = null) {
   );
 }
 
+async function createConversation({ siteId, visitorId, currentPageUrl }) {
+  const id = uuidv4();
+  await pool.query(
+    `INSERT INTO conversations (id, site_id, visitor_id, user_phone, current_page_url)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [id, siteId, visitorId || null, null, currentPageUrl || null]
+  );
+  return id;
+}
+
 router.post(
   '/',
   chatLimiter,
@@ -147,12 +158,19 @@ router.post(
         console.log(`[Chat] Custom system_prompt (first 100 chars): ${site.system_prompt.substring(0, 100)}...`);
       }
 
-      const convoId = await getOrCreateConversation({
+      let convoId = await getOrCreateConversation({
         siteId: site_id,
         visitorId: visitor_id,
         conversationId: conversation_id,
         currentPageUrl: current_page_url,
       });
+      if (!convoId) {
+        convoId = await createConversation({
+          siteId: site_id,
+          visitorId: visitor_id,
+          currentPageUrl: current_page_url,
+        });
+      }
       console.log(`[Chat] Conversation: ${convoId}, Site: ${site_id}, Visitor: ${visitor_id}`);
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
@@ -510,12 +528,19 @@ router.post(
       console.log(`[Chat/Stream] SITE ID: ${site_id}`);
       console.log(`[Chat/Stream] Custom system_prompt exists: ${Boolean(site.system_prompt)}`);
 
-      const convoId = await getOrCreateConversation({
+      let convoId = await getOrCreateConversation({
         siteId: site_id,
         visitorId: visitor_id,
         conversationId: conversation_id,
         currentPageUrl: current_page_url,
       });
+      if (!convoId) {
+        convoId = await createConversation({
+          siteId: site_id,
+          visitorId: visitor_id,
+          currentPageUrl: current_page_url,
+        });
+      }
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });
 
