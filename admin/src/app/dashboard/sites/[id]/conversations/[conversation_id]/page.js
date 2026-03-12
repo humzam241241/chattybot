@@ -46,14 +46,16 @@ export default function ConversationDetailPage() {
           <div className="card">
             <div className="card-title">Transcript</div>
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {(data.messages || []).map((m) => (
+              {(data.messages || [])
+                .filter((m) => m != null && typeof m.role === 'string')
+                .map((m) => (
                 <div key={m.id} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span className="badge">{m.role}</span>
-                    <span className="text-muted">{new Date(m.created_at).toLocaleString()}</span>
+                    <span className="text-muted">{m?.created_at ? new Date(m.created_at).toLocaleString() : ''}</span>
                   </div>
-                  {m.content ? <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div> : null}
-                  {m.media_url && (
+                  {m?.content ? <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div> : null}
+                  {m?.media_url && (
                     <MessageMedia
                       conversationId={conversation_id}
                       messageId={m.id}

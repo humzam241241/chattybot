@@ -188,23 +188,28 @@ export default function ConversationsPage() {
             </div>
           ) : (
             <div style={styles.messageList}>
-              {messages.map((m) => (
+              {messages
+                .filter((m) => m != null && typeof m.role === 'string')
+                .map((m) => {
+                  const isUser = m.role === 'user';
+                return (
                 <div
                   key={m.id}
                   style={{
                     ...styles.message,
-                    ...(m.role === 'user' ? styles.userMessage : styles.assistantMessage),
+                    ...(isUser ? styles.userMessage : styles.assistantMessage),
                   }}
                 >
                   <div style={styles.messageRole}>
-                    {m.role === 'user' ? 'VISITOR' : 'BOT'}
+                    {isUser ? 'VISITOR' : 'BOT'}
                   </div>
-                  <div style={styles.messageContent}>{m.content}</div>
+                  <div style={styles.messageContent}>{m?.content ?? ''}</div>
                   <div style={styles.messageTime}>
-                    {new Date(m.created_at).toLocaleTimeString()}
+                    {m?.created_at ? new Date(m.created_at).toLocaleTimeString() : ''}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

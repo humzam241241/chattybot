@@ -81,29 +81,34 @@ export default function ChatDemo({ className = '' }) {
       </div>
       <div style={{ padding: 16, minHeight: 220, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <AnimatePresence initial={false}>
-          {messages.map((m, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              style={{
-                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
-                padding: '10px 14px',
-                borderRadius: 14,
-                fontSize: 13,
-                lineHeight: 1.45,
-                background: m.role === 'user' ? 'var(--primary-accent)' : 'var(--muted)',
-                color: m.role === 'user' ? '#fff' : 'var(--foreground)',
-                borderBottomRightRadius: m.role === 'user' ? 4 : 14,
-                borderBottomLeftRadius: m.role === 'user' ? 14 : 4,
-              }}
-            >
-              {m.text}
-            </motion.div>
-          ))}
+          {messages
+            .filter((m) => m != null && typeof m.role === 'string')
+            .map((m, i) => {
+              const isUser = m.role === 'user';
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  style={{
+                    alignSelf: isUser ? 'flex-end' : 'flex-start',
+                    maxWidth: '85%',
+                    padding: '10px 14px',
+                    borderRadius: 14,
+                    fontSize: 13,
+                    lineHeight: 1.45,
+                    background: isUser ? 'var(--primary-accent)' : 'var(--muted)',
+                    color: isUser ? '#fff' : 'var(--foreground)',
+                    borderBottomRightRadius: isUser ? 4 : 14,
+                    borderBottomLeftRadius: isUser ? 14 : 4,
+                  }}
+                >
+                  {m.text ?? ''}
+                </motion.div>
+              );
+            })}
         </AnimatePresence>
         {typing && (
           <motion.div
