@@ -1,7 +1,7 @@
 const pool = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 
-async function getOrCreateConversation({ siteId, visitorId, conversationId, currentPageUrl }) {
+async function getOrCreateConversation({ siteId, visitorId, conversationId, currentPageUrl, userPhone }) {
   if (conversationId) {
     const existing = await pool.query(
       'SELECT id FROM conversations WHERE id = $1 AND site_id = $2',
@@ -18,9 +18,9 @@ async function getOrCreateConversation({ siteId, visitorId, conversationId, curr
 
   const id = uuidv4();
   await pool.query(
-    `INSERT INTO conversations (id, site_id, visitor_id, current_page_url, summary, message_count, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, '', 0, NOW(), NOW())`,
-    [id, siteId, visitorId || null, currentPageUrl || null]
+    `INSERT INTO conversations (id, site_id, user_phone, visitor_id, current_page_url, summary, message_count, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, '', 0, NOW(), NOW())`,
+    [id, siteId, userPhone || null, visitorId || null, currentPageUrl || null]
   );
   return id;
 }

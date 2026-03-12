@@ -398,14 +398,21 @@ async function generateChatResponse({ siteId, userMessage, visitorId, conversati
 
     const { site, raffy } = settings;
 
-    // Get or create conversation
-    const convoId = await getOrCreateConversation({
-      siteId,
-      visitorId,
-      conversationId,
-      currentPageUrl: null,
-    });
+    // IMPORTANT: Twilio webhook must pass conversationId; do not create here.
+    if (!conversationId) {
+      throw new Error('Missing conversationId (Twilio webhook must create/reuse conversation)');
+    }
+    const convoId = conversationId;
     console.log(`[TwilioWebhook] conversation id: ${convoId}`);
+
+    // Verify conversation belongs to this site (safety)
+    const exists = await pool.query(
+      'SELECT id FROM conversations WHERE id = $1 AND site_id = $2 LIMIT 1',
+      [convoId, siteId]
+    );
+    if (!exists.rows.length) {
+      throw new Error('Conversation not found for site');
+    }
 
     // Save user message
     await appendMessage({
