@@ -139,7 +139,7 @@ export default function LandingPage() {
         .landing-header {
           position: sticky;
           top: 0;
-          background: rgba(12, 15, 20, 0.85);
+          background: rgba(255, 255, 255, 0.9);
           backdrop-filter: blur(12px);
           border-bottom: 1px solid var(--border);
           z-index: 100;
@@ -161,7 +161,7 @@ export default function LandingPage() {
         }
 
         .header-nav a {
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           text-decoration: none;
           font-weight: 500;
           font-size: 14px;
@@ -169,7 +169,7 @@ export default function LandingPage() {
         }
 
         .header-nav a:hover {
-          color: var(--text);
+          color: var(--foreground);
         }
 
         .header-actions {
@@ -180,9 +180,8 @@ export default function LandingPage() {
         .hero {
           padding: 100px 24px 120px;
           text-align: center;
-          background-image:
-            radial-gradient(ellipse 70% 40% at 50% 0%, var(--primary-glow), transparent 60%),
-            linear-gradient(180deg, var(--bg) 0%, var(--bg-elevated) 100%);
+          background: var(--background);
+          background-image: radial-gradient(ellipse 70% 40% at 50% 0%, var(--primary-glow), transparent 55%);
         }
 
         .hero-content {
@@ -195,12 +194,12 @@ export default function LandingPage() {
           font-weight: 700;
           line-height: 1.15;
           margin-bottom: 20px;
-          color: var(--text);
+          color: var(--foreground);
           letter-spacing: -0.03em;
         }
 
         .gradient-text {
-          background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 50%, #0284c7 100%);
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -208,7 +207,7 @@ export default function LandingPage() {
 
         .hero-subtitle {
           font-size: 18px;
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           line-height: 1.6;
           margin-bottom: 32px;
         }
@@ -223,7 +222,7 @@ export default function LandingPage() {
 
         .hero-note {
           font-size: 13px;
-          color: var(--muted);
+          color: var(--muted-foreground);
         }
 
         .btn-lg {
@@ -236,6 +235,7 @@ export default function LandingPage() {
           padding: 88px 24px;
           max-width: 1200px;
           margin: 0 auto;
+          background: var(--muted);
         }
 
         .section-title {
@@ -243,7 +243,7 @@ export default function LandingPage() {
           font-size: 28px;
           font-weight: 600;
           margin-bottom: 48px;
-          color: var(--text);
+          color: var(--foreground);
           letter-spacing: -0.02em;
         }
 
@@ -254,16 +254,17 @@ export default function LandingPage() {
         }
 
         .feature-card {
-          background: var(--surface);
+          background: var(--card);
           border: 1px solid var(--border);
-          border-radius: var(--radius);
+          border-radius: var(--radius-lg);
           padding: 28px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
           transition: border-color var(--transition), box-shadow var(--transition);
         }
 
         .feature-card:hover {
-          border-color: var(--border-strong);
-          box-shadow: 0 0 0 1px var(--border-strong), 0 8px 24px rgba(0, 0, 0, 0.2);
+          border-color: rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 20px var(--primary-glow), 0 0 0 1px rgba(99, 102, 241, 0.1);
         }
 
         .feature-icon {
@@ -276,11 +277,11 @@ export default function LandingPage() {
           font-size: 17px;
           font-weight: 600;
           margin-bottom: 8px;
-          color: var(--text);
+          color: var(--foreground);
         }
 
         .feature-card p {
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           font-size: 14px;
           line-height: 1.55;
         }
@@ -288,7 +289,7 @@ export default function LandingPage() {
         .cta-section {
           padding: 80px 24px;
           text-align: center;
-          background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--surface) 100%);
+          background: var(--background);
           border-top: 1px solid var(--border);
         }
 
@@ -296,26 +297,26 @@ export default function LandingPage() {
           font-size: 26px;
           font-weight: 600;
           margin-bottom: 12px;
-          color: var(--text);
+          color: var(--foreground);
         }
 
         .cta-section p {
           font-size: 16px;
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           margin-bottom: 28px;
         }
 
         .cta-section .btn {
-          background: var(--primary);
+          background: var(--primary-accent);
           color: #fff;
         }
 
         .cta-section .btn:hover {
-          background: var(--primary-dark);
+          background: var(--primary-accent-hover);
         }
 
         .landing-footer {
-          background: var(--surface);
+          background: var(--card);
           border-top: 1px solid var(--border);
           padding: 48px 24px 24px;
         }
@@ -350,12 +351,12 @@ export default function LandingPage() {
         .footer-brand .logo-text {
           font-weight: 700;
           font-size: 18px;
-          color: var(--text);
+          color: var(--foreground);
         }
 
         .footer-tagline {
           width: 100%;
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           font-size: 14px;
           margin: 0;
         }
@@ -370,13 +371,13 @@ export default function LandingPage() {
           font-size: 13px;
           text-transform: uppercase;
           letter-spacing: 0.05em;
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           margin-bottom: 14px;
         }
 
         .footer-col a {
           display: block;
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           text-decoration: none;
           font-size: 14px;
           margin-bottom: 8px;
@@ -384,7 +385,7 @@ export default function LandingPage() {
         }
 
         .footer-col a:hover {
-          color: var(--text);
+          color: var(--foreground);
         }
 
         .footer-bottom {
@@ -393,7 +394,7 @@ export default function LandingPage() {
           padding-top: 24px;
           border-top: 1px solid var(--border);
           text-align: center;
-          color: var(--muted);
+          color: var(--muted-foreground);
           font-size: 13px;
         }
 

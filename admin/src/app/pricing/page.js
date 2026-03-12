@@ -191,7 +191,7 @@ function PricingInner() {
 
       <style jsx>{`
         .landing-header {
-          background: rgba(12, 15, 20, 0.85);
+          background: rgba(255, 255, 255, 0.9);
           backdrop-filter: blur(12px);
           border-bottom: 1px solid var(--border);
         }
@@ -215,6 +215,7 @@ function PricingInner() {
           margin: 0 auto;
           padding: 88px 24px;
           text-align: center;
+          background: var(--background);
           background-image: radial-gradient(ellipse 60% 30% at 50% 0%, var(--primary-glow), transparent 55%);
         }
 
@@ -222,13 +223,13 @@ function PricingInner() {
           font-size: clamp(28px, 4vw, 36px);
           font-weight: 600;
           margin-bottom: 12px;
-          color: var(--text);
+          color: var(--foreground);
           letter-spacing: -0.02em;
         }
 
         .pricing-subtitle {
           font-size: 16px;
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           margin-bottom: 44px;
         }
 
@@ -241,21 +242,23 @@ function PricingInner() {
         }
 
         .pricing-card {
-          background: var(--surface);
+          background: var(--card);
           border: 1px solid var(--border);
-          border-radius: var(--radius);
+          border-radius: var(--radius-lg);
           padding: 28px;
           position: relative;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
           transition: border-color var(--transition), box-shadow var(--transition);
         }
 
         .pricing-card:hover {
-          border-color: var(--border-strong);
+          border-color: rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 20px var(--primary-glow);
         }
 
         .pricing-card.popular {
-          border-color: var(--primary);
-          box-shadow: 0 0 0 1px var(--primary), 0 8px 24px var(--primary-glow);
+          border-color: var(--primary-accent);
+          box-shadow: 0 0 0 1px var(--primary-accent), 0 8px 24px var(--primary-glow);
         }
 
         .popular-badge {
@@ -263,7 +266,7 @@ function PricingInner() {
           top: -10px;
           left: 50%;
           transform: translateX(-50%);
-          background: var(--primary);
+          background: var(--primary-accent);
           color: #fff;
           padding: 4px 14px;
           border-radius: 999px;
@@ -281,7 +284,7 @@ function PricingInner() {
           font-size: 18px;
           font-weight: 600;
           margin-bottom: 12px;
-          color: var(--text);
+          color: var(--foreground);
         }
 
         .price {
@@ -293,13 +296,13 @@ function PricingInner() {
         .amount {
           font-size: 40px;
           font-weight: 700;
-          color: var(--text);
+          color: var(--foreground);
           letter-spacing: -0.02em;
         }
 
         .period {
           font-size: 15px;
-          color: var(--text-soft);
+          color: var(--muted-foreground);
         }
 
         .savings {
@@ -317,7 +320,7 @@ function PricingInner() {
 
         .features-list li {
           padding: 6px 0;
-          color: var(--text-soft);
+          color: var(--muted-foreground);
           font-size: 14px;
           display: flex;
           align-items: center;
@@ -326,7 +329,7 @@ function PricingInner() {
 
         .features-list li::before {
           content: "✓";
-          color: var(--primary);
+          color: var(--primary-accent);
           font-weight: 600;
           flex-shrink: 0;
         }
