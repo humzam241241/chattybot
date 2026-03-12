@@ -168,28 +168,30 @@ async function analyzeRoofImage(base64Image, contentType, meta) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_VISION_ABORT_MS);
 
-  let response;
+  let completion;
   try {
-    response = await openai.responses.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.2,
-      max_output_tokens: 180,
-      input: [
-        {
-          role: 'user',
-          content: [
-            { type: 'input_text', text: prompt },
-            { type: 'input_image', image_url: dataUrl },
-          ],
-        },
-      ],
-      signal: controller.signal,
-    });
+    completion = await openai.chat.completions.create(
+      {
+        model: 'gpt-4o-mini',
+        temperature: 0.2,
+        max_tokens: 180,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+      },
+      { signal: controller.signal }
+    );
   } finally {
     clearTimeout(timeout);
   }
 
-  const text = String(response?.output_text || '').trim();
+  const text = String(completion?.choices?.[0]?.message?.content || '').trim();
   if (!text) throw new Error('Vision model returned empty response');
 
   visionLog('[Vision] Analysis success', meta, { chars: text.length });

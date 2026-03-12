@@ -80,7 +80,11 @@ function PricingInner() {
       <header className="landing-header">
         <div className="header-container">
           <Link href="/" className="logo">
-            <span className="logo-icon">🤖</span>
+            <span className="logo-icon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
             <span className="logo-text">ChattyBot</span>
           </Link>
           <div className="header-actions">
@@ -186,13 +190,9 @@ function PricingInner() {
       </main>
 
       <style jsx>{`
-        .pricing-page {
-          min-height: 100vh;
-          background: var(--bg);
-        }
-
         .landing-header {
-          background: var(--surface);
+          background: rgba(12, 15, 20, 0.85);
+          backdrop-filter: blur(12px);
           border-bottom: 1px solid var(--border);
         }
 
@@ -205,89 +205,83 @@ function PricingInner() {
           justify-content: space-between;
         }
 
-        .logo {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          text-decoration: none;
-          font-weight: 700;
-          font-size: 20px;
-          color: var(--text);
-        }
-
-        .logo-icon {
-          font-size: 28px;
-        }
-
         .header-actions {
           display: flex;
           gap: 12px;
         }
 
         .pricing-main {
-          max-width: 1200px;
+          max-width: 1000px;
           margin: 0 auto;
-          padding: 80px 24px;
+          padding: 88px 24px;
           text-align: center;
+          background-image: radial-gradient(ellipse 60% 30% at 50% 0%, var(--primary-glow), transparent 55%);
         }
 
         .pricing-main h1 {
-          font-size: 42px;
-          font-weight: 800;
-          margin-bottom: 16px;
+          font-size: clamp(28px, 4vw, 36px);
+          font-weight: 600;
+          margin-bottom: 12px;
+          color: var(--text);
+          letter-spacing: -0.02em;
         }
 
         .pricing-subtitle {
-          font-size: 18px;
-          color: var(--muted);
-          margin-bottom: 48px;
+          font-size: 16px;
+          color: var(--text-soft);
+          margin-bottom: 44px;
         }
 
         .pricing-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 24px;
-          max-width: 1000px;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 20px;
           margin: 0 auto;
+          text-align: left;
         }
 
         .pricing-card {
           background: var(--surface);
           border: 1px solid var(--border);
-          border-radius: 16px;
-          padding: 32px;
-          text-align: left;
+          border-radius: var(--radius);
+          padding: 28px;
           position: relative;
+          transition: border-color var(--transition), box-shadow var(--transition);
+        }
+
+        .pricing-card:hover {
+          border-color: var(--border-strong);
         }
 
         .pricing-card.popular {
           border-color: var(--primary);
-          box-shadow: 0 8px 32px rgba(99, 102, 241, 0.15);
+          box-shadow: 0 0 0 1px var(--primary), 0 8px 24px var(--primary-glow);
         }
 
         .popular-badge {
           position: absolute;
-          top: -12px;
+          top: -10px;
           left: 50%;
           transform: translateX(-50%);
           background: var(--primary);
-          color: white;
-          padding: 4px 16px;
-          border-radius: 20px;
-          font-size: 13px;
+          color: #fff;
+          padding: 4px 14px;
+          border-radius: 999px;
+          font-size: 12px;
           font-weight: 600;
         }
 
         .pricing-header {
-          margin-bottom: 24px;
-          padding-bottom: 24px;
+          margin-bottom: 20px;
+          padding-bottom: 20px;
           border-bottom: 1px solid var(--border);
         }
 
         .pricing-header h3 {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 600;
           margin-bottom: 12px;
+          color: var(--text);
         }
 
         .price {
@@ -297,21 +291,22 @@ function PricingInner() {
         }
 
         .amount {
-          font-size: 48px;
-          font-weight: 800;
+          font-size: 40px;
+          font-weight: 700;
           color: var(--text);
+          letter-spacing: -0.02em;
         }
 
         .period {
-          font-size: 16px;
-          color: var(--muted);
+          font-size: 15px;
+          color: var(--text-soft);
         }
 
         .savings {
-          margin-top: 8px;
-          color: #10b981;
-          font-weight: 600;
-          font-size: 14px;
+          margin-top: 6px;
+          color: #34d399;
+          font-weight: 500;
+          font-size: 13px;
         }
 
         .features-list {
@@ -321,8 +316,9 @@ function PricingInner() {
         }
 
         .features-list li {
-          padding: 8px 0;
-          color: var(--text);
+          padding: 6px 0;
+          color: var(--text-soft);
+          font-size: 14px;
           display: flex;
           align-items: center;
           gap: 8px;
@@ -332,17 +328,19 @@ function PricingInner() {
           content: "✓";
           color: var(--primary);
           font-weight: 600;
+          flex-shrink: 0;
         }
 
         .btn-full {
           width: 100%;
-          padding: 14px;
-          font-size: 16px;
+          padding: 12px 16px;
+          font-size: 15px;
+          border-radius: var(--radius-sm);
         }
 
         @media (max-width: 768px) {
           .pricing-main h1 {
-            font-size: 32px;
+            font-size: 28px;
           }
 
           .pricing-grid {

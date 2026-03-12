@@ -44,7 +44,11 @@ export default function SignUpPage() {
     <div className="auth-page">
       <div className="auth-container">
         <Link href="/" className="auth-logo">
-          <span className="logo-icon">🤖</span>
+          <span className="logo-icon" aria-hidden>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
           <span className="logo-text">ChattyBot</span>
         </Link>
 
@@ -109,93 +113,6 @@ export default function SignUpPage() {
           </p>
         </div>
       </div>
-
-      <style jsx>{`
-        .auth-page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: linear-gradient(180deg, var(--bg) 0%, rgba(99, 102, 241, 0.05) 100%);
-          padding: 24px;
-        }
-
-        .auth-container {
-          width: 100%;
-          max-width: 420px;
-        }
-
-        .auth-logo {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          text-decoration: none;
-          font-weight: 700;
-          font-size: 24px;
-          color: var(--text);
-          margin-bottom: 32px;
-        }
-
-        .logo-icon {
-          font-size: 32px;
-        }
-
-        .auth-card {
-          background: var(--surface);
-          border: 1px solid var(--border);
-          border-radius: 16px;
-          padding: 40px;
-        }
-
-        .auth-card h1 {
-          font-size: 24px;
-          font-weight: 700;
-          margin-bottom: 8px;
-          text-align: center;
-        }
-
-        .auth-subtitle {
-          color: var(--muted);
-          text-align: center;
-          margin-bottom: 32px;
-        }
-
-        .auth-form {
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-        }
-
-        .btn-full {
-          width: 100%;
-          padding: 14px;
-          font-size: 16px;
-        }
-
-        .auth-terms {
-          text-align: center;
-          margin-top: 16px;
-          font-size: 13px;
-          color: var(--muted);
-        }
-
-        .auth-footer {
-          text-align: center;
-          margin-top: 24px;
-          color: var(--muted);
-        }
-
-        .auth-footer a {
-          color: var(--primary);
-          text-decoration: none;
-          font-weight: 500;
-        }
-
-        .auth-footer a:hover {
-          text-decoration: underline;
-        }
-      `}</style>
     </div>
   );
 }

@@ -11,7 +11,11 @@ export default function LandingPage() {
       <header className="landing-header">
         <div className="header-container">
           <Link href="/" className="logo">
-            <span className="logo-icon">🤖</span>
+            <span className="logo-icon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
             <span className="logo-text">ChattyBot</span>
           </Link>
           <nav className="header-nav">
@@ -36,11 +40,11 @@ export default function LandingPage() {
         <section className="hero">
           <div className="hero-content">
             <h1 className="hero-title">
-              AI-Powered Chatbots<br />
+              AI-Powered Chatbots{' '}
               <span className="gradient-text">That Convert Visitors to Leads</span>
             </h1>
             <p className="hero-subtitle">
-              Deploy intelligent chatbots on your website in minutes. 
+              Deploy intelligent chatbots on your website in minutes.
               Capture leads 24/7, answer questions instantly, and never miss an opportunity.
             </p>
             <div className="hero-cta">
@@ -103,7 +107,11 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <div className="footer-container">
           <div className="footer-brand">
-            <span className="logo-icon">🤖</span>
+            <span className="logo-icon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
             <span className="logo-text">ChattyBot</span>
             <p className="footer-tagline">AI chatbots that convert.</p>
           </div>
@@ -128,16 +136,11 @@ export default function LandingPage() {
       </footer>
 
       <style jsx>{`
-        .landing-page {
-          min-height: 100vh;
-          background: var(--bg);
-        }
-
         .landing-header {
           position: sticky;
           top: 0;
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(10px);
+          background: rgba(12, 15, 20, 0.85);
+          backdrop-filter: blur(12px);
           border-bottom: 1px solid var(--border);
           z-index: 100;
         }
@@ -152,30 +155,17 @@ export default function LandingPage() {
           gap: 24px;
         }
 
-        .logo {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          text-decoration: none;
-          font-weight: 700;
-          font-size: 20px;
-          color: var(--text);
-        }
-
-        .logo-icon {
-          font-size: 28px;
-        }
-
         .header-nav {
           display: flex;
-          gap: 32px;
+          gap: 28px;
         }
 
         .header-nav a {
-          color: var(--muted);
+          color: var(--text-soft);
           text-decoration: none;
           font-weight: 500;
-          transition: color 0.2s;
+          font-size: 14px;
+          transition: color var(--transition);
         }
 
         .header-nav a:hover {
@@ -188,129 +178,140 @@ export default function LandingPage() {
         }
 
         .hero {
-          padding: 80px 24px 100px;
+          padding: 100px 24px 120px;
           text-align: center;
-          background: linear-gradient(180deg, var(--bg) 0%, rgba(99, 102, 241, 0.05) 100%);
+          background-image:
+            radial-gradient(ellipse 70% 40% at 50% 0%, var(--primary-glow), transparent 60%),
+            linear-gradient(180deg, var(--bg) 0%, var(--bg-elevated) 100%);
         }
 
         .hero-content {
-          max-width: 800px;
+          max-width: 720px;
           margin: 0 auto;
         }
 
         .hero-title {
-          font-size: 56px;
-          font-weight: 800;
-          line-height: 1.1;
-          margin-bottom: 24px;
+          font-size: clamp(32px, 5vw, 48px);
+          font-weight: 700;
+          line-height: 1.15;
+          margin-bottom: 20px;
           color: var(--text);
+          letter-spacing: -0.03em;
         }
 
         .gradient-text {
-          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 50%, #0284c7 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
         }
 
         .hero-subtitle {
-          font-size: 20px;
-          color: var(--muted);
+          font-size: 18px;
+          color: var(--text-soft);
           line-height: 1.6;
           margin-bottom: 32px;
         }
 
         .hero-cta {
           display: flex;
-          gap: 16px;
+          gap: 14px;
           justify-content: center;
-          margin-bottom: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 18px;
         }
 
         .hero-note {
-          font-size: 14px;
+          font-size: 13px;
           color: var(--muted);
         }
 
         .btn-lg {
-          padding: 14px 28px;
-          font-size: 16px;
+          padding: 12px 24px;
+          font-size: 15px;
+          border-radius: var(--radius-sm);
         }
 
         .features {
-          padding: 80px 24px;
+          padding: 88px 24px;
           max-width: 1200px;
           margin: 0 auto;
         }
 
         .section-title {
           text-align: center;
-          font-size: 36px;
-          font-weight: 700;
+          font-size: 28px;
+          font-weight: 600;
           margin-bottom: 48px;
+          color: var(--text);
+          letter-spacing: -0.02em;
         }
 
         .features-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-          gap: 24px;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 20px;
         }
 
         .feature-card {
           background: var(--surface);
           border: 1px solid var(--border);
-          border-radius: 16px;
-          padding: 32px;
-          transition: all 0.2s;
+          border-radius: var(--radius);
+          padding: 28px;
+          transition: border-color var(--transition), box-shadow var(--transition);
         }
 
         .feature-card:hover {
-          border-color: var(--primary);
-          transform: translateY(-4px);
-          box-shadow: 0 12px 32px rgba(99, 102, 241, 0.1);
+          border-color: var(--border-strong);
+          box-shadow: 0 0 0 1px var(--border-strong), 0 8px 24px rgba(0, 0, 0, 0.2);
         }
 
         .feature-icon {
-          font-size: 40px;
-          margin-bottom: 16px;
+          font-size: 28px;
+          margin-bottom: 14px;
+          opacity: 0.9;
         }
 
         .feature-card h3 {
-          font-size: 20px;
+          font-size: 17px;
           font-weight: 600;
           margin-bottom: 8px;
+          color: var(--text);
         }
 
         .feature-card p {
-          color: var(--muted);
-          line-height: 1.6;
+          color: var(--text-soft);
+          font-size: 14px;
+          line-height: 1.55;
         }
 
         .cta-section {
           padding: 80px 24px;
           text-align: center;
-          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-          color: white;
+          background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--surface) 100%);
+          border-top: 1px solid var(--border);
         }
 
         .cta-section h2 {
-          font-size: 36px;
-          margin-bottom: 16px;
+          font-size: 26px;
+          font-weight: 600;
+          margin-bottom: 12px;
+          color: var(--text);
         }
 
         .cta-section p {
-          font-size: 18px;
-          opacity: 0.9;
-          margin-bottom: 32px;
+          font-size: 16px;
+          color: var(--text-soft);
+          margin-bottom: 28px;
         }
 
         .cta-section .btn {
-          background: white;
-          color: #6366f1;
+          background: var(--primary);
+          color: #fff;
         }
 
         .cta-section .btn:hover {
-          background: #f8f8f8;
+          background: var(--primary-dark);
         }
 
         .landing-footer {
@@ -328,13 +329,35 @@ export default function LandingPage() {
           flex-wrap: wrap;
         }
 
+        .footer-brand {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 10px;
+        }
+
         .footer-brand .logo-icon {
-          font-size: 32px;
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+        }
+
+        .footer-brand .logo-text {
+          font-weight: 700;
+          font-size: 18px;
+          color: var(--text);
         }
 
         .footer-tagline {
-          color: var(--muted);
-          margin-top: 8px;
+          width: 100%;
+          color: var(--text-soft);
+          font-size: 14px;
+          margin: 0;
         }
 
         .footer-links {
@@ -344,15 +367,20 @@ export default function LandingPage() {
 
         .footer-col h4 {
           font-weight: 600;
-          margin-bottom: 16px;
+          font-size: 13px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--text-soft);
+          margin-bottom: 14px;
         }
 
         .footer-col a {
           display: block;
-          color: var(--muted);
+          color: var(--text-soft);
           text-decoration: none;
+          font-size: 14px;
           margin-bottom: 8px;
-          transition: color 0.2s;
+          transition: color var(--transition);
         }
 
         .footer-col a:hover {
@@ -366,7 +394,7 @@ export default function LandingPage() {
           border-top: 1px solid var(--border);
           text-align: center;
           color: var(--muted);
-          font-size: 14px;
+          font-size: 13px;
         }
 
         @media (max-width: 768px) {
@@ -375,7 +403,7 @@ export default function LandingPage() {
           }
 
           .hero-title {
-            font-size: 36px;
+            font-size: 32px;
           }
 
           .hero-cta {
