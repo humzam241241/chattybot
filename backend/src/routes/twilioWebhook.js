@@ -16,8 +16,7 @@ const { appendMessage, getRecentMessages } = require('../services/conversationLo
 const { processConversationForLead } = require('../services/leadPipeline');
 const { normalizePhoneE164 } = require('../utils/phone');
 const { trackSmsUsage } = require('../middleware/usageTracking');
-const { downloadTwilioMedia } = require('../services/twilioMedia');
-const { analyzeImageWithClaude } = require('../services/claudeVision');
+const { buildRoofAssessmentFromTwilioMedia, getVisionFallbackMessage } = require('../services/mediaVisionService');
 const { formatSMSResponse } = require('../utils/formatSMSResponse');
 const OpenAI = require('openai');
 
@@ -119,6 +118,56 @@ function normalizeTwilioTo(to) {
   return normalizePhoneE164(withoutPrefix);
 }
 
+async function handleVisionMediaMessage({
+  siteId,
+  conversationId,
+  requestId,
+  baseText,
+  mediaUrl,
+  mediaContentType,
+  channelLabel,
+}) {
+  console.log('[Vision] Media received', {
+    requestId,
+    conversationId,
+    siteId,
+    channel: channelLabel,
+  });
+
+  let responseText = null;
+  try {
+    responseText = await buildRoofAssessmentFromTwilioMedia({
+      mediaUrl,
+      mediaContentType,
+      requestId,
+      conversationId,
+      siteId,
+      channel: channelLabel,
+    });
+    console.log('[Vision] Response sent', {
+      requestId,
+      conversationId,
+      siteId,
+      channel: channelLabel,
+    });
+  } catch (e) {
+    console.error('[Vision] Failure', {
+      requestId,
+      conversationId,
+      siteId,
+      channel: channelLabel,
+      error: e?.message || String(e),
+    });
+    responseText = getVisionFallbackMessage();
+  }
+
+  const userMsg = String(baseText || '').trim() || '[User sent a roof photo]';
+  await appendMessage({ conversationId, siteId, role: 'user', content: userMsg });
+  await appendMessage({ conversationId, siteId, role: 'assistant', content: responseText });
+
+  return responseText;
+}
+
 async function resolveSiteIdFromTo(toNumberRaw) {
   try {
     const channel = arguments.length > 1 ? arguments[1] : 'sms';
@@ -216,37 +265,32 @@ router.post('/sms', async (req, res) => {
 
     trackSmsUsage(siteId, 'inbound').catch(() => {});
 
-    // MMS photo support (first media item only)
-    let mediaAnalysis = null;
-    if (numMedia > 0 && MediaUrl0) {
-      try {
-        const { buffer, contentType } = await downloadTwilioMedia(MediaUrl0);
-        const effectiveType = String(MediaContentType0 || contentType || '').toLowerCase();
-        if (effectiveType.startsWith('image/')) {
-          mediaAnalysis = await analyzeImageWithClaude({
-            buffer,
-            contentType: effectiveType,
-            prompt:
-              'Analyze the image for customer-support context. Extract any visible text and describe key details that would help answer the user.',
-          });
-        } else {
-          console.warn('[TwilioWebhook] SMS media is not an image; skipping vision analysis');
-        }
-      } catch (e) {
-        console.warn('[TwilioWebhook] SMS media download/analyze failed (non-fatal):', e.message);
-      }
-    }
-
-    const composedUserMessage = baseText || (numMedia > 0 ? '[User sent an image]' : '');
-    const userMessage = mediaAnalysis
-      ? `${composedUserMessage}\n\n[Image analysis]\n${mediaAnalysis}`
-      : composedUserMessage;
-
     const from = req.body.From; // e.g. "whatsapp:+19057496855"
     console.log('[Twilio] visitor:', from);
     const conversationId = await findOrCreateConversationIdForTwilio({ siteId, from });
     console.log('[Twilio] using conversation:', conversationId);
 
+    // Media messages bypass RAG pipeline; return a formatted vision response + persist like normal chat.
+    if (numMedia > 0 && MediaUrl0) {
+      const responseText = await handleVisionMediaMessage({
+        siteId,
+        conversationId,
+        requestId: MessageSid || null,
+        baseText,
+        mediaUrl: MediaUrl0,
+        mediaContentType: MediaContentType0,
+        channelLabel: 'sms',
+      });
+
+      trackSmsUsage(siteId, 'outbound').catch(() => {});
+
+      const twiml = new MessagingResponse();
+      twiml.message(responseText);
+      res.type('text/xml');
+      return res.status(200).send(twiml.toString());
+    }
+
+    const userMessage = baseText;
     const aiRaw = await generateChatResponse({
       siteId,
       userMessage,
@@ -278,13 +322,14 @@ router.post('/sms', async (req, res) => {
 router.post('/whatsapp', async (req, res) => {
   console.log('[TwilioWebhook] WhatsApp received:', req.body.Body);
   
-  const { From, To, Body, MessageSid } = req.body;
+  const { From, To, Body, MessageSid, NumMedia, MediaUrl0, MediaContentType0 } = req.body;
+  const numMedia = Number(NumMedia || 0) || 0;
   
   // Strip "whatsapp:" prefix if present
   const fromPhone = From?.replace('whatsapp:', '');
   const toPhone = To?.replace('whatsapp:', '');
   
-  console.log(`[TwilioWebhook] From: ${fromPhone}, To: ${toPhone}, MessageSid: ${MessageSid}`);
+  console.log(`[TwilioWebhook] From: ${fromPhone}, To: ${toPhone}, MessageSid: ${MessageSid}, media=${numMedia}`);
   
   try {
     // Verify Twilio signature
@@ -298,7 +343,9 @@ router.post('/whatsapp', async (req, res) => {
     
     const userPhone = normalizePhoneE164(fromPhone);
     
-    if (!Body || !userPhone) {
+    const baseText = String(Body || '').trim();
+
+    if ((!baseText && numMedia <= 0) || !userPhone) {
       console.error('[TwilioWebhook] Missing From or Body');
       const twiml = new MessagingResponse();
       twiml.message('Sorry, I could not process your message.');
@@ -326,9 +373,29 @@ router.post('/whatsapp', async (req, res) => {
     const conversationId = await findOrCreateConversationIdForTwilio({ siteId, from });
     console.log('[Twilio] using conversation:', conversationId);
 
+    // Vision pipeline (WhatsApp media): short roof assessment + disclaimer + booking link
+    if (numMedia > 0 && MediaUrl0) {
+      const responseText = await handleVisionMediaMessage({
+        siteId,
+        conversationId,
+        requestId: MessageSid || null,
+        baseText,
+        mediaUrl: MediaUrl0,
+        mediaContentType: MediaContentType0,
+        channelLabel: 'whatsapp',
+      });
+
+      trackSmsUsage(siteId, 'outbound').catch(() => {});
+
+      const twiml = new MessagingResponse();
+      twiml.message(responseText);
+      res.type('text/xml');
+      return res.status(200).send(twiml.toString());
+    }
+
     const aiResponse = await generateChatResponse({
       siteId,
-      userMessage: Body,
+      userMessage: baseText,
       visitorId: `whatsapp:${userPhone}`,
       conversationId,
     });

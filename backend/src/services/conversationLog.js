@@ -33,8 +33,9 @@ async function appendMessage({ conversationId, siteId, role, content }) {
      SET message_count = message_count + 1,
          updated_at = NOW()
      WHERE id = $1
+       AND site_id = $2
      RETURNING message_count, summary`,
-    [conversationId]
+    [conversationId, siteId]
   );
 
   return {
