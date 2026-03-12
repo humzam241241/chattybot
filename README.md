@@ -1,366 +1,273 @@
-# ChattyBot — White-Label AI Chatbot Platform
+# ChattyBot
 
-A production-ready, **white-label** SaaS platform for embedding customizable AI chatbots on any website. Powered by RAG (Retrieval Augmented Generation), pgvector, and OpenAI.
+Multi-tenant, white-label AI chatbot platform (backend + embeddable widget + admin UI + analytics UI).
 
-**Perfect For:**
-- 🏢 **Agencies** — Deploy custom-branded chatbots for multiple clients
-- 💼 **SaaS Businesses** — Embed AI chat on customer websites
-- 🎨 **White-Label Solutions** — Each client gets their own bot name, personality, and branding
-
-> **Note**: "Raffy" in code variable names is historical naming. The actual chatbot name, personality, and behavior are 100% configurable per site.
+This README replaces all prior project documentation. It is intended to be the **single source of truth** for setup, configuration, deployment, and operations.
 
 ---
 
-## Current State & Capabilities
-
-**Status:** Production-ready, fully functional multi-tenant platform.
-
-### What's Implemented
-
-| Area | Capabilities |
-|------|--------------|
-| **Chat** | RAG-powered responses, streaming (SSE), multi-turn context, intent classification (kb/booking/escalation/emergency), proactive lead capture prompts |
-| **Knowledge Base** | Website ingestion (Playwright), file upload (PDF/DOCX/XLSX), pgvector embeddings, chunking |
-| **Lead Intelligence** | Automatic scoring (HOT/WARM/COLD), email/phone detection, AI extraction, webhook integration, owner notifications, CSV export, duplicate detection |
-| **Missed Opportunities** | Detect conversations with lead signals but no contact info captured, automatic alerts |
-| **Data Reconciliation** | Automated daily scan (2 AM) + manual trigger to recover missed lead data from database |
-| **Weekly Reports** | Automated email reports with conversation stats, lead breakdown, top questions |
-| **Admin Dashboard** | Site CRUD, conversations list with two-panel chat viewer + summaries, leads, missed leads, files, RAG evaluation, widget settings |
-| **Analytics** | AI summaries, lead extraction worker, stats dashboard (React app), transcript viewer |
-| **Widget** | Floating bubble, streaming responses, quick reply chips, booking CTA, lead form, Shadow DOM isolation |
-| **Security** | Domain verification, rate limiting, tenant isolation, Bearer auth, input validation |
-
-### Admin Dashboard Features
-
-- **Sites** — Create, edit, delete sites; configure color, tone, domain, system prompt
-- **Conversations** — Two-panel layout: left = conversation list (visitor_id, message count, timestamp, lead rating); right = full chat transcript
-- **Leads** — List, export CSV
-- **Files** — Upload PDF/DOCX/XLSX, reprocess, delete
-- **RAG Evaluation** — Run accuracy tests on knowledge base
-- **Settings** — Intro message, suggested questions, booking URL, lead email
-
-### Tech Stack
-
-| Component | Stack |
-|-----------|-------|
-| Backend | Node.js, Express, pg, OpenAI, Playwright |
-| Widget | React, Vite (IIFE bundle) |
-| Admin | Next.js 14, React |
-| Analytics | React, Chart.js, Tailwind |
-| Database | Supabase (PostgreSQL + pgvector) |
-
----
-
-## Architecture Overview
+## Monorepo layout
 
 ```
 chattybot/
-├── backend/          Node.js + Express API (deploy to Render)
-├── widget/           React chat widget → single widget.js (deploy to Vercel)
-├── admin/            Next.js admin dashboard (deploy to Vercel)
-└── admin-dashboard/  React analytics dashboard (deploy to Vercel)
-```
-
-**Data flow:**
-```
-Customer site
-  └── <script data-site-id="...">
-        └── widget.js fetches /site-config → renders branded chat
-              └── POST /chat or /chat/stream → backend embeds query → pgvector search → GPT-4o-mini → answer
+├── backend/          Express API + workers (Render)
+├── widget/           Embeddable chat widget (Vite → single JS bundle; Vercel/CDN)
+├── admin/            Admin dashboard (Next.js; Vercel)
+└── admin-dashboard/  Analytics dashboard (React; Vercel)
 ```
 
 ---
 
-## Quick Start (Local Dev)
+## What the platform does
 
-### Prerequisites
-- Node.js 18+
-- Supabase project with pgvector enabled
-- OpenAI API key
+- **Website + file knowledge base** per tenant (`site_id`)
+  - Website crawling via Playwright
+  - File ingestion (PDF/DOCX/XLSX) → text extraction → chunking → embeddings → pgvector retrieval
+- **Chat**: normal and streaming responses (SSE) using RAG context
+- **Lead intelligence**: scoring, extraction, notifications, missed-lead detection, reconciliation
+- **Twilio**: inbound SMS/WhatsApp webhooks + outbound notification pipeline
+- **White-label**: per-site branding + behavior via site configuration (historically named “raffy” in code)
 
-### 1. Database Setup
+---
 
-Run migrations in Supabase SQL editor (in order):
-- `backend/migrations/001_initial.sql`
-- `backend/migrations/002_files_conversations_settings.sql`
-- `backend/migrations/003_lead_scoring.sql`
-- `backend/migrations/004_conversation_overview_view.sql`
-- `backend/migrations/005_enhanced_leads.sql`
-- `backend/migrations/006_agency_features.sql`
-- `backend/migrations/007_conversation_summary_jobs.sql`
-- `backend/migrations/008_data_reconciliation.sql`
+## Prerequisites
 
-Enable pgvector: Dashboard → Database → Extensions → search "vector" → Enable
+- **Node.js 18+**
+- **PostgreSQL** (Supabase recommended) with **pgvector** enabled
+- **OpenAI API key**
+- (Optional) **Twilio** account for SMS/WhatsApp
+- (Optional) **Supabase Storage** for file uploads
 
-### 2. Backend
+---
+
+## Local development (Windows/PowerShell friendly)
+
+### 1) Database
+
+- Create a Supabase project (or any Postgres).
+- Enable pgvector (Supabase: Database → Extensions → enable `vector`).
+- Run SQL migrations in order from `backend/migrations/` (Supabase SQL editor).
+
+### 2) Backend (API + workers)
 
 ```bash
 cd backend
 npm install
-cp .env.example .env
-# Edit .env: DATABASE_URL, OPENAI_API_KEY, ADMIN_SECRET
+copy .env.example .env
 npm run dev
-# Runs on http://localhost:3001
 ```
 
-### 3. Widget
+Backend default: `http://localhost:3001`
+
+### 3) Admin dashboard (Next.js)
+
+```bash
+cd admin
+npm install
+copy .env.example .env
+npm run dev
+```
+
+Admin default: `http://localhost:3000`
+
+### 4) Widget (embeddable)
 
 ```bash
 cd widget
 npm install
 npm run build
-# Output: dist/widget.js
-npx serve widget/dist   # Local testing
 ```
 
-### 4. Admin Dashboard
+Output: `widget/dist/widget.js`
 
-```bash
-cd admin
-npm install
-cp .env.example .env
-# Set API_URL, ADMIN_SECRET, NEXT_PUBLIC_WIDGET_URL, NEXT_PUBLIC_API_URL
-npm run dev
-# Runs on http://localhost:3000
-```
-
-### 5. Analytics Dashboard (Optional)
+### 5) Analytics dashboard (optional)
 
 ```bash
 cd admin-dashboard
 npm install
-# Set REACT_APP_API_URL, REACT_APP_ADMIN_SECRET in .env
 npm start
 ```
 
 ---
 
-## Deployment
-
-### Backend → Render
-
-1. Create Web Service on [render.com](https://render.com)
-2. Root directory: `backend`
-3. Build: `npm install`
-4. Start: `npm start`
-5. Add env vars from `backend/.env.example`
-
-Render notes for Playwright ingestion:
-- `PLAYWRIGHT_BROWSERS_PATH=0`
-- `NODE_OPTIONS=--max-old-space-size=512`
-- `INGEST_MAX_PAGES=10` (optional, cap crawl size)
-
-### Widget → Vercel
-
-```bash
-cd widget && npm run build
-npx vercel --prod
-# Set output directory: dist
-```
-
-### Admin → Vercel
-
-```bash
-cd admin
-npx vercel --prod
-```
-
-Env vars: `API_URL`, `ADMIN_SECRET`, `NEXT_PUBLIC_WIDGET_URL`, `NEXT_PUBLIC_API_URL`
-
----
-
-## Usage Guide
-
-### Creating Your First Site
-
-1. Admin → **+ New Site**
-2. Fill company name, domain, color, tone
-3. **Create Site** → **Re-ingest Site** (crawl website)
-4. Copy **Embed Code** → paste before `</body>` on your site
-
-### Embed Code
+## Embed snippet (customer site)
 
 ```html
-<script 
-  src="https://your-widget.vercel.app/widget.js" 
-  data-site-id="YOUR_SITE_ID"
-  data-api-url="https://your-backend.onrender.com">
+<script
+  src="https://YOUR_WIDGET_HOST/widget.js"
+  data-site-id="YOUR_SITE_UUID"
+  data-api-url="https://YOUR_BACKEND_HOST">
 </script>
 ```
 
-### Viewing Conversations & Leads
-
-- **Conversations:** Sites → [Site] → Conversations → click any row to view full transcript
-- **Leads:** Sites → [Site] → Leads → Export CSV
+The widget fetches site branding/config from the backend and then sends chat messages to the backend API.
 
 ---
 
-## API Reference
+## Environment variables
 
-### Public Endpoints (Widget)
+### Backend (`backend/.env`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/site-config/:site_id` | Widget branding config |
-| POST | `/chat` | Send message, get AI response |
-| POST | `/chat/stream` | Streaming response (SSE) |
-| POST | `/lead` | Lead capture form |
+**Required (core):**
 
-### Admin Endpoints (Bearer token)
+- `DATABASE_URL`
+- `OPENAI_API_KEY`
+- `ADMIN_SECRET`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/sites` | List sites |
-| POST | `/sites` | Create site |
-| GET | `/sites/:id` | Get site |
-| PUT | `/sites/:id` | Update site |
-| DELETE | `/sites/:id` | Delete site |
-| POST | `/ingest/:site_id` | Trigger ingestion |
-| GET | `/lead/:site_id` | List leads |
-| GET | `/api/admin/conversations/site/:site_id` | List conversations |
-| GET | `/api/admin/conversations/:conversation_id` | Conversation + messages |
-| GET | `/api/admin/files/:site_id` | List files |
-| POST | `/api/admin/files/upload` | Upload file |
-| POST | `/api/admin/rag-eval/:site_id` | Run RAG evaluation |
-| GET | `/api/admin/missed-leads/:site_id` | List missed lead opportunities |
-| GET | `/api/admin/missed-leads/:site_id/stats` | Missed lead statistics |
+**Common optional:**
 
----
+- `ALLOWED_ORIGINS` (comma separated; admin origins)
+- `INGEST_MAX_PAGES` (Render-safe default is often `10`)
+- `INGEST_CONCURRENCY`
+- `PLAYWRIGHT_BROWSERS_PATH=0` (Render)
+- `NODE_OPTIONS=--max-old-space-size=512` (Render memory)
 
-## Security
+**Supabase storage (file uploads):**
 
-- **Domain verification** — Widget validated against registered domain
-- **Rate limiting** — Chat 30/min, Ingest 10/hr, API 60/min
-- **Tenant isolation** — All queries scoped by `site_id`
-- **Input sanitization** — `express-validator` on endpoints
-- **Admin auth** — Bearer token (API_URL + ADMIN_SECRET server-side only in Next.js)
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_STORAGE_BUCKET`
 
----
+**Twilio (inbound webhooks + outbound notifications):**
 
-## Background Workers
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_PHONE_NUMBER` (SMS sender, e.g. `+19187719609`)
+- `TWILIO_WHATSAPP_NUMBER` (WhatsApp sender, **bare E.164**, e.g. `+14155238886`)
+- `TWILIO_DEFAULT_SITE_ID` (dev convenience; production fallback is gated)
+- `ALLOW_TWILIO_DEFAULT_FALLBACK` (`true` to allow default fallback in production; otherwise unmapped numbers will not respond)
 
-ChattyBot runs several background workers for automated tasks:
+**Lead notifications:**
 
-| Worker | Schedule | Purpose |
-|--------|----------|---------|
-| `summarizeWorker.js` | Every 5 min | AI summaries for idle conversations |
-| `leadExtractor.js` | Every 10 min | Extract structured lead data from conversations |
-| `missedLeadWorker.js` | Every 5 min | Detect missed opportunities (lead signals without contact) |
-| `weeklyReportWorker.js` | Sundays midnight | Send weekly performance reports to site owners |
+- `LEAD_NOTIFICATION_EMAIL` (fallback owner email)
 
-### Running Workers
+### Admin (`admin/.env`)
 
-**Option 1: PM2 (Production)**
-```bash
-pm2 start ecosystem.config.js
-```
+You’ll see an `.env.example` in `admin/` with the exact keys expected by this repo. Typical:
 
-**Option 2: Node-cron Scheduler**
-```bash
-cd backend
-node workers/index.js
-```
+- `NEXT_PUBLIC_API_URL` (backend URL)
+- `NEXT_PUBLIC_WIDGET_URL` (widget URL used for embed code generator)
+- `BACKEND_URL` (server-side API proxy base)
+- `ADMIN_SECRET` (must match backend)
+- Supabase public env (if enabled in your admin build)
 
-**Option 3: External Cron**
-```bash
-*/5 * * * * cd /app/backend && node workers/summarizeWorker.js
-*/5 * * * * cd /app/backend && node workers/missedLeadWorker.js
-*/10 * * * * cd /app/backend && node workers/leadExtractor.js
-0 0 * * 0 cd /app/backend && node workers/weeklyReportWorker.js
-```
+### Analytics dashboard (`admin-dashboard/.env`)
 
-## Agency Features
-
-### Weekly Lead Reports
-
-Automated email reports sent to site owners every Sunday:
-
-```
-📊 WEEKLY CHATBOT REPORT
-═══════════════════════════════════════════
-
-Conversations: 42
-Leads: 9
-  🔴 HOT: 4
-  🟡 WARM: 3
-  ⚪ COLD: 2
-  ⚠️ Missed: 5
-
-TOP QUESTIONS:
-1. Do you repair roof leaks?
-2. How much does replacement cost?
-```
-
-Configure `report_email` per site, or use `LEAD_NOTIFICATION_EMAIL` as fallback.
-
-### Missed Opportunity Detection
-
-Automatically detects conversations where:
-- User discussed service keywords (repair, quote, leak, damage, etc.)
-- No email or phone was captured
-- Conversation went idle
-
-Sends alerts: "⚠️ Potential Missed Lead – Customer asked about repair but didn't leave contact info"
-
-### AI Conversation Summaries
-
-After a conversation is idle for 5+ minutes:
-- AI generates a 2-sentence summary
-- Includes: main topic, urgency, whether contact was provided
-- Displayed under visitor ID in admin dashboard
-
-**Docs:** [ANALYTICS_SETUP.md](./ANALYTICS_SETUP.md), [README_ANALYTICS.md](./README_ANALYTICS.md), [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)
+- `REACT_APP_API_URL`
+- `REACT_APP_ADMIN_SECRET`
 
 ---
 
-## Environment Variables
+## Multi-tenant model (critical)
 
-### Backend
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Supabase PostgreSQL connection string |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `ADMIN_SECRET` | Bearer token for admin |
-| `INGEST_MAX_PAGES` | Max pages to crawl (default 150) |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | File storage |
-| `SMTP_*` | Optional email notifications |
-
-### Admin (Next.js)
-
-| Variable | Description |
-|----------|-------------|
-| `API_URL` | Backend URL (server-side) |
-| `ADMIN_SECRET` | Must match backend |
-| `NEXT_PUBLIC_WIDGET_URL` | Widget JS URL for embed code |
-| `NEXT_PUBLIC_API_URL` | Backend URL for embed code |
+- Customer data is tenant isolated by **`site_id`**
+- Any query for leads/conversations/files/analytics must filter by `site_id`
+- Backend authorization uses `checkSiteAccess(user, siteId)` and admin privileges only from `app_users.is_admin`
 
 ---
 
-## Tech Decisions
+## Twilio setup (SMS + WhatsApp)
 
-| Decision | Reasoning |
-|----------|-----------|
-| `gpt-4o-mini` | Fast, cheap, sufficient for RAG |
-| `text-embedding-3-small` | Best cost/quality for embeddings |
-| pgvector on Supabase | Simple production vector search |
-| Shadow DOM | Widget CSS isolation |
-| IIFE bundle | Single `<script>` tag, no module system |
-| SSE streaming | Real-time response feel |
+### Inbound (webhooks)
+
+- Webhook base path: `/webhooks/twilio`
+- Endpoints:
+  - `POST /webhooks/twilio/sms`
+  - `POST /webhooks/twilio/whatsapp`
+
+### Routing inbound numbers to tenants
+
+Inbound messages are routed by the destination number (`To`) to a tenant (`site_id`).
+
+- Primary routing table: `phone_numbers(phone_number, channel, site_id)`
+- Backward-compat: `sites.twilio_phone` and `sites.twilio_whatsapp`
+
+### Outbound (notifications)
+
+Outbound messages are sent from `backend/src/services/notificationService.js` using the shared Twilio client in `backend/src/services/twilioClient.js`.
+
+**Important WhatsApp rule:** `TWILIO_WHATSAPP_NUMBER` must be **bare E.164** (no `whatsapp:` prefix). The code adds the prefix.
 
 ---
 
-## Roadmap
+## File ingestion
 
-- [x] Streaming responses (SSE)
-- [x] Conversation history
-- [x] Two-panel conversation viewer
-- [x] AI summaries & lead extraction
-- [x] RAG evaluation
-- [x] Automatic lead capture pipeline
-- [x] Webhook on lead capture
-- [x] Weekly performance reports
-- [x] Missed opportunity detection
-- [ ] JWT auth for admin
-- [ ] Multi-language support
-- [ ] Custom webhook integrations
+- Uploads are handled by backend admin routes.
+- Extracted text is persisted to `files.extracted_text` (used for debugging and reprocessing).
+
+Supported types:
+- PDF
+- DOCX
+- XLSX
+
+---
+
+## Deployment (recommended)
+
+### Backend → Render
+
+- Render Web Service
+- Root directory: `backend`
+- Build command: `npm install`
+- Start command: `npm start`
+- Set env vars in Render dashboard (see “Environment variables” above)
+
+Notes for ingestion on Render:
+- Set `PLAYWRIGHT_BROWSERS_PATH=0`
+- Consider `NODE_OPTIONS=--max-old-space-size=512`
+- Consider lowering `INGEST_MAX_PAGES` for free-tier memory
+
+### Admin → Vercel
+
+- Deploy `admin/`
+- Set env vars in Vercel project settings
+
+### Widget → Vercel / CDN
+
+- Deploy `widget/` build output (dist)
+
+### Analytics dashboard → Vercel (optional)
+
+- Deploy `admin-dashboard/`
+- Set `REACT_APP_API_URL` and `REACT_APP_ADMIN_SECRET`
+
+---
+
+## Operations / workers
+
+The backend includes scheduled workers (summaries, lead extraction, missed lead detection, weekly reports, reconciliation).
+
+Production options:
+- **PM2** using `ecosystem.config.js`
+- **External cron** calling node scripts on a schedule
+- **Always-on scheduler** (if enabled in `backend/workers/index.js` for your deployment)
+
+---
+
+## Troubleshooting
+
+### Twilio outbound `20003 Authenticate`
+
+Check backend logs for:
+- `[Twilio] SID length: 34`
+- `[Twilio] TOKEN length: 32`
+
+Common causes:
+- Wrong credentials in the runtime environment (Render env vs local env)
+- Hidden whitespace (now trimmed)
+- WhatsApp sender env includes `whatsapp:` (must be bare E.164)
+
+### Playwright failures / OOM on Render
+
+- Ensure `PLAYWRIGHT_BROWSERS_PATH=0`
+- Reduce `INGEST_MAX_PAGES` and/or `INGEST_CONCURRENCY`
+- Increase memory plan if needed
+
+---
+
+## Security notes
+
+- Never commit secrets (`DATABASE_URL`, `OPENAI_API_KEY`, `ADMIN_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, Twilio token)
+- Admin auth is backend-enforced
+- Tenant isolation is backend-enforced
+
