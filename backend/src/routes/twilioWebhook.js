@@ -8,6 +8,7 @@
 const express = require('express');
 const MessagingResponse = require('twilio').twiml.MessagingResponse;
 const twilio = require('twilio');
+const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { retrieveContext, buildSystemPrompt } = require('../services/rag');
@@ -54,6 +55,30 @@ async function sendTwilioOutboundMessage({ channel, fromRaw, toRaw, body }) {
   }
 
   await client.messages.create({ body, from, to });
+}
+
+async function findOrCreateConversationIdByPhone({ siteId, userPhone }) {
+  if (!siteId || !userPhone) return null;
+
+  const existing = await pool.query(
+    `SELECT id
+     FROM conversations
+     WHERE site_id = $1
+       AND user_phone = $2
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [siteId, userPhone]
+  );
+  const existingId = existing.rows?.[0]?.id || null;
+  if (existingId) return existingId;
+
+  const id = uuidv4();
+  await pool.query(
+    `INSERT INTO conversations (id, site_id, user_phone)
+     VALUES ($1, $2, $3)`,
+    [id, siteId, userPhone]
+  );
+  return id;
 }
 
 function getFullUrl(req) {
@@ -220,12 +245,16 @@ router.post('/sms', async (req, res) => {
           ? `${composedUserMessage}\n\n[Image analysis]\n${mediaAnalysis}`
           : composedUserMessage;
 
+        const from = (String(From || '').replace(/^whatsapp:/i, '') || '').trim();
+        console.log('[Conversation] using phone:', from);
+        const convoId = await findOrCreateConversationIdByPhone({ siteId, userPhone: from });
+
         // Generate AI response
         const aiRaw = await generateChatResponse({
           siteId,
           userMessage,
           visitorId: `sms:${userPhone}`,
-          conversationId: null,
+          conversationId: convoId,
         });
         const aiResponse = formatSMSResponse(aiRaw);
         console.log('[TwilioWebhook] SMS response prepared (sid=%s, chars=%s)', MessageSid || 'n/a', aiResponse.length);
@@ -312,12 +341,16 @@ router.post('/whatsapp', async (req, res) => {
 
         trackSmsUsage(siteId, 'inbound').catch(() => {});
 
+        const from = (String(From || '').replace(/^whatsapp:/i, '') || '').trim();
+        console.log('[Conversation] using phone:', from);
+        const convoId = await findOrCreateConversationIdByPhone({ siteId, userPhone: from });
+
         // Generate AI response
         const aiResponse = await generateChatResponse({
           siteId,
           userMessage: Body,
           visitorId: `whatsapp:${userPhone}`,
-          conversationId: null,
+          conversationId: convoId,
         });
 
         console.log('[TwilioWebhook] Responding with:', aiResponse);
