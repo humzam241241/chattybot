@@ -2,7 +2,7 @@ const axios = require('axios');
 const OpenAI = require('openai');
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const DOWNLOAD_TIMEOUT_MS = 10000;
+const MAX_DOWNLOAD_TIME_MS = 10000;
 const MAX_VISION_TIME_MS = 15000;
 const OPENAI_VISION_ABORT_MS = 7000;
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -79,7 +79,7 @@ async function downloadTwilioMedia(mediaUrl, meta) {
       password: process.env.TWILIO_AUTH_TOKEN,
     },
     responseType: 'arraybuffer',
-    timeout: DOWNLOAD_TIMEOUT_MS,
+    timeout: MAX_DOWNLOAD_TIME_MS,
     maxRedirects: 5,
     maxContentLength: MAX_IMAGE_BYTES,
     beforeRedirect: (options) => {
@@ -108,10 +108,12 @@ async function downloadTwilioMedia(mediaUrl, meta) {
     buffer = resp.data;
   } else if (resp.data instanceof ArrayBuffer) {
     buffer = Buffer.from(resp.data);
+  } else if (ArrayBuffer.isView(resp.data)) {
+    buffer = Buffer.from(resp.data.buffer);
   } else if (resp.data?.data) {
     buffer = Buffer.from(resp.data.data);
   } else {
-    throw new Error('Invalid media response type');
+    throw new Error('Invalid media response type from Twilio CDN');
   }
 
   if (!buffer.length) throw new Error('Empty image');
@@ -120,8 +122,7 @@ async function downloadTwilioMedia(mediaUrl, meta) {
     throw new Error(`Image too large (${buffer.length} bytes)`);
   }
 
-  const headerType = normalizeImageContentType(resp.headers?.['content-type']);
-  const mime = headerType || 'image/jpeg';
+  const mime = normalizeImageContentType(resp.headers?.['content-type']) || 'image/jpeg';
 
   if (!ALLOWED_IMAGE_MIME_TYPES.has(mime)) {
     visionLog('[Vision] Media rejected (invalid type)', meta, { mime });
@@ -129,13 +130,11 @@ async function downloadTwilioMedia(mediaUrl, meta) {
   }
 
   const base64 = buffer.toString('base64');
-  visionLog('[Vision] Media downloaded', meta, { mime });
-  visionLog('[Vision] Media size', meta, { bytes: buffer.length });
+  visionLog('[Vision] Media downloaded', meta, { bytes: buffer.length, mime });
 
   return {
-    buffer,
-    mime,
-    base64,
+    mimeType: mime,
+    data: base64,
   };
 }
 
@@ -223,8 +222,7 @@ async function buildRoofAssessmentFromTwilioMedia({
   const meta = { requestId, conversationId, siteId, channel };
 
   try {
-    const { base64, mime } = await downloadTwilioMedia(mediaUrl, meta);
-    const imageForVision = { mimeType: mime, data: base64 };
+    const imageForVision = await downloadTwilioMedia(mediaUrl, meta);
     const analysis = await analyzeRoofImage(imageForVision.data, imageForVision.mimeType, meta);
     return formatRoofAssessment(analysis);
   } catch (e) {
