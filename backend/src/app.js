@@ -92,9 +92,9 @@ app.use(
 app.use('/api/stripe/webhook', stripeWebhookRouter);
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
-// Hard cap at 1 MB — prevents request body bomb attacks
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+// Base64 images can be several MB; keep a hard cap to limit abuse.
+app.use(express.json({ limit: '8mb' }));
+app.use(express.urlencoded({ extended: false, limit: '8mb' }));
 
 // ── Remove fingerprinting headers ─────────────────────────────────────────────
 app.disable('x-powered-by'); // helmet also does this, belt-and-suspenders

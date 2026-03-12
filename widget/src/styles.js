@@ -300,6 +300,37 @@ export function injectStyles(shadow) {
     .cb-send:disabled { opacity: 0.5; cursor: not-allowed; }
     .cb-send svg { width: 19px; height: 19px; fill: #fff; }
 
+    .cb-upload-btn {
+      min-width: 42px; height: 42px; padding: 0 10px; border-radius: 21px; border: 1.5px solid #e2e8f0;
+      background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+      flex-shrink: 0; align-self: flex-end; color: #64748b; transition: border-color 0.15s, color 0.15s;
+    }
+    .cb-upload-btn:hover { border-color: var(--cb-primary); color: var(--cb-primary); }
+    .cb-upload-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .cb-upload-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .cb-upload-label { font-size: 13px; font-weight: 500; white-space: nowrap; }
+
+    .cb-attach-preview {
+      padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+      background: #f8fafc; border-radius: 12px; margin: 0 12px 8px; max-width: calc(100% - 24px);
+      border: 1px solid #e2e8f0;
+    }
+    .cb-attach-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
+    .cb-attach-preview span { font-size: 12px; color: #64748b; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cb-attach-remove { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; line-height: 1; font-size: 18px; }
+    .cb-attach-remove:hover { color: #64748b; }
+
+    .cb-msg-image-wrap { margin-bottom: 8px; }
+    .cb-msg-image {
+      width: 100%;
+      max-width: 220px;
+      max-height: 220px;
+      object-fit: cover;
+      border-radius: 12px;
+      display: block;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    }
+
     /* Lead form */
     .cb-lead-form {
       background: #f8fafc;
