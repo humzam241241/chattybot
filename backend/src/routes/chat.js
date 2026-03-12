@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const OpenAI = require('openai');
 const pool = require('../config/database');
-const { v4: uuidv4 } = require('uuid');
+const twilioWebhookRouter = require('./twilioWebhook');
 const { retrieveContext, buildSystemPrompt } = require('../services/rag');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const {
@@ -111,16 +111,6 @@ async function setConversationConsent(conversationId, status, email = null) {
   );
 }
 
-async function createConversation({ siteId, visitorId, currentPageUrl }) {
-  const id = uuidv4();
-  await pool.query(
-    `INSERT INTO conversations (id, site_id, visitor_id, user_phone, current_page_url)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [id, siteId, visitorId || null, null, currentPageUrl || null]
-  );
-  return id;
-}
-
 router.post(
   '/',
   chatLimiter,
@@ -165,11 +155,7 @@ router.post(
         currentPageUrl: current_page_url,
       });
       if (!convoId) {
-        convoId = await createConversation({
-          siteId: site_id,
-          visitorId: visitor_id,
-          currentPageUrl: current_page_url,
-        });
+        convoId = await twilioWebhookRouter.findOrCreateConversationIdForTwilio({ siteId: site_id, from: visitor_id });
       }
       console.log(`[Chat] Conversation: ${convoId}, Site: ${site_id}, Visitor: ${visitor_id}`);
 
@@ -535,11 +521,7 @@ router.post(
         currentPageUrl: current_page_url,
       });
       if (!convoId) {
-        convoId = await createConversation({
-          siteId: site_id,
-          visitorId: visitor_id,
-          currentPageUrl: current_page_url,
-        });
+        convoId = await twilioWebhookRouter.findOrCreateConversationIdForTwilio({ siteId: site_id, from: visitor_id });
       }
 
       await appendMessage({ conversationId: convoId, siteId: site_id, role: 'user', content: user_message });

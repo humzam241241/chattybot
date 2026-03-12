@@ -105,6 +105,9 @@ async function findOrCreateConversationIdForTwilio({ siteId, from }) {
   return id;
 }
 
+// Expose conversation creation here so no other module inserts into conversations.
+router.findOrCreateConversationIdForTwilio = findOrCreateConversationIdForTwilio;
+
 function getFullUrl(req) {
   // trust proxy is enabled in app.js so req.protocol should reflect X-Forwarded-Proto
   return `${req.protocol}://${req.get('host')}${req.originalUrl}`;
