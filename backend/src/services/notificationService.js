@@ -70,11 +70,9 @@ async function sendSMS(to, message, options = {}) {
 async function sendWhatsApp(to, message, options = {}) {
   const fromOverride = options && typeof options === 'object' ? options.from : null;
   const overrideE164 = normalizeE164(String(fromOverride || '').replace(/^whatsapp:/i, '')) || null;
-  // Env should be E.164 without "whatsapp:" prefix; we defensively strip it anyway.
-  const envWa = String(process.env.TWILIO_WHATSAPP_NUMBER || '').trim().replace(/^whatsapp:/i, '');
   const from = overrideE164
     ? `whatsapp:${overrideE164}`
-    : (envWa ? `whatsapp:${envWa}` : null);
+    : `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
 
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !from) {
     console.log('[Notify] WhatsApp skipped (Twilio env missing)');
