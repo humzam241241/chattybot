@@ -102,28 +102,30 @@ export default function LandingPage() {
                     <HologramBot />
                   </HeroHologramErrorBoundary>
                 </div>
-                <div className="hero-content">
-                  <HeroContent>
-                    <HeroTitle className="hero-title">
-                      AI-Powered Chatbots{' '}
-                      <span className="gradient-text">That Convert Visitors to Leads</span>
-                    </HeroTitle>
-                    <HeroSubtitle className="hero-subtitle">
-                      Deploy intelligent chatbots on your website in minutes.
-                      Capture leads 24/7, answer questions instantly, and never miss an opportunity.
-                    </HeroSubtitle>
-                    <HeroCTA className="hero-cta">
-                      <CTAButton href="/sign-up" primary size="lg">
-                        Start Free Trial
-                      </CTAButton>
-                      <CTAButton href="/pricing" primary={false} size="lg">
-                        View Pricing
-                      </CTAButton>
-                    </HeroCTA>
-                    <HeroNote className="hero-note">14-day free trial. No credit card required.</HeroNote>
-                  </HeroContent>
+                <div className="hero-content-card">
+                  <div className="hero-content">
+                    <HeroContent>
+                      <HeroTitle className="hero-title">
+                        AI-Powered Chatbots{' '}
+                        <span className="gradient-text">That Convert Visitors to Leads</span>
+                      </HeroTitle>
+                      <HeroSubtitle className="hero-subtitle">
+                        Deploy intelligent chatbots on your website in minutes.
+                        Capture leads 24/7, answer questions instantly, and never miss an opportunity.
+                      </HeroSubtitle>
+                      <HeroCTA className="hero-cta">
+                        <CTAButton href="/sign-up" primary size="lg">
+                          Start Free Trial
+                        </CTAButton>
+                        <CTAButton href="/pricing" primary={false} size="lg">
+                          View Pricing
+                        </CTAButton>
+                      </HeroCTA>
+                      <HeroNote className="hero-note">14-day free trial. No credit card required.</HeroNote>
+                    </HeroContent>
+                  </div>
                 </div>
-                <div className="hero-demo">
+                <div className="hero-demo-card">
                   <ChatDemo />
                 </div>
               </div>
@@ -321,9 +323,20 @@ export default function LandingPage() {
           opacity: 0.5;
         }
 
+        .hero-content-card {
+          position: relative;
+          z-index: 2;
+          background: rgba(255, 255, 255, 0.92);
+          backdrop-filter: blur(12px);
+          border-radius: var(--radius-lg);
+          padding: 28px 32px;
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+          max-width: 560px;
+        }
+
         .hero-content {
           text-align: left;
-          max-width: 560px;
+          max-width: 100%;
           position: relative;
           z-index: 2;
         }
@@ -361,6 +374,21 @@ export default function LandingPage() {
         .hero-note {
           font-size: 13px;
           color: var(--muted-foreground);
+        }
+
+        .hero-demo-card {
+          position: relative;
+          z-index: 2;
+          background: rgba(255, 255, 255, 0.92);
+          backdrop-filter: blur(12px);
+          border-radius: var(--radius-lg);
+          padding: 0;
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
         }
 
         .hero-demo {
@@ -562,6 +590,11 @@ export default function LandingPage() {
             opacity: 0.62;
           }
 
+          .hero-content-card {
+            padding: 24px 20px;
+            margin: 0 16px;
+          }
+
           .hero-content {
             text-align: center;
           }
@@ -570,9 +603,13 @@ export default function LandingPage() {
             justify-content: center;
           }
 
-          .hero-demo {
+          .hero-demo-card {
             max-width: 360px;
             margin: 0 auto;
+          }
+
+          .hero-demo {
+            max-width: 100%;
           }
 
           .features-grid {
