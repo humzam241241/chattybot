@@ -315,12 +315,13 @@ export function injectStyles(shadow) {
     .cb-send:disabled { opacity: 0.5; cursor: not-allowed; }
     .cb-send svg { width: 19px; height: 19px; fill: #fff; }
     .cb-upload-btn {
-      width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid #e2e8f0;
-      background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      min-width: 42px; height: 42px; padding: 0 10px; border-radius: 21px; border: 1.5px solid #e2e8f0;
+      background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
       flex-shrink: 0; align-self: flex-end; color: #64748b; transition: border-color 0.15s, color 0.15s;
     }
     .cb-upload-btn:hover { border-color: var(--cb-primary); color: var(--cb-primary); }
-    .cb-upload-btn svg { width: 22px; height: 22px; }
+    .cb-upload-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .cb-upload-label { font-size: 13px; font-weight: 500; white-space: nowrap; }
     .cb-attach-preview {
       padding: 8px 12px; display: flex; align-items: center; gap: 8px;
       background: #f8fafc; border-radius: 12px; margin-bottom: 8px; max-width: 100%;

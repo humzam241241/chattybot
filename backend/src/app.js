@@ -100,11 +100,18 @@ app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.disable('x-powered-by'); // helmet also does this, belt-and-suspenders
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.get('/health', (req, res) => res.json({ 
-  status: 'ok', 
-  uptime: process.uptime(),
-  ts: new Date().toISOString() 
-}));
+app.get('/health', (req, res) => {
+  const hasSupabase = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    ts: new Date().toISOString(),
+    env: {
+      supabase_storage: hasSupabase,
+      node: process.version,
+    },
+  });
+});
 
 app.use('/chat', chatRouter);
 app.use('/api/chat', chatRouter);

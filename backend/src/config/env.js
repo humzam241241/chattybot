@@ -18,7 +18,7 @@ const OPTIONAL_VARS = [
   'LEAD_NOTIFICATION_EMAIL',
   'ADMIN_DASHBOARD_URL',
   'SUPABASE_URL',
-  'SUPABASE_SERVICE_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
   'ALLOWED_ORIGINS',
   'INGEST_MAX_PAGES',
   'TWILIO_ACCOUNT_SID',
@@ -84,7 +84,7 @@ function logEnvironmentStatus() {
   
   // Check specific features
   const hasEmail = ['RESEND_API_KEY', 'EMAIL_FROM'].every((k) => process.env[k]);
-  const hasSupabase = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY']
+  const hasSupabase = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
     .every(k => process.env[k]);
   
   console.log(`  Features:`);
