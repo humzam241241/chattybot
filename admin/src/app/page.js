@@ -557,9 +557,9 @@ export default function LandingPage() {
           }
 
           .hero-hologram-bg {
-            width: 400px;
-            height: 400px;
-            opacity: 0.35;
+            width: min(100vw, 480px);
+            height: min(100vw, 480px);
+            opacity: 0.62;
           }
 
           .hero-content {
