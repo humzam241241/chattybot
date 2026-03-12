@@ -56,12 +56,33 @@ function normalizeTwilioTo(to) {
 }
 
 async function resolveSiteIdFromTo(toNumberRaw) {
-  const toE164 = normalizeTwilioTo(toNumberRaw);
-  if (!toE164) return null;
-
   try {
     const channel = arguments.length > 1 ? arguments[1] : 'sms';
-    const r = await pool.query(
+
+    // Extract destination number (strip whatsapp: prefix if present)
+    const number = String(toNumberRaw || '').replace(/^whatsapp:/i, '').trim();
+    const toE164 = normalizePhoneE164(number);
+    if (!toE164) return null;
+
+    // NEW: route via phone_numbers table (supports multiple numbers per site)
+    const mapping = await pool.query(
+      `SELECT site_id
+       FROM phone_numbers
+       WHERE phone_number = $1
+         AND channel = $2
+       LIMIT 1`,
+      [toE164, channel]
+    );
+    const mappedSiteId = mapping.rows?.[0]?.site_id || null;
+    if (mappedSiteId) {
+      console.log('[TwilioWebhook] Routed number', toE164, 'to site', mappedSiteId);
+      return mappedSiteId;
+    }
+
+    console.warn('[TwilioWebhook] No phone mapping found:', toE164);
+
+    // Backward compatibility: fall back to legacy sites.twilio_* columns
+    const legacy = await pool.query(
       `SELECT id
        FROM sites
        WHERE ($2::text = 'whatsapp' AND twilio_whatsapp = $1)
@@ -69,7 +90,7 @@ async function resolveSiteIdFromTo(toNumberRaw) {
        LIMIT 1`,
       [toE164, channel]
     );
-    return r.rows?.[0]?.id || null;
+    return legacy.rows?.[0]?.id || null;
   } catch (e) {
     console.warn('[TwilioWebhook] Site lookup failed (non-fatal):', e.message);
     return null;
