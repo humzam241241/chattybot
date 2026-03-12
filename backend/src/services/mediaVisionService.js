@@ -29,7 +29,12 @@ function isAllowedTwilioMediaUrl(url) {
     const parsed = new URL(u);
     if (parsed.protocol !== 'https:') return false;
     const host = parsed.hostname.toLowerCase();
-    return host === 'api.twilio.com' || host.endsWith('.twilio.com');
+    return (
+      host === 'api.twilio.com' ||
+      host === 'mms.twiliocdn.com' ||
+      host.endsWith('.twilio.com') ||
+      host.endsWith('.twiliocdn.com')
+    );
   } catch {
     return false;
   }
@@ -72,31 +77,32 @@ async function downloadTwilioImageToBase64({ mediaUrl, mediaContentType, meta })
 
   visionLog('[Vision] Media received', meta, { mediaUrlHost: new URL(mediaUrl).hostname });
 
-  let resp;
-  try {
-    resp = await axios.get(mediaUrl, {
-      auth: {
+  const resp = await axios.get(mediaUrl, {
+    auth: {
+      username: process.env.TWILIO_ACCOUNT_SID,
+      password: process.env.TWILIO_AUTH_TOKEN,
+    },
+    responseType: 'arraybuffer',
+    timeout: MAX_DOWNLOAD_TIME_MS,
+    maxContentLength: MAX_IMAGE_BYTES,
+    maxRedirects: 5,
+    beforeRedirect: (options, { headers }) => {
+      // Validate redirect target is allowed Twilio domain
+      const redirectUrl = options.href || options.url;
+      if (redirectUrl && !isAllowedTwilioMediaUrl(redirectUrl)) {
+        visionLog('[Vision] Redirect blocked - untrusted host', meta, {
+          redirectUrl,
+          host: new URL(redirectUrl).hostname,
+        });
+        throw new Error('Redirect to untrusted host blocked');
+      }
+      // Preserve auth on redirects
+      options.auth = {
         username: process.env.TWILIO_ACCOUNT_SID,
         password: process.env.TWILIO_AUTH_TOKEN,
-      },
-      responseType: 'arraybuffer',
-      timeout: MAX_DOWNLOAD_TIME_MS,
-      maxContentLength: MAX_IMAGE_BYTES,
-      maxRedirects: 0,
-    });
-  } catch (e) {
-    const status = e?.response?.status;
-    if (status >= 300 && status < 400) {
-      visionLog('[Vision] Media redirect blocked', meta, {
-        status,
-        location: e?.response?.headers?.location,
-      });
-      const err = new Error('Media redirect blocked');
-      err.code = 'MEDIA_REDIRECT_BLOCKED';
-      throw err;
-    }
-    throw e;
-  }
+      };
+    },
+  });
 
   const declaredLen = Number(resp.headers?.['content-length'] || '0') || 0;
   if (declaredLen && declaredLen > MAX_IMAGE_BYTES) throw new Error(`Image too large (${declaredLen} bytes)`);
@@ -206,9 +212,6 @@ async function buildRoofAssessmentFromTwilioMedia({
     const analysis = await analyzeRoofImage(base64, contentType, meta);
     return formatRoofAssessment(analysis);
   } catch (e) {
-    if (e?.code === 'MEDIA_REDIRECT_BLOCKED') {
-      return getVisionFallbackMessage();
-    }
     if (isAbortError(e)) {
       visionLog('[Vision] Analysis aborted', meta, { timeoutMs: OPENAI_VISION_ABORT_MS });
       return getVisionFallbackMessage();
