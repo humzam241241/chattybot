@@ -96,10 +96,9 @@ async function downloadTwilioMedia(mediaUrl, meta) {
       visionLog('[Vision] Redirect validated', meta, {
         redirectHost: new URL(redirectUrl).hostname,
       });
-      options.auth = {
-        username: process.env.TWILIO_ACCOUNT_SID,
-        password: process.env.TWILIO_AUTH_TOKEN,
-      };
+      // NOTE: follow-redirects (Node request options) expects `auth` as "user:pass" string.
+      // Using an object here can crash inside redirect handling (Buffer.from(object)).
+      options.auth = `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`;
     },
   });
 
@@ -109,9 +108,21 @@ async function downloadTwilioMedia(mediaUrl, meta) {
   } else if (resp.data instanceof ArrayBuffer) {
     buffer = Buffer.from(resp.data);
   } else if (ArrayBuffer.isView(resp.data)) {
-    buffer = Buffer.from(resp.data.buffer);
-  } else if (resp.data?.data) {
+    buffer = Buffer.from(resp.data.buffer, resp.data.byteOffset, resp.data.byteLength);
+  } else if (resp.data?.type === 'Buffer' && Array.isArray(resp.data?.data)) {
     buffer = Buffer.from(resp.data.data);
+  } else if (resp.data?.data) {
+    if (Buffer.isBuffer(resp.data.data)) {
+      buffer = resp.data.data;
+    } else if (resp.data.data instanceof ArrayBuffer) {
+      buffer = Buffer.from(resp.data.data);
+    } else if (ArrayBuffer.isView(resp.data.data)) {
+      buffer = Buffer.from(resp.data.data.buffer, resp.data.data.byteOffset, resp.data.data.byteLength);
+    } else if (resp.data.data?.type === 'Buffer' && Array.isArray(resp.data.data?.data)) {
+      buffer = Buffer.from(resp.data.data.data);
+    } else {
+      buffer = Buffer.from(resp.data.data);
+    }
   } else {
     throw new Error('Invalid media response type from Twilio CDN');
   }
