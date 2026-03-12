@@ -161,8 +161,15 @@ async function handleVisionMediaMessage({
     responseText = getVisionFallbackMessage();
   }
 
-  const userMsg = String(baseText || '').trim() || '[User sent a roof photo]';
-  await appendMessage({ conversationId, siteId, role: 'user', content: userMsg });
+  const userMsg = String(baseText || '').trim() || '[User sent a photo]';
+  await appendMessage({
+    conversationId,
+    siteId,
+    role: 'user',
+    content: userMsg,
+    mediaUrl: mediaUrl || null,
+    mediaContentType: mediaContentType || null,
+  });
   await appendMessage({ conversationId, siteId, role: 'assistant', content: responseText });
 
   return responseText;

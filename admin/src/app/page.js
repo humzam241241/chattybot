@@ -2,6 +2,30 @@
 
 import Link from 'next/link';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  AnimatedGradientHero,
+  SpotlightCursor,
+  FloatingParticles,
+  ScrollReveal,
+  CTAButton,
+  FeatureCard,
+  PricingCard,
+  ChatDemo,
+  HeroContent,
+  HeroTitle,
+  HeroSubtitle,
+  HeroCTA,
+  HeroNote,
+} from '../components/landing';
+
+const FEATURES = [
+  { icon: '💬', title: 'Smart AI Conversations', description: 'Powered by GPT-4, your chatbot understands context and provides accurate, helpful responses.' },
+  { icon: '📊', title: 'Lead Capture & Scoring', description: 'Automatically capture leads and score them as Hot, Warm, or Cold based on conversation intent.' },
+  { icon: '📱', title: 'SMS & WhatsApp', description: 'Extend your reach with text message support. Same AI, different channels.' },
+  { icon: '📈', title: 'Analytics Dashboard', description: 'Track conversations, leads, conversion rates, and more with detailed analytics.' },
+  { icon: '🎨', title: 'Fully Customizable', description: 'Match your brand with custom colors, personality settings, and guardrails.' },
+  { icon: '⚡', title: 'Easy Integration', description: 'Add to any website with a single script tag. Works with WordPress, Shopify, and more.' },
+];
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -38,69 +62,102 @@ export default function LandingPage() {
 
       <main>
         <section className="hero">
-          <div className="hero-content">
-            <h1 className="hero-title">
-              AI-Powered Chatbots{' '}
-              <span className="gradient-text">That Convert Visitors to Leads</span>
-            </h1>
-            <p className="hero-subtitle">
-              Deploy intelligent chatbots on your website in minutes.
-              Capture leads 24/7, answer questions instantly, and never miss an opportunity.
-            </p>
-            <div className="hero-cta">
-              <Link href="/sign-up" className="btn btn-primary btn-lg">
-                Start Free Trial
-              </Link>
-              <Link href="/pricing" className="btn btn-secondary btn-lg">
-                View Pricing
-              </Link>
-            </div>
-            <p className="hero-note">14-day free trial. No credit card required.</p>
-          </div>
+          <AnimatedGradientHero className="hero-gradient-wrap">
+            <FloatingParticles style={{ zIndex: 0 }} />
+            <SpotlightCursor className="hero-spotlight-wrap">
+              <div className="hero-inner">
+                <div className="hero-content">
+                  <HeroContent>
+                    <HeroTitle className="hero-title">
+                      AI-Powered Chatbots{' '}
+                      <span className="gradient-text">That Convert Visitors to Leads</span>
+                    </HeroTitle>
+                    <HeroSubtitle className="hero-subtitle">
+                      Deploy intelligent chatbots on your website in minutes.
+                      Capture leads 24/7, answer questions instantly, and never miss an opportunity.
+                    </HeroSubtitle>
+                    <HeroCTA className="hero-cta">
+                      <CTAButton href="/sign-up" primary size="lg">
+                        Start Free Trial
+                      </CTAButton>
+                      <CTAButton href="/pricing" primary={false} size="lg">
+                        View Pricing
+                      </CTAButton>
+                    </HeroCTA>
+                    <HeroNote className="hero-note">14-day free trial. No credit card required.</HeroNote>
+                  </HeroContent>
+                </div>
+                <div className="hero-demo">
+                  <ChatDemo />
+                </div>
+              </div>
+            </SpotlightCursor>
+          </AnimatedGradientHero>
         </section>
 
         <section className="features">
-          <h2 className="section-title">Everything You Need</h2>
+          <ScrollReveal>
+            <h2 className="section-title">Everything You Need</h2>
+          </ScrollReveal>
           <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">💬</div>
-              <h3>Smart AI Conversations</h3>
-              <p>Powered by GPT-4, your chatbot understands context and provides accurate, helpful responses.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">📊</div>
-              <h3>Lead Capture & Scoring</h3>
-              <p>Automatically capture leads and score them as Hot, Warm, or Cold based on conversation intent.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">📱</div>
-              <h3>SMS & WhatsApp</h3>
-              <p>Extend your reach with text message support. Same AI, different channels.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">📈</div>
-              <h3>Analytics Dashboard</h3>
-              <p>Track conversations, leads, conversion rates, and more with detailed analytics.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🎨</div>
-              <h3>Fully Customizable</h3>
-              <p>Match your brand with custom colors, personality settings, and guardrails.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">⚡</div>
-              <h3>Easy Integration</h3>
-              <p>Add to any website with a single script tag. Works with WordPress, Shopify, and more.</p>
-            </div>
+            {FEATURES.map((f, i) => (
+              <FeatureCard key={i} icon={f.icon} title={f.title} description={f.description} />
+            ))}
+          </div>
+        </section>
+
+        <section className="pricing-preview">
+          <ScrollReveal>
+            <h2 className="section-title">Simple, Transparent Pricing</h2>
+            <p className="section-subtitle">Choose a plan that fits your business. All plans include a 14-day free trial.</p>
+          </ScrollReveal>
+          <div className="pricing-preview-grid">
+            <PricingCard
+              title="Pro"
+              price="$50"
+              period="/month"
+              description="5,000 messages / month"
+              features={['Unlimited chatbots', 'Lead capture & scoring', 'Analytics dashboard']}
+              ctaText="View plans"
+              ctaHref="/pricing"
+              delay={0}
+            />
+            <PricingCard
+              title="Plus"
+              price="$150"
+              period="/month"
+              description="10,000 messages / month"
+              features={['Everything in Pro', 'Priority support', 'Early access to features']}
+              ctaText="View plans"
+              ctaHref="/pricing"
+              popular
+              delay={0.1}
+            />
+            <PricingCard
+              title="Ultra"
+              price="$400"
+              period="/month"
+              description="20,000 messages / month"
+              features={['Everything in Plus', 'White-label option', 'Dedicated support']}
+              ctaText="View plans"
+              ctaHref="/pricing"
+              delay={0.2}
+            />
           </div>
         </section>
 
         <section className="cta-section">
-          <h2>Ready to Get Started?</h2>
-          <p>Join hundreds of businesses using ChattyBot to capture more leads.</p>
-          <Link href="/sign-up" className="btn btn-primary btn-lg">
-            Start Your Free Trial
-          </Link>
+          <ScrollReveal>
+            <div className="cta-section-content">
+              <h2>Ready to Get Started?</h2>
+              <p>Join hundreds of businesses using ChattyBot to capture more leads.</p>
+              <div className="cta-section-buttons">
+                <CTAButton href="/sign-up" primary size="lg">
+                  Start Your Free Trial
+                </CTAButton>
+              </div>
+            </div>
+          </ScrollReveal>
         </section>
       </main>
 
@@ -178,19 +235,37 @@ export default function LandingPage() {
         }
 
         .hero {
-          padding: 100px 24px 120px;
-          text-align: center;
-          background: var(--background);
-          background-image: radial-gradient(ellipse 70% 40% at 50% 0%, var(--primary-glow), transparent 55%);
+          padding: 80px 24px 100px;
+          position: relative;
+          min-height: 520px;
+        }
+
+        .hero-gradient-wrap {
+          position: absolute;
+          inset: 0;
+        }
+
+        .hero-spotlight-wrap {
+          position: relative;
+          height: 100%;
+        }
+
+        .hero-inner {
+          max-width: 1200px;
+          margin: 0 auto;
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 48px;
+          align-items: center;
         }
 
         .hero-content {
-          max-width: 720px;
-          margin: 0 auto;
+          text-align: left;
+          max-width: 560px;
         }
 
         .hero-title {
-          font-size: clamp(32px, 5vw, 48px);
+          font-size: clamp(32px, 4.5vw, 44px);
           font-weight: 700;
           line-height: 1.15;
           margin-bottom: 20px;
@@ -209,13 +284,12 @@ export default function LandingPage() {
           font-size: 18px;
           color: var(--muted-foreground);
           line-height: 1.6;
-          margin-bottom: 32px;
+          margin-bottom: 28px;
         }
 
         .hero-cta {
           display: flex;
           gap: 14px;
-          justify-content: center;
           flex-wrap: wrap;
           margin-bottom: 18px;
         }
@@ -225,10 +299,10 @@ export default function LandingPage() {
           color: var(--muted-foreground);
         }
 
-        .btn-lg {
-          padding: 12px 24px;
-          font-size: 15px;
-          border-radius: var(--radius-sm);
+        .hero-demo {
+          display: flex;
+          justify-content: center;
+          align-items: center;
         }
 
         .features {
@@ -242,9 +316,16 @@ export default function LandingPage() {
           text-align: center;
           font-size: 28px;
           font-weight: 600;
-          margin-bottom: 48px;
+          margin-bottom: 12px;
           color: var(--foreground);
           letter-spacing: -0.02em;
+        }
+
+        .section-subtitle {
+          text-align: center;
+          font-size: 16px;
+          color: var(--muted-foreground);
+          margin-bottom: 48px;
         }
 
         .features-grid {
@@ -253,37 +334,22 @@ export default function LandingPage() {
           gap: 20px;
         }
 
-        .feature-card {
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: var(--radius-lg);
-          padding: 28px;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-          transition: border-color var(--transition), box-shadow var(--transition);
+        .feature-card-wrapper {
+          min-height: 1px;
         }
 
-        .feature-card:hover {
-          border-color: rgba(99, 102, 241, 0.3);
-          box-shadow: 0 4px 20px var(--primary-glow), 0 0 0 1px rgba(99, 102, 241, 0.1);
+        .pricing-preview {
+          padding: 88px 24px;
+          max-width: 1100px;
+          margin: 0 auto;
+          background: var(--background);
         }
 
-        .feature-icon {
-          font-size: 28px;
-          margin-bottom: 14px;
-          opacity: 0.9;
-        }
-
-        .feature-card h3 {
-          font-size: 17px;
-          font-weight: 600;
-          margin-bottom: 8px;
-          color: var(--foreground);
-        }
-
-        .feature-card p {
-          color: var(--muted-foreground);
-          font-size: 14px;
-          line-height: 1.55;
+        .pricing-preview-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 24px;
+          margin-top: 24px;
         }
 
         .cta-section {
@@ -300,19 +366,21 @@ export default function LandingPage() {
           color: var(--foreground);
         }
 
+        .cta-section-content {
+          max-width: 560px;
+          margin: 0 auto;
+        }
+
         .cta-section p {
           font-size: 16px;
           color: var(--muted-foreground);
           margin-bottom: 28px;
         }
 
-        .cta-section .btn {
-          background: var(--primary-accent);
-          color: #fff;
-        }
-
-        .cta-section .btn:hover {
-          background: var(--primary-accent-hover);
+        .cta-section-buttons {
+          display: flex;
+          justify-content: center;
+          gap: 12px;
         }
 
         .landing-footer {
@@ -341,7 +409,7 @@ export default function LandingPage() {
           width: 32px;
           height: 32px;
           border-radius: 8px;
-          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+          background: linear-gradient(135deg, var(--primary-accent) 0%, #8b5cf6 100%);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -403,15 +471,30 @@ export default function LandingPage() {
             display: none;
           }
 
-          .hero-title {
-            font-size: 32px;
+          .hero-inner {
+            grid-template-columns: 1fr;
+            text-align: center;
+          }
+
+          .hero-content {
+            text-align: center;
           }
 
           .hero-cta {
-            flex-direction: column;
+            justify-content: center;
+          }
+
+          .hero-demo {
+            order: -1;
+            max-width: 360px;
+            margin: 0 auto;
           }
 
           .features-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .pricing-preview-grid {
             grid-template-columns: 1fr;
           }
         }

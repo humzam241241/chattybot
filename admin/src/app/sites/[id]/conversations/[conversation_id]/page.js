@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { getConversation } from '../../../../../lib/api';
+import MessageMedia from '../../../../../components/MessageMedia';
 
 export default function ConversationDetailPage() {
   const { id, conversation_id } = useParams();
@@ -51,7 +52,14 @@ export default function ConversationDetailPage() {
                     <span className="badge">{m.role}</span>
                     <span className="text-muted">{new Date(m.created_at).toLocaleString()}</span>
                   </div>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
+                  {m.content ? <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div> : null}
+                  {m.media_url && (
+                    <MessageMedia
+                      conversationId={conversation_id}
+                      messageId={m.id}
+                      mediaContentType={m.media_content_type}
+                    />
+                  )}
                 </div>
               ))}
             </div>

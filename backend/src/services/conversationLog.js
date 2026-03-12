@@ -20,12 +20,12 @@ async function getOrCreateConversation({ siteId, visitorId, conversationId, curr
   return null;
 }
 
-async function appendMessage({ conversationId, siteId, role, content }) {
+async function appendMessage({ conversationId, siteId, role, content, mediaUrl, mediaContentType }) {
   const id = uuidv4();
   await pool.query(
-    `INSERT INTO messages (id, conversation_id, site_id, role, content, created_at)
-     VALUES ($1, $2, $3, $4, $5, NOW())`,
-    [id, conversationId, siteId, role, content]
+    `INSERT INTO messages (id, conversation_id, site_id, role, content, media_url, media_content_type, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+    [id, conversationId, siteId, role, content, mediaUrl || null, mediaContentType || null]
   );
 
   const updated = await pool.query(

@@ -1,11 +1,51 @@
 const express = require('express');
 const pool = require('../config/database');
+const axios = require('axios');
 const { apiLimiter } = require('../middleware/rateLimiter');
 const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
 const { checkSiteAccess } = require('../services/siteAccess');
 
 const router = express.Router();
 router.use(apiLimiter);
+
+// GET /api/admin/conversations/:conversation_id/messages/:message_id/media
+// Proxies message media (e.g. Twilio URLs that require Basic auth) so the admin can display images.
+router.get('/:conversation_id/messages/:message_id/media', userAuth, requirePaidOrTrial, async (req, res) => {
+  const { conversation_id, message_id } = req.params;
+  try {
+    const msgRes = await pool.query(
+      `SELECT m.media_url, m.media_content_type, c.site_id
+       FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE m.id = $1 AND m.conversation_id = $2`,
+      [message_id, conversation_id]
+    );
+    if (msgRes.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
+    const { media_url, media_content_type, site_id } = msgRes.rows[0];
+    if (!media_url) return res.status(404).json({ error: 'No media for this message' });
+
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+    const isTwilio = media_url.includes('api.twilio.com');
+    const opts = { responseType: 'arraybuffer', timeout: 15000 };
+    if (isTwilio && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+      opts.auth = {
+        username: process.env.TWILIO_ACCOUNT_SID,
+        password: process.env.TWILIO_AUTH_TOKEN,
+      };
+    }
+    const proxyRes = await axios.get(media_url, opts);
+    const contentType = media_content_type || proxyRes.headers['content-type'] || 'application/octet-stream';
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(proxyRes.data);
+  } catch (err) {
+    if (err.response?.status) return res.status(err.response.status).send(err.response.data);
+    console.error('[Conversations] Media proxy error:', err.message);
+    return res.status(502).json({ error: 'Failed to load media' });
+  }
+});
 
 // GET /api/admin/conversations/site/:site_id
 router.get('/site/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
@@ -41,7 +81,7 @@ router.get('/:conversation_id', userAuth, requirePaidOrTrial, async (req, res) =
     if (!access.ok) return res.status(access.status).json({ error: access.status === 404 ? 'Conversation not found' : access.error });
 
     const messagesRes = await pool.query(
-      `SELECT id, role, content, created_at
+      `SELECT id, role, content, created_at, media_url, media_content_type
        FROM messages
        WHERE conversation_id = $1
        ORDER BY created_at ASC
