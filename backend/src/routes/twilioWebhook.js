@@ -12,7 +12,7 @@ const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
 const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { retrieveContext, buildSystemPrompt } = require('../services/rag');
-const { getOrCreateConversation, appendMessage, getRecentMessages } = require('../services/conversationLog');
+const { appendMessage, getRecentMessages } = require('../services/conversationLog');
 const { processConversationForLead } = require('../services/leadPipeline');
 const { validateWebhookSignature, normalizePhoneE164, getTwilioClient } = require('../services/twilioClient');
 const { trackSmsUsage } = require('../middleware/usageTracking');
@@ -57,10 +57,25 @@ async function sendTwilioOutboundMessage({ channel, fromRaw, toRaw, body }) {
   await client.messages.create({ body, from, to });
 }
 
-async function findOrCreateConversationIdByPhone({ siteId, userPhone }) {
-  if (!siteId || !userPhone) return null;
+async function findOrCreateConversationIdForTwilio({ siteId, from }) {
+  if (!siteId || !from) return null;
 
+  // 1) Preferred lookup: site_id + visitor_id (visitor_id = Twilio "From" exactly)
   const existing = await pool.query(
+    `SELECT id
+     FROM conversations
+     WHERE site_id = $1
+       AND visitor_id = $2
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [siteId, from]
+  );
+  const existingId = existing.rows?.[0]?.id || null;
+  if (existingId) return existingId;
+
+  // 2) Back-compat: reuse older Twilio conversations created before visitor_id was persisted
+  const userPhone = String(from).replace(/^whatsapp:/, '');
+  const legacy = await pool.query(
     `SELECT id
      FROM conversations
      WHERE site_id = $1
@@ -69,14 +84,23 @@ async function findOrCreateConversationIdByPhone({ siteId, userPhone }) {
      LIMIT 1`,
     [siteId, userPhone]
   );
-  const existingId = existing.rows?.[0]?.id || null;
-  if (existingId) return existingId;
+  const legacyId = legacy.rows?.[0]?.id || null;
+  if (legacyId) {
+    await pool.query(
+      `UPDATE conversations
+       SET visitor_id = COALESCE(visitor_id, $2)
+       WHERE id = $1`,
+      [legacyId, from]
+    );
+    return legacyId;
+  }
 
+  // 3) Create new conversation only if none exists
   const id = uuidv4();
   await pool.query(
-    `INSERT INTO conversations (id, site_id, user_phone)
-     VALUES ($1, $2, $3)`,
-    [id, siteId, userPhone]
+    `INSERT INTO conversations (id, site_id, visitor_id, user_phone)
+     VALUES ($1, $2, $3, $4)`,
+    [id, siteId, from, userPhone]
   );
   return id;
 }
@@ -245,16 +269,17 @@ router.post('/sms', async (req, res) => {
           ? `${composedUserMessage}\n\n[Image analysis]\n${mediaAnalysis}`
           : composedUserMessage;
 
-        const from = (String(From || '').replace(/^whatsapp:/i, '') || '').trim();
-        console.log('[Conversation] using phone:', from);
-        const convoId = await findOrCreateConversationIdByPhone({ siteId, userPhone: from });
+        const from = req.body.From; // e.g. "whatsapp:+19057496855"
+        console.log('[Twilio] visitor:', from);
+        const conversationId = await findOrCreateConversationIdForTwilio({ siteId, from });
+        console.log('[Twilio] using conversation:', conversationId);
 
         // Generate AI response
         const aiRaw = await generateChatResponse({
           siteId,
           userMessage,
           visitorId: `sms:${userPhone}`,
-          conversationId: convoId,
+          conversationId,
         });
         const aiResponse = formatSMSResponse(aiRaw);
         console.log('[TwilioWebhook] SMS response prepared (sid=%s, chars=%s)', MessageSid || 'n/a', aiResponse.length);
@@ -341,16 +366,17 @@ router.post('/whatsapp', async (req, res) => {
 
         trackSmsUsage(siteId, 'inbound').catch(() => {});
 
-        const from = (String(From || '').replace(/^whatsapp:/i, '') || '').trim();
-        console.log('[Conversation] using phone:', from);
-        const convoId = await findOrCreateConversationIdByPhone({ siteId, userPhone: from });
+        const from = req.body.From; // e.g. "whatsapp:+19057496855"
+        console.log('[Twilio] visitor:', from);
+        const conversationId = await findOrCreateConversationIdForTwilio({ siteId, from });
+        console.log('[Twilio] using conversation:', conversationId);
 
         // Generate AI response
         const aiResponse = await generateChatResponse({
           siteId,
           userMessage: Body,
           visitorId: `whatsapp:${userPhone}`,
-          conversationId: convoId,
+          conversationId,
         });
 
         console.log('[TwilioWebhook] Responding with:', aiResponse);
