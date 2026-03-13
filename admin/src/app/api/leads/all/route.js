@@ -14,7 +14,8 @@ export async function GET(request) {
 
   const url = new URL(request.url);
   const qs = url.searchParams.toString();
-  const backendUrl = `${API_URL.replace(/\\/$/, '')}/api/admin/leads/all${qs ? `?${qs}` : ''}`;
+  const baseUrl = API_URL.replace(/\/$/, '');
+  const backendUrl = `${baseUrl}/api/admin/leads/all${qs ? `?${qs}` : ''}`;
 
   const res = await fetch(backendUrl, {
     headers: auth.headers,
