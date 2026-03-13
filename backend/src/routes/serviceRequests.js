@@ -241,4 +241,89 @@ router.post('/:site_id/from-chat', userAuth, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/service-requests/:site_id/extract-from-chats
+ * Bulk: create service requests from all conversations that have user messages
+ * and don't already have a service request. Populates Service Requests (and
+ * later Estimates/Analytics) from existing chat data.
+ */
+router.post('/:site_id/extract-from-chats', userAuth, async (req, res) => {
+  try {
+    const { site_id } = req.params;
+    const limit = Math.min(parseInt(req.body.limit, 10) || 100, 200);
+
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
+    }
+
+    const convosRes = await pool.query(
+      `SELECT id FROM conversations WHERE site_id = $1 ORDER BY updated_at DESC LIMIT $2`,
+      [site_id, limit]
+    );
+
+    const created = [];
+    const skipped = [];
+    const errors = [];
+
+    for (const row of convosRes.rows) {
+      const conversationId = row.id;
+
+      const existingSr = await pool.query(
+        `SELECT id FROM service_requests WHERE site_id = $1 AND conversation_id = $2`,
+        [site_id, conversationId]
+      );
+      if (existingSr.rows.length > 0) {
+        skipped.push({ conversationId, reason: 'already_has_request' });
+        continue;
+      }
+
+      const msgRes = await pool.query(
+        `SELECT id, role, content, created_at FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 500`,
+        [conversationId]
+      );
+      const messages = msgRes.rows.map((m) => ({
+        role: m.role,
+        content: m.content || '',
+      }));
+      const userMessages = messages.filter((m) => m.role === 'user');
+      if (userMessages.length === 0) {
+        skipped.push({ conversationId, reason: 'no_user_messages' });
+        continue;
+      }
+
+      let leadData = {};
+      const leadRes = await pool.query(
+        `SELECT id, name, email, phone, issue FROM leads WHERE conversation_id = $1 LIMIT 1`,
+        [conversationId]
+      );
+      if (leadRes.rows.length > 0) {
+        const l = leadRes.rows[0];
+        leadData = { id: l.id, name: l.name, email: l.email, phone: l.phone, issue: l.issue };
+      }
+
+      try {
+        const result = await processIntakeFromChat(pool, site_id, conversationId, messages, leadData);
+        if (result.ok) {
+          created.push({ conversationId, requestId: result.request.id });
+        } else {
+          errors.push({ conversationId, error: result.error });
+        }
+      } catch (err) {
+        errors.push({ conversationId, error: err.message || 'Unknown error' });
+      }
+    }
+
+    return res.json({
+      created: created.length,
+      skipped: skipped.length,
+      errors: errors.length,
+      details: { created, skipped, errors },
+    });
+  } catch (err) {
+    console.error('[serviceRequests] Extract-from-chats error:', err);
+    res.status(500).json({ error: 'Failed to extract from chats' });
+  }
+});
+
 module.exports = router;

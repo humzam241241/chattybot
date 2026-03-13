@@ -6,7 +6,7 @@ function clampInt(val, { min, max, fallback }) {
   return Math.max(min, Math.min(max, n));
 }
 
-async function listConversationsForAdmin({ user, siteId = null, q = null, limit = 50, offset = 0 }) {
+async function listConversationsForAdmin({ user, siteId = null, q = null, channel = null, limit = 50, offset = 0 }) {
   const safeLimit = clampInt(limit, { min: 1, max: 200, fallback: 50 });
   const safeOffset = clampInt(offset, { min: 0, max: 50000, fallback: 0 });
 
@@ -15,6 +15,7 @@ async function listConversationsForAdmin({ user, siteId = null, q = null, limit 
 
   const search = q ? String(q).trim() : null;
   const siteFilter = siteId ? String(siteId).trim() : null;
+  const channelFilter = channel === 'sms' ? 'sms' : channel === 'whatsapp' ? 'whatsapp' : null;
 
   const whereSql = `
     WHERE ($1::boolean = true OR s.owner_id = $2)
@@ -24,9 +25,11 @@ async function listConversationsForAdmin({ user, siteId = null, q = null, limit 
         OR c.visitor_id ILIKE '%' || $4::text || '%'
         OR COALESCE(c.summary, '') ILIKE '%' || $4::text || '%'
       )
+      AND ($5::text IS NULL OR (c.visitor_id IS NOT NULL AND c.visitor_id LIKE $5::text || ':%'))
   `;
 
-  const params = [isAdmin, ownerId, siteFilter, search, safeLimit, safeOffset];
+  const channelPattern = channelFilter ? channelFilter : null;
+  const params = [isAdmin, ownerId, siteFilter, search, channelPattern, safeLimit, safeOffset];
 
   const countRes = await pool.query(
     `
@@ -35,7 +38,7 @@ async function listConversationsForAdmin({ user, siteId = null, q = null, limit 
     JOIN sites s ON s.id = c.site_id
     ${whereSql}
     `,
-    params.slice(0, 4)
+    params.slice(0, 5)
   );
 
   const rowsRes = await pool.query(
@@ -53,7 +56,7 @@ async function listConversationsForAdmin({ user, siteId = null, q = null, limit 
     JOIN sites s ON s.id = c.site_id
     ${whereSql}
     ORDER BY c.updated_at DESC
-    LIMIT $5 OFFSET $6
+    LIMIT $6 OFFSET $7
     `,
     params
   );

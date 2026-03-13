@@ -80,10 +80,11 @@ export async function uploadFiles(siteId, files) {
 }
 
 // Conversations
-export const listConversations = (siteId, { limit = 50, offset = 0 } = {}) => {
+export const listConversations = (siteId, { limit = 50, offset = 0, channel } = {}) => {
   const params = new URLSearchParams();
   if (limit != null) params.set('limit', String(limit));
   if (offset != null) params.set('offset', String(offset));
+  if (channel) params.set('channel', channel); // 'sms' | 'whatsapp'
   const qs = params.toString();
   return apiFetch(`/api/conversations/site/${siteId}${qs ? `?${qs}` : ''}`);
 };
@@ -91,10 +92,11 @@ export const getConversation = (conversationId) => apiFetch(`/api/conversations/
 export const deleteConversation = (conversationId) => apiFetch(`/api/conversations/${conversationId}`, { method: 'DELETE' });
 
 // Cross-site admin/owner views
-export const listAllConversations = ({ siteId, q, limit = 50, offset = 0 } = {}) => {
+export const listAllConversations = ({ siteId, q, channel, limit = 50, offset = 0 } = {}) => {
   const params = new URLSearchParams();
   if (siteId) params.set('site_id', siteId);
   if (q) params.set('q', q);
+  if (channel) params.set('channel', channel); // 'sms' | 'whatsapp'
   params.set('limit', String(limit));
   params.set('offset', String(offset));
   return apiFetch(`/api/conversations?${params.toString()}`);

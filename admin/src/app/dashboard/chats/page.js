@@ -14,6 +14,7 @@ export default function AllChatsPage() {
 
   const [siteId, setSiteId] = useState('');
   const [q, setQ] = useState('');
+  const [channel, setChannel] = useState(''); // '' | 'sms' | 'whatsapp'
   const [offset, setOffset] = useState(0);
   const limit = 20;
 
@@ -30,7 +31,7 @@ export default function AllChatsPage() {
     setError('');
     const [sitesRes, convRes] = await Promise.all([
       getSites(),
-      listAllConversations({ siteId: siteId || null, q: q || null, limit, offset }),
+      listAllConversations({ siteId: siteId || null, q: q || null, channel: channel || null, limit, offset }),
     ]);
     setSites(sitesRes?.sites || []);
     setData(convRes || { conversations: [], pagination: { total: 0, limit, offset } });
@@ -50,7 +51,7 @@ export default function AllChatsPage() {
     setLoading(true);
     load().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, offset]);
+  }, [siteId, channel, offset]);
 
   const total = data?.pagination?.total || 0;
   const pageStart = total === 0 ? 0 : offset + 1;
@@ -92,7 +93,24 @@ export default function AllChatsPage() {
 
       {canView && (
         <>
-          <div className="card" style={{ padding: 14, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <span className="text-muted" style={{ fontSize: 13, alignSelf: 'center' }}>Channel</span>
+              {['', 'sms', 'whatsapp'].map((ch) => (
+                <button
+                  key={ch || 'all'}
+                  type="button"
+                  className="btn btn-sm"
+                  style={{
+                    ...(channel === ch ? { background: '#4338ca', color: '#fff', borderColor: '#4338ca' } : {}),
+                  }}
+                  onClick={() => { setOffset(0); setChannel(ch); }}
+                >
+                  {ch === '' ? 'All' : ch === 'sms' ? 'SMS' : 'WhatsApp'}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <label className="text-muted" style={{ fontSize: 13 }}>Client</label>
             <select className="input" value={siteId} onChange={(e) => { setOffset(0); setSiteId(e.target.value); }}>
               <option value="">All clients</option>
@@ -115,6 +133,7 @@ export default function AllChatsPage() {
             >
               Search
             </button>
+            </div>
           </div>
 
           {error && <div className="alert alert-error">{error}</div>}
@@ -140,10 +159,13 @@ export default function AllChatsPage() {
                       </td>
                     </tr>
                   )}
-                  {(data?.conversations || []).map((c) => (
+                  {(data?.conversations || []).map((c) => {
+                    const ch = (c.visitor_id || '').startsWith('whatsapp:') ? 'whatsapp' : (c.visitor_id || '').startsWith('sms:') ? 'sms' : null;
+                    return (
                     <tr key={c.id}>
                       <td>{c.site_name || '—'}</td>
                       <td style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>
+                        {ch && <span className="badge" style={{ marginRight: 6, fontSize: 10 }}>{ch === 'sms' ? 'SMS' : 'WhatsApp'}</span>}
                         {c.visitor_id || '—'}
                       </td>
                       <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{c.message_count || 0}</td>
@@ -161,7 +183,7 @@ export default function AllChatsPage() {
                         </Link>
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>

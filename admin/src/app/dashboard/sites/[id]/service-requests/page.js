@@ -34,6 +34,11 @@ export default function ServiceRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [extracting, setExtracting] = useState(false);
+  const [extractResult, setExtractResult] = useState(null);
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formData, setFormData] = useState({ problemDescription: '', customerName: '', email: '', phone: '' });
 
   useEffect(() => {
     if (!session?.access_token || !siteId) return;
@@ -108,6 +113,69 @@ export default function ServiceRequestsPage() {
     }
   }
 
+  async function handleExtractFromChats() {
+    try {
+      setExtracting(true);
+      setExtractResult(null);
+      const res = await fetch(`/api/service-requests/${siteId}/extract-from-chats`, {
+        method: 'POST',
+        headers: {
+          'x-supabase-token': session.access_token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ limit: 100 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Extract failed');
+      setExtractResult(data);
+      // Refresh list
+      const listRes = await fetch(`/api/service-requests/${siteId}`, {
+        headers: { 'x-supabase-token': session.access_token },
+      });
+      if (listRes.ok) setRequests(await listRes.json());
+    } catch (err) {
+      setExtractResult({ error: err.message });
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function handleSubmitRequestEstimate(e) {
+    e.preventDefault();
+    if (!formData.problemDescription?.trim()) return;
+    try {
+      setFormSubmitting(true);
+      const res = await fetch(`/api/service-requests/${siteId}`, {
+        method: 'POST',
+        headers: {
+          'x-supabase-token': session.access_token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          problemDescription: formData.problemDescription.trim(),
+          customerName: formData.customerName.trim() || null,
+          email: formData.email.trim() || null,
+          phone: formData.phone.trim() || null,
+          source: 'manual',
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to create request');
+      }
+      setFormData({ problemDescription: '', customerName: '', email: '', phone: '' });
+      setShowRequestForm(false);
+      const listRes = await fetch(`/api/service-requests/${siteId}`, {
+        headers: { 'x-supabase-token': session.access_token },
+      });
+      if (listRes.ok) setRequests(await listRes.json());
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setFormSubmitting(false);
+    }
+  }
+
   return (
     <SiteLayout siteId={siteId}>
       <div className="page-header">
@@ -115,7 +183,99 @@ export default function ServiceRequestsPage() {
           <h1 className="page-title">Service Requests</h1>
           <p className="page-subtitle">Incoming service requests from customers</p>
         </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={handleExtractFromChats}
+            disabled={extracting}
+            className="btn btn-primary"
+          >
+            {extracting ? 'Extracting…' : 'Extract from chats'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowRequestForm(!showRequestForm)}
+            className="btn btn-secondary"
+          >
+            {showRequestForm ? 'Cancel' : 'Request estimate (manual)'}
+          </button>
+        </div>
       </div>
+
+      {extractResult && (
+        <div className={`card ${extractResult.error ? 'alert alert-error' : ''}`} style={{ marginBottom: 16 }}>
+          {extractResult.error ? (
+            <p>{extractResult.error}</p>
+          ) : (
+            <p>
+              Created <strong>{extractResult.created}</strong> service request(s), skipped {extractResult.skipped}, errors: {extractResult.errors}.
+              {extractResult.created > 0 && ' List refreshed.'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {showRequestForm && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 12 }}>New estimate request</h3>
+          <form onSubmit={handleSubmitRequestEstimate}>
+            <div style={{ display: 'grid', gap: 12, maxWidth: 400 }}>
+              <div>
+                <label htmlFor="problemDescription" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Problem / description *</label>
+                <textarea
+                  id="problemDescription"
+                  value={formData.problemDescription}
+                  onChange={(e) => setFormData((d) => ({ ...d, problemDescription: e.target.value }))}
+                  rows={3}
+                  required
+                  className="input"
+                  style={{ width: '100%' }}
+                  placeholder="e.g. Leak under kitchen sink, need repair"
+                />
+              </div>
+              <div>
+                <label htmlFor="customerName" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Customer name</label>
+                <input
+                  id="customerName"
+                  type="text"
+                  value={formData.customerName}
+                  onChange={(e) => setFormData((d) => ({ ...d, customerName: e.target.value }))}
+                  className="input"
+                  style={{ width: '100%' }}
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <label htmlFor="email" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData((d) => ({ ...d, email: e.target.value }))}
+                  className="input"
+                  style={{ width: '100%' }}
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <label htmlFor="phone" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Phone</label>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData((d) => ({ ...d, phone: e.target.value }))}
+                  className="input"
+                  style={{ width: '100%' }}
+                  placeholder="Optional"
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={formSubmitting}>
+                {formSubmitting ? 'Creating…' : 'Create service request'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

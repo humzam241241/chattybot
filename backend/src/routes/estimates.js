@@ -54,6 +54,55 @@ router.post('/:site_id', userAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/estimates/:site_id/generate-from-requests
+ * Bulk: generate estimates for all classified service requests that don't have one yet.
+ */
+router.post('/:site_id/generate-from-requests', userAuth, async (req, res) => {
+  try {
+    const { site_id } = req.params;
+
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
+    }
+
+    const requestsRes = await pool.query(
+      `SELECT sr.id FROM service_requests sr
+       LEFT JOIN estimates e ON e.request_id = sr.id
+       WHERE sr.site_id = $1 AND sr.status = 'classified'
+         AND sr.classified_job_type IS NOT NULL AND sr.industry_id IS NOT NULL
+         AND e.id IS NULL`,
+      [site_id]
+    );
+
+    const generated = [];
+    const errors = [];
+
+    for (const row of requestsRes.rows) {
+      try {
+        const result = await generateAndSaveEstimate(pool, site_id, row.id, {});
+        if (result.ok) {
+          generated.push({ requestId: row.id, estimateId: result.estimate?.id });
+        } else {
+          errors.push({ requestId: row.id, error: result.error });
+        }
+      } catch (err) {
+        errors.push({ requestId: row.id, error: err.message || 'Unknown error' });
+      }
+    }
+
+    return res.json({
+      generated: generated.length,
+      errors: errors.length,
+      details: { generated, errors },
+    });
+  } catch (err) {
+    console.error('[estimates] Generate-from-requests error:', err);
+    res.status(500).json({ error: 'Failed to generate estimates from requests' });
+  }
+});
+
+/**
  * GET /api/estimates/:site_id
  * List estimates for a site
  */

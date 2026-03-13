@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { deleteConversation, getConversation, getSite, listConversations } from '../../../../../lib/api';
 import SiteLayout from '../../../../../components/SiteLayout';
+import MessageMedia from '../../../../../components/MessageMedia';
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
@@ -22,6 +23,7 @@ export default function ConversationsPage() {
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, limit: 50, offset: 0 });
+  const [channel, setChannel] = useState(''); // '' | 'sms' | 'whatsapp'
 
   const loadData = useCallback(async () => {
     if (!siteId) return;
@@ -29,7 +31,7 @@ export default function ConversationsPage() {
       const offset = (currentPage - 1) * pageSize;
       const [siteRes, convRes] = await Promise.all([
         getSite(siteId),
-        listConversations(siteId, { limit: pageSize, offset })
+        listConversations(siteId, { limit: pageSize, offset, channel: channel || undefined })
       ]);
       setSite(siteRes.site);
       setConversations(convRes?.conversations ?? []);
@@ -37,7 +39,7 @@ export default function ConversationsPage() {
     } catch (err) {
       console.error("Load error:", err);
     }
-  }, [siteId, currentPage, pageSize]);
+  }, [siteId, currentPage, pageSize, channel]);
 
   useEffect(() => {
     if (!siteId) return;
@@ -106,6 +108,11 @@ export default function ConversationsPage() {
     setCurrentPage(1);
   }
 
+  function handleChannelChange(ch) {
+    setChannel(ch);
+    setCurrentPage(1);
+  }
+
   return (
     <SiteLayout siteName={site?.company_name || 'Loading...'}>
       <style jsx global>{`
@@ -134,6 +141,25 @@ export default function ConversationsPage() {
         <div className="conv-list" style={styles.conversationList}>
           <div style={styles.panelHeader}>
             <h2 style={styles.panelTitle}>Chats</h2>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+              {['', 'sms', 'whatsapp'].map((ch) => (
+                <button
+                  key={ch || 'all'}
+                  type="button"
+                  onClick={() => handleChannelChange(ch)}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    borderRadius: 6,
+                    border: '1px solid var(--border)',
+                    background: channel === ch ? '#4338ca' : 'transparent',
+                    color: channel === ch ? '#fff' : 'inherit',
+                  }}
+                >
+                  {ch === '' ? 'All' : ch === 'sms' ? 'SMS' : 'WhatsApp'}
+                </button>
+              ))}
+            </div>
             <div style={styles.headerControls}>
               <label style={styles.pageSizeLabel}>
                 Per page:
@@ -288,7 +314,17 @@ export default function ConversationsPage() {
                   <div style={styles.messageRole}>
                     {isUser ? 'VISITOR' : 'BOT'}
                   </div>
-                  <div style={styles.messageContent}>{m?.content ?? ''}</div>
+                  <div style={styles.messageContent}>
+                    {m?.content ? <span>{m.content}</span> : null}
+                    {m?.media_url && (
+                      <MessageMedia
+                        conversationId={selectedConversation}
+                        messageId={m.id}
+                        mediaContentType={m.media_content_type}
+                      />
+                    )}
+                    {!m?.content && !m?.media_url ? '—' : null}
+                  </div>
                   <div style={styles.messageTime}>
                     {m?.created_at ? new Date(m.created_at).toLocaleTimeString() : ''}
                   </div>

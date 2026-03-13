@@ -33,6 +33,8 @@ export default function EstimatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [generating, setGenerating] = useState(false);
+  const [generateResult, setGenerateResult] = useState(null);
 
   useEffect(() => {
     if (!session?.access_token || !siteId) return;
@@ -84,6 +86,32 @@ export default function EstimatesPage() {
     }
   }
 
+  async function handleGenerateFromRequests() {
+    try {
+      setGenerating(true);
+      setGenerateResult(null);
+      const res = await fetch(`/api/estimates/${siteId}/generate-from-requests`, {
+        method: 'POST',
+        headers: {
+          'x-supabase-token': session.access_token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Generate failed');
+      setGenerateResult(data);
+      const listRes = await fetch(`/api/estimates/${siteId}`, {
+        headers: { 'x-supabase-token': session.access_token },
+      });
+      if (listRes.ok) setEstimates(await listRes.json());
+    } catch (err) {
+      setGenerateResult({ error: err.message });
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   return (
     <SiteLayout siteId={siteId}>
       <div className="page-header">
@@ -91,7 +119,30 @@ export default function EstimatesPage() {
           <h1 className="page-title">Estimates</h1>
           <p className="page-subtitle">Manage and approve customer estimates</p>
         </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={handleGenerateFromRequests}
+            disabled={generating}
+            className="btn btn-primary"
+          >
+            {generating ? 'Generating…' : 'Generate from classified requests'}
+          </button>
+        </div>
       </div>
+
+      {generateResult && (
+        <div className={`card ${generateResult.error ? 'alert alert-error' : ''}`} style={{ marginBottom: 16 }}>
+          {generateResult.error ? (
+            <p>{generateResult.error}</p>
+          ) : (
+            <p>
+              Generated <strong>{generateResult.generated}</strong> estimate(s), errors: {generateResult.errors}.
+              {generateResult.generated > 0 && ' List refreshed.'}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

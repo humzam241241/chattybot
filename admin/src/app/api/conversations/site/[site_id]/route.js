@@ -19,10 +19,13 @@ export async function GET(request, { params }) {
   const { searchParams } = new URL(request.url);
   const limit = searchParams.get('limit') || '50';
   const offset = searchParams.get('offset') || '0';
+  const channel = searchParams.get('channel') || '';
 
   try {
     const baseUrl = API_URL.replace(/\/$/, '');
-    const url = `${baseUrl}/api/admin/conversations/site/${site_id}?limit=${limit}&offset=${offset}`;
+    const qs = new URLSearchParams({ limit, offset });
+    if (channel === 'sms' || channel === 'whatsapp') qs.set('channel', channel);
+    const url = `${baseUrl}/api/admin/conversations/site/${site_id}?${qs.toString()}`;
     const res = await fetch(url, {
       headers: auth.headers,
       cache: 'no-store',

@@ -19,6 +19,7 @@ router.get(
   [
     query('site_id').optional({ nullable: true, checkFalsy: true }).isUUID(),
     query('q').optional({ nullable: true, checkFalsy: true }).isString().trim().isLength({ max: 200 }),
+    query('channel').optional({ nullable: true, checkFalsy: true }).isIn(['sms', 'whatsapp']),
     query('limit').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1, max: 200 }),
     query('offset').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0, max: 50000 }),
   ],
@@ -26,7 +27,7 @@ router.get(
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { site_id, q, limit, offset } = req.query;
+    const { site_id, q, channel, limit, offset } = req.query;
 
     // If caller requests a specific site, enforce site access explicitly.
     if (site_id) {
@@ -38,6 +39,7 @@ router.get(
       user: req.user,
       siteId: site_id || null,
       q: q || null,
+      channel: channel || null,
       limit: limit || 50,
       offset: offset || 0,
     });
@@ -84,10 +86,11 @@ router.get('/:conversation_id/messages/:message_id/media', userAuth, requirePaid
   }
 });
 
-// GET /api/admin/conversations/site/:site_id?limit=20&offset=0
+// GET /api/admin/conversations/site/:site_id?limit=20&offset=0&channel=sms|whatsapp
 router.get('/site/:site_id', userAuth, requirePaidOrTrial, [
   query('limit').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1, max: 200 }),
   query('offset').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0, max: 100000 }),
+  query('channel').optional({ nullable: true, checkFalsy: true }).isIn(['sms', 'whatsapp']),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
@@ -95,24 +98,35 @@ router.get('/site/:site_id', userAuth, requirePaidOrTrial, [
   const { site_id } = req.params;
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
   const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+  const channel = req.query.channel || null;
 
   try {
     const access = await checkSiteAccess(pool, req.user, site_id);
     if (!access.ok) return res.status(access.status).json({ error: access.error });
 
+    const countParams = [site_id];
+    const listParams = [site_id, limit, offset];
+    const channelPattern = channel ? `${channel}:%` : null;
+    if (channelPattern) {
+      countParams.push(channelPattern);
+      listParams.splice(1, 0, channelPattern);
+    }
+    const countWhere = channelPattern
+      ? 'WHERE site_id = $1 AND visitor_id IS NOT NULL AND visitor_id LIKE $2'
+      : 'WHERE site_id = $1';
+    const listWhere = channelPattern
+      ? 'WHERE site_id = $1 AND visitor_id IS NOT NULL AND visitor_id LIKE $2'
+      : 'WHERE site_id = $1';
     const countRes = await pool.query(
-      'SELECT COUNT(*)::int AS total FROM conversations WHERE site_id = $1',
-      [site_id]
+      `SELECT COUNT(*)::int AS total FROM conversations ${countWhere}`,
+      countParams
     );
     const total = countRes.rows[0]?.total ?? 0;
 
+    const limitOffset = channelPattern ? 'LIMIT $3 OFFSET $4' : 'LIMIT $2 OFFSET $3';
     const result = await pool.query(
-      `SELECT *
-       FROM conversations
-       WHERE site_id = $1
-       ORDER BY updated_at DESC
-       LIMIT $2 OFFSET $3`,
-      [site_id, limit, offset]
+      `SELECT * FROM conversations ${listWhere} ORDER BY updated_at DESC ${limitOffset}`,
+      listParams
     );
     console.log(`[Conversations] Fetched ${result.rows.length} conversations for site ${site_id} (total: ${total})`);
     return res.json({
