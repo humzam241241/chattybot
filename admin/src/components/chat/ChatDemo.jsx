@@ -73,7 +73,9 @@ export default function ChatDemo({ className = '' }) {
       >
         <div className="flex flex-col gap-3">
           <AnimatePresence initial={false}>
-            {messages.map((m, i) => {
+            {messages
+              .filter((m) => m != null && typeof m.role === 'string')
+              .map((m, i) => {
               const isUser = m.role === 'user';
               return (
                 <motion.div
