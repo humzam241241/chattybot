@@ -19,12 +19,12 @@ const container = {
     opacity: 1,
     transition: {
       staggerChildren: 0.12,
-      delayChildren: 0.7, // robot is there first, then text starts sliding in
+      delayChildren: 7, // robot on screen 7s, then text slides in as robot fades
     },
   },
 };
 
-const ROBOT_FADE_DELAY = 700; // robot visible first, then slowly fades as text slides in
+const ROBOT_FADE_DELAY = 7000; // robot on screen 7s, then slowly fades as text slides in
 
 export default function Hero() {
   const [robotVisible, setRobotVisible] = useState(true);
@@ -89,7 +89,7 @@ export default function Hero() {
         <motion.div
           initial={{ opacity: 0, x: -56 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.85, delay: 1, ease: [0.25, 0.4, 0.25, 1] }}
+          transition={{ duration: 0.85, delay: 7.2, ease: [0.25, 0.4, 0.25, 1] }}
           className="flex justify-center md:justify-end"
         >
           <ChatDemo />
