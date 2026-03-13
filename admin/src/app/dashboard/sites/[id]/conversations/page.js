@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { deleteConversation, getConversation, getSite, listConversations } from '../../../../../lib/api';
 import SiteLayout from '../../../../../components/SiteLayout';
+
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 export default function ConversationsPage() {
   const params = useParams();
@@ -17,24 +19,31 @@ export default function ConversationsPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [showMessages, setShowMessages] = useState(false);
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: 50, offset: 0 });
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
+    if (!siteId) return;
     try {
+      const offset = (currentPage - 1) * pageSize;
       const [siteRes, convRes] = await Promise.all([
         getSite(siteId),
-        listConversations(siteId)
+        listConversations(siteId, { limit: pageSize, offset })
       ]);
       setSite(siteRes.site);
       setConversations(convRes?.conversations ?? []);
+      setPagination(convRes?.pagination ?? { total: 0, limit: pageSize, offset: 0 });
     } catch (err) {
       console.error("Load error:", err);
     }
-  }
+  }, [siteId, currentPage, pageSize]);
 
   useEffect(() => {
     if (!siteId) return;
+    setLoading(true);
     loadData().finally(() => setLoading(false));
-  }, [siteId]);
+  }, [siteId, loadData]);
 
   async function loadMessages(conversationId) {
     setMessagesLoading(true);
@@ -82,6 +91,21 @@ export default function ConversationsPage() {
     setLoading(false);
   }
 
+  const totalPages = Math.max(1, Math.ceil((pagination?.total ?? 0) / pageSize));
+  const canPrev = currentPage > 1;
+  const canNext = currentPage < totalPages;
+
+  function goToPage(page) {
+    const p = Math.max(1, Math.min(page, totalPages));
+    setCurrentPage(p);
+  }
+
+  function handlePageSizeChange(e) {
+    const value = Number(e.target.value);
+    setPageSize(value);
+    setCurrentPage(1);
+  }
+
   return (
     <SiteLayout siteName={site?.company_name || 'Loading...'}>
       <style jsx global>{`
@@ -110,9 +134,70 @@ export default function ConversationsPage() {
         <div className="conv-list" style={styles.conversationList}>
           <div style={styles.panelHeader}>
             <h2 style={styles.panelTitle}>Chats</h2>
-            <button onClick={handleRefresh} style={styles.refreshBtn} disabled={loading}>
-              {loading ? "..." : "↻ Refresh"}
-            </button>
+            <div style={styles.headerControls}>
+              <label style={styles.pageSizeLabel}>
+                Per page:
+                <select
+                  value={pageSize}
+                  onChange={handlePageSizeChange}
+                  style={styles.pageSizeSelect}
+                  disabled={loading}
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
+              <button onClick={handleRefresh} style={styles.refreshBtn} disabled={loading} title="Refresh list">
+                {loading ? "..." : "↻ Refresh"}
+              </button>
+            </div>
+          </div>
+          <div style={styles.paginationBar}>
+            <span style={styles.paginationSummary}>
+              {pagination?.total != null
+                ? `${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, pagination.total)} of ${pagination.total}`
+                : "—"}
+            </span>
+            <div style={styles.paginationButtons}>
+              <button
+                type="button"
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={!canPrev || loading}
+                style={{ ...styles.pageBtn, ...((!canPrev || loading) ? styles.pageBtnDisabled : {}) }}
+              >
+                Prev
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let p;
+                if (totalPages <= 5) p = i + 1;
+                else if (currentPage <= 3) p = i + 1;
+                else if (currentPage >= totalPages - 2) p = totalPages - 4 + i;
+                else p = currentPage - 2 + i;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => goToPage(p)}
+                    disabled={loading}
+                    style={{
+                      ...styles.pageBtn,
+                      ...(p === currentPage ? styles.pageBtnActive : {}),
+                    }}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={!canNext || loading}
+                style={{ ...styles.pageBtn, ...((!canNext || loading) ? styles.pageBtnDisabled : {}) }}
+              >
+                Next
+              </button>
+            </div>
           </div>
           
           {loading ? (
@@ -235,8 +320,8 @@ const styles = {
   },
   panelHeader: {
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
+    gap: 10,
     padding: '14px 16px',
     borderBottom: '1px solid #e5e7eb',
     backgroundColor: '#fff',
@@ -248,6 +333,29 @@ const styles = {
     margin: 0,
     fontSize: 16,
     fontWeight: 600,
+    color: '#111827',
+  },
+  headerControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  pageSizeLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 12,
+    color: '#4b5563',
+  },
+  pageSizeSelect: {
+    padding: '4px 8px',
+    fontSize: 13,
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    color: '#111827',
+    cursor: 'pointer',
   },
   refreshBtn: {
     padding: '6px 12px',
@@ -256,6 +364,44 @@ const styles = {
     border: '1px solid #d1d5db',
     borderRadius: 6,
     cursor: 'pointer',
+    color: '#374151',
+  },
+  paginationBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 16px',
+    borderBottom: '1px solid #e5e7eb',
+    backgroundColor: '#f9fafb',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  paginationSummary: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  paginationButtons: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pageBtn: {
+    padding: '4px 10px',
+    fontSize: 12,
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    color: '#374151',
+    cursor: 'pointer',
+  },
+  pageBtnActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+    color: '#fff',
+  },
+  pageBtnDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
   },
   conversationItem: {
     padding: '12px 16px',

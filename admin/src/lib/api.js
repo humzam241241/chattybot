@@ -80,7 +80,13 @@ export async function uploadFiles(siteId, files) {
 }
 
 // Conversations
-export const listConversations = (siteId) => apiFetch(`/api/conversations/site/${siteId}`);
+export const listConversations = (siteId, { limit = 50, offset = 0 } = {}) => {
+  const params = new URLSearchParams();
+  if (limit != null) params.set('limit', String(limit));
+  if (offset != null) params.set('offset', String(offset));
+  const qs = params.toString();
+  return apiFetch(`/api/conversations/site/${siteId}${qs ? `?${qs}` : ''}`);
+};
 export const getConversation = (conversationId) => apiFetch(`/api/conversations/${conversationId}`);
 export const deleteConversation = (conversationId) => apiFetch(`/api/conversations/${conversationId}`, { method: 'DELETE' });
 

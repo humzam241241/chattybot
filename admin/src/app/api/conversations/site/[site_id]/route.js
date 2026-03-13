@@ -16,14 +16,18 @@ export async function GET(request, { params }) {
   const auth = requireBackendAuth(request);
   if (!auth.ok) return auth.response;
 
+  const { searchParams } = new URL(request.url);
+  const limit = searchParams.get('limit') || '50';
+  const offset = searchParams.get('offset') || '0';
+
   try {
-    const url = `${API_URL.replace(/\/$/, '')}/api/admin/conversations/site/${site_id}`;
+    const baseUrl = API_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/admin/conversations/site/${site_id}?limit=${limit}&offset=${offset}`;
     const res = await fetch(url, {
       headers: auth.headers,
       cache: 'no-store',
     });
     const data = await res.json().catch(() => ({ error: 'Invalid response from backend' }));
-    console.log(`[API] Fetched ${data?.conversations?.length || 0} conversations for site ${site_id}`);
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
     console.error('[API] Conversations fetch failed:', err);

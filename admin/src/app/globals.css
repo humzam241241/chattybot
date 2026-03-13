@@ -79,18 +79,25 @@ body {
   min-height: 100vh;
 }
 
-/* Sidebar */
+/* Sidebar – explicit contrast so text is always readable */
 .sidebar {
   width: var(--sidebar-w);
-  background: var(--card);
-  border-right: 1px solid var(--border);
+  background: #ffffff;
+  border-right: 1px solid #e4e4e7;
   display: flex;
   flex-direction: column;
   padding: 24px 0;
   position: fixed;
   top: 0; left: 0; bottom: 0;
   z-index: 1000;
+  color: #18181b;
 }
+.sidebar .nav-item { color: #71717a; }
+.sidebar .nav-item:hover { color: #18181b; }
+.sidebar .nav-item.active { color: #4338ca; }
+.sidebar .user-email { color: #3f3f46; }
+.sidebar .sign-out-btn { color: #71717a; }
+.sidebar .sign-out-btn:hover { color: #b91c1c; }
 
 .sidebar-logo {
   display: flex;
@@ -123,13 +130,32 @@ body {
 }
 .nav-cta:hover { background: var(--primary-accent-hover) !important; }
 
-/* Main */
+/* Main – ensure readable text in dashboard (explicit contrast) */
 .main-content {
   margin-left: var(--sidebar-w);
   flex: 1;
   padding: 32px;
   max-width: 1100px;
+  background: #ffffff;
+  color: #0f172a;
 }
+.main-content a { color: #4338ca; }
+.main-content a:hover { color: #3730a3; }
+.main-content .page-title,
+.main-content h1, .main-content h2, .main-content h3 {
+  color: #0f172a;
+}
+.main-content .page-subtitle,
+.main-content .card-meta,
+.main-content .text-muted {
+  color: #475569;
+}
+.main-content .card-title { color: #0f172a; }
+.main-content th { color: #475569; }
+.main-content td { color: #0f172a; }
+.main-content .nav-item { color: #64748b; }
+.main-content .nav-item:hover { color: #0f172a; }
+.main-content .nav-item.active { color: #4338ca; }
 
 /* Page header */
 .page-header {

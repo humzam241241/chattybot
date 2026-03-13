@@ -84,22 +84,41 @@ router.get('/:conversation_id/messages/:message_id/media', userAuth, requirePaid
   }
 });
 
-// GET /api/admin/conversations/site/:site_id
-router.get('/site/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
+// GET /api/admin/conversations/site/:site_id?limit=20&offset=0
+router.get('/site/:site_id', userAuth, requirePaidOrTrial, [
+  query('limit').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1, max: 200 }),
+  query('offset').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0, max: 100000 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
   const { site_id } = req.params;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
   try {
     const access = await checkSiteAccess(pool, req.user, site_id);
     if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+    const countRes = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM conversations WHERE site_id = $1',
+      [site_id]
+    );
+    const total = countRes.rows[0]?.total ?? 0;
 
     const result = await pool.query(
       `SELECT *
        FROM conversations
        WHERE site_id = $1
-       ORDER BY updated_at DESC`,
-      [site_id]
+       ORDER BY updated_at DESC
+       LIMIT $2 OFFSET $3`,
+      [site_id, limit, offset]
     );
-    console.log(`[Conversations] Fetched ${result.rows.length} conversations for site ${site_id}`);
-    return res.json({ conversations: result.rows });
+    console.log(`[Conversations] Fetched ${result.rows.length} conversations for site ${site_id} (total: ${total})`);
+    return res.json({
+      conversations: result.rows,
+      pagination: { total, limit, offset },
+    });
   } catch (err) {
     console.error('List conversations error:', err);
     return res.status(500).json({ error: 'Failed to list conversations' });

@@ -30,7 +30,8 @@ export default function DashboardLayout({ children }) {
             align-items: center;
             justify-content: center;
             gap: 16px;
-            color: var(--muted);
+            background: #ffffff;
+            color: #475569;
           }
           .spinner {
             width: 40px;
