@@ -124,7 +124,11 @@ export default function EditSitePage() {
   if (loading) return <SiteLayout siteName="Loading..."><p className="text-muted">Loading...</p></SiteLayout>;
   if (!form) return <SiteLayout siteName="Error"><div className="alert alert-error">{error}</div></SiteLayout>;
 
-  const embedCode = `<script src="${widgetUrl}" data-site-id="${id}" data-api-url="${apiUrl}"></script>`;
+  const cacheBust = Date.now();
+  const widgetSrc = widgetUrl
+    ? (widgetUrl.includes('?') ? `${widgetUrl}&v=${cacheBust}` : `${widgetUrl}?v=${cacheBust}`)
+    : '';
+  const embedCode = `<script src="${widgetSrc}" data-site-id="${id}" data-api-url="${apiUrl}"></script>`;
 
   return (
     <SiteLayout siteName={form.company_name}>
