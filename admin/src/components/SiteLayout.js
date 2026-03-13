@@ -13,6 +13,9 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
     { href: `/dashboard/sites/${id}`, label: 'Overview', icon: '🏠', exact: true },
     { href: `/dashboard/sites/${id}/leads`, label: 'Leads', icon: '👥' },
     { href: `/dashboard/sites/${id}/conversations`, label: 'Chats', icon: '💬' },
+    { href: `/dashboard/sites/${id}/service-requests`, label: 'Service Requests', icon: '📋' },
+    { href: `/dashboard/sites/${id}/estimates`, label: 'Estimates & Quotes', icon: '💰' },
+    { href: `/dashboard/sites/${id}/ai-analytics`, label: 'AI Analytics', icon: '🤖' },
     { href: `/dashboard/sites/${id}/missed-leads`, label: 'Missed Leads', icon: '⚠️' },
     { href: `/dashboard/sites/${id}/analytics`, label: 'Analytics', icon: '📊' },
     { href: `/dashboard/sites/${id}/reports`, label: 'Reports', icon: '📈' },
@@ -148,12 +151,12 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
         }
         
         .site-logo .logo-icon { font-size: 22px; }
-        .site-logo .logo-text { font-weight: 700; font-size: 16px; color: var(--primary); }
+        .site-logo .logo-text { font-weight: 700; font-size: 16px; color: #4338ca; }
         
         .client-badge {
           padding: 16px 20px;
-          background: var(--bg);
-          border-bottom: 1px solid var(--border);
+          background: #f8fafc;
+          border-bottom: 1px solid #e4e4e7;
           text-decoration: none;
           display: block;
         }
@@ -164,7 +167,7 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
         .badge-label {
           font-size: 10px;
           font-weight: 700;
-          color: var(--muted);
+          color: #475569;
           letter-spacing: 0.1em;
           margin-bottom: 4px;
         }
@@ -172,7 +175,7 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
         .badge-name {
           font-weight: 600;
           font-size: 14px;
-          color: var(--text);
+          color: #0f172a;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -190,7 +193,7 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
           gap: 10px;
           padding: 10px 12px;
           border-radius: 8px;
-          color: var(--muted);
+          color: #475569;
           text-decoration: none;
           font-weight: 500;
           font-size: 14px;
@@ -199,13 +202,13 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
         }
         
         .site-nav-item:hover {
-          background: var(--bg);
-          color: var(--text);
+          background: #f1f5f9;
+          color: #0f172a;
         }
         
         .site-nav-item.active {
-          background: rgba(99, 102, 241, 0.1);
-          color: var(--primary);
+          background: rgba(67, 56, 202, 0.12);
+          color: #4338ca;
           font-weight: 600;
         }
         
@@ -224,7 +227,7 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
           display: block;
           padding: 10px 12px;
           border-radius: 8px;
-          color: var(--muted);
+          color: #475569;
           text-decoration: none;
           font-weight: 500;
           font-size: 14px;
@@ -232,8 +235,8 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
         }
         
         .back-link:hover {
-          background: var(--bg);
-          color: var(--text);
+          background: #f1f5f9;
+          color: #0f172a;
         }
         
         .site-main {
@@ -241,6 +244,8 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
           flex: 1;
           padding: 32px;
           max-width: 1000px;
+          background: #ffffff;
+          color: #0f172a;
         }
         
         @media (max-width: 900px) {

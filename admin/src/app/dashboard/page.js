@@ -126,6 +126,35 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {!loading && (hasAccess || isAdmin) && (
+        <div className="intelligence-section">
+          <h2 className="intelligence-title">Service Intelligence</h2>
+          <p className="intelligence-desc">AI-powered intake, classification, estimates, and analytics. Select a client below to open Service Requests, Estimates, and AI Analytics.</p>
+          <div className="intelligence-cards">
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/service-requests` : '/dashboard'} className="intelligence-card">
+              <h3>Service Requests</h3>
+              <p>Incoming customer requests, classification, and intake.</p>
+              <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
+            </Link>
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/estimates` : '/dashboard'} className="intelligence-card">
+              <h3>Estimates & Quotes</h3>
+              <p>Generate and approve preliminary estimates, send quotes.</p>
+              <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
+            </Link>
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/ai-analytics` : '/dashboard'} className="intelligence-card">
+              <h3>AI Analytics</h3>
+              <p>Intent and classification analytics per site.</p>
+              <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
+            </Link>
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/settings` : '/dashboard'} className="intelligence-card">
+              <h3>Industries & Protocols</h3>
+              <p>Configure job types and service protocols by industry.</p>
+              <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {loading && (
         <div className="loading-state">
           <div className="spinner"></div>
@@ -204,6 +233,14 @@ export default function DashboardPage() {
           max-width: 1100px;
         }
         
+        .dashboard-page .page-title {
+          color: #0f172a;
+        }
+        
+        .dashboard-page .page-subtitle {
+          color: #475569;
+        }
+        
         .header-actions {
           display: flex;
           gap: 8px;
@@ -218,8 +255,8 @@ export default function DashboardPage() {
         }
         
         .summary-stat {
-          background: var(--surface);
-          border: 1px solid var(--border);
+          background: #ffffff;
+          border: 1px solid #e4e4e7;
           border-radius: 12px;
           padding: 16px 24px;
           display: flex;
@@ -230,19 +267,76 @@ export default function DashboardPage() {
         .stat-num {
           font-size: 28px;
           font-weight: 700;
-          color: var(--primary);
+          color: #4338ca;
         }
         
         .stat-label {
           font-size: 13px;
-          color: var(--muted);
-          font-weight: 500;
+          color: #4338ca;
+          font-weight: 600;
+        }
+        
+        .intelligence-section {
+          margin-bottom: 28px;
+        }
+        
+        .intelligence-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+          margin-bottom: 6px;
+        }
+        
+        .intelligence-desc {
+          font-size: 14px;
+          color: #475569;
+          margin-bottom: 16px;
+        }
+        
+        .intelligence-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          gap: 16px;
+        }
+        
+        .intelligence-card {
+          background: #ffffff;
+          border: 1px solid #e4e4e7;
+          border-radius: 12px;
+          padding: 20px;
+          text-decoration: none;
+          transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        
+        .intelligence-card:hover {
+          border-color: #6366f1;
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.12);
+        }
+        
+        .intelligence-card h3 {
+          font-size: 15px;
+          font-weight: 600;
+          color: #4338ca;
+          margin-bottom: 8px;
+        }
+        
+        .intelligence-card p {
+          font-size: 13px;
+          color: #475569;
+          margin-bottom: 12px;
+          line-height: 1.45;
+        }
+        
+        .intelligence-card .card-link {
+          font-size: 13px;
+          font-weight: 600;
+          color: #4338ca;
         }
         
         .loading-state {
           text-align: center;
           padding: 60px 20px;
-          color: var(--muted);
+          color: #475569;
         }
         
         .spinner {
@@ -266,39 +360,39 @@ export default function DashboardPage() {
         }
         
         .client-card {
-          background: var(--surface);
-          border: 1px solid var(--border);
+          background: #ffffff;
+          border: 1px solid #e4e4e7;
           border-radius: 16px;
           padding: 24px;
           text-decoration: none;
-          color: var(--text);
+          color: #0f172a;
           transition: all 0.2s ease;
           display: flex;
           flex-direction: column;
         }
         
         .client-card:hover {
-          border-color: var(--primary);
+          border-color: #6366f1;
           box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
           transform: translateY(-3px);
         }
         
         .add-card {
-          border: 2px dashed var(--border);
+          border: 2px dashed #e4e4e7;
           align-items: center;
           justify-content: center;
-          background: transparent;
+          background: #fafafa;
           min-height: 200px;
         }
         
         .add-card:hover {
-          border-color: var(--primary);
-          background: rgba(99, 102, 241, 0.03);
+          border-color: #6366f1;
+          background: rgba(99, 102, 241, 0.05);
         }
         
         .add-icon {
           font-size: 48px;
-          color: var(--primary);
+          color: #4338ca;
           font-weight: 300;
           line-height: 1;
           margin-bottom: 8px;
@@ -306,7 +400,7 @@ export default function DashboardPage() {
         
         .add-text {
           font-weight: 600;
-          color: var(--primary);
+          color: #4338ca;
           font-size: 15px;
         }
         
@@ -336,9 +430,9 @@ export default function DashboardPage() {
           width: 32px;
           height: 32px;
           border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--surface);
-          color: var(--muted);
+          border: 1px solid #e4e4e7;
+          background: #ffffff;
+          color: #64748b;
           cursor: pointer;
           font-size: 18px;
           display: flex;
@@ -353,8 +447,8 @@ export default function DashboardPage() {
         }
         
         .delete-btn:hover {
-          background: var(--danger);
-          border-color: var(--danger);
+          background: #dc2626;
+          border-color: #dc2626;
           color: white;
         }
         
@@ -362,11 +456,11 @@ export default function DashboardPage() {
           font-weight: 700;
           font-size: 18px;
           margin-bottom: 4px;
-          color: var(--text);
+          color: #0f172a;
         }
         
         .client-domain {
-          color: var(--muted);
+          color: #475569;
           font-size: 13px;
           margin-bottom: 16px;
         }
@@ -389,12 +483,13 @@ export default function DashboardPage() {
         .mini-num {
           font-size: 20px;
           font-weight: 700;
-          color: var(--text);
+          color: #0f172a;
         }
         
         .mini-label {
           font-size: 12px;
-          color: var(--muted);
+          color: #4338ca;
+          font-weight: 500;
         }
         
         .client-footer {
@@ -404,22 +499,22 @@ export default function DashboardPage() {
         }
         
         .client-date {
-          color: var(--muted);
+          color: #475569;
           font-size: 12px;
         }
         
         .action-hint {
           font-size: 13px;
-          color: var(--primary);
+          color: #4338ca;
           font-weight: 600;
         }
         
         .empty-state {
           text-align: center;
           padding: 60px 20px;
-          background: var(--surface);
+          background: #ffffff;
           border-radius: 16px;
-          border: 1px solid var(--border);
+          border: 1px solid #e4e4e7;
         }
         
         .empty-icon {
@@ -429,11 +524,11 @@ export default function DashboardPage() {
         
         .empty-state h3 {
           margin-bottom: 8px;
-          color: var(--text);
+          color: #0f172a;
         }
         
         .empty-state p {
-          color: var(--muted);
+          color: #475569;
         }
         
         @media (max-width: 768px) {
