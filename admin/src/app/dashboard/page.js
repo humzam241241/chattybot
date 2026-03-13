@@ -86,6 +86,12 @@ export default function DashboardPage() {
               {reconciling ? 'Scanning...' : 'Recover Data'}
             </button>
           )}
+          <Link className="btn btn-secondary" href="/dashboard/leads">
+            All Leads
+          </Link>
+          <Link className="btn btn-secondary" href="/dashboard/chats">
+            All Chats
+          </Link>
           <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>
             {loading ? '...' : 'Refresh'}
           </button>

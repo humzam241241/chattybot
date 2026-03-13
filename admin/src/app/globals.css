@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -39,6 +43,22 @@
   --danger: var(--destructive);
   --primary-dark: var(--primary-accent-hover);
   --sidebar-w: 220px;
+
+  /* Minimal Intelligence — marketing design system */
+  --surface-elevated: #ffffff;
+  --surface-overlay: rgba(255, 255, 255, 0.92);
+  --ink: #0f0f0f;
+  --ink-secondary: #404040;
+  --ink-tertiary: #525252;
+  --brand: #0f172a;
+  --brand-hover: #1e293b;
+  --brand-muted: #f1f5f9;
+  --brand-glow: rgba(15, 23, 42, 0.06);
+  --border-strong: #c4c4c4;
+  --radius-card: 0.875rem;
+  --font-geist-sans: 'Inter', ui-sans-serif, sans-serif;
+  --font-inter: 'Inter', ui-sans-serif, sans-serif;
+  --font-geist-mono: ui-monospace, monospace;
 }
 
 @media (prefers-reduced-motion: reduce) {

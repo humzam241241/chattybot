@@ -1,12 +1,49 @@
 const express = require('express');
 const pool = require('../config/database');
 const axios = require('axios');
+const { query, validationResult } = require('express-validator');
 const { apiLimiter } = require('../middleware/rateLimiter');
 const { userAuth, requirePaidOrTrial } = require('../middleware/userAuth');
 const { checkSiteAccess } = require('../services/siteAccess');
+const { listConversationsForAdmin } = require('../services/adminConversations');
 
 const router = express.Router();
 router.use(apiLimiter);
+
+// GET /api/admin/conversations
+// Lists conversations across all accessible sites (admin: all sites; non-admin: owned sites).
+router.get(
+  '/',
+  userAuth,
+  requirePaidOrTrial,
+  [
+    query('site_id').optional({ nullable: true, checkFalsy: true }).isUUID(),
+    query('q').optional({ nullable: true, checkFalsy: true }).isString().trim().isLength({ max: 200 }),
+    query('limit').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1, max: 200 }),
+    query('offset').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0, max: 50000 }),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const { site_id, q, limit, offset } = req.query;
+
+    // If caller requests a specific site, enforce site access explicitly.
+    if (site_id) {
+      const access = await checkSiteAccess(pool, req.user, site_id);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+    }
+
+    const data = await listConversationsForAdmin({
+      user: req.user,
+      siteId: site_id || null,
+      q: q || null,
+      limit: limit || 50,
+      offset: offset || 0,
+    });
+    return res.json(data);
+  }
+);
 
 // GET /api/admin/conversations/:conversation_id/messages/:message_id/media
 // Proxies message media (e.g. Twilio URLs that require Basic auth) so the admin can display images.

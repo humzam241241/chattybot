@@ -84,6 +84,26 @@ export const listConversations = (siteId) => apiFetch(`/api/conversations/site/$
 export const getConversation = (conversationId) => apiFetch(`/api/conversations/${conversationId}`);
 export const deleteConversation = (conversationId) => apiFetch(`/api/conversations/${conversationId}`, { method: 'DELETE' });
 
+// Cross-site admin/owner views
+export const listAllConversations = ({ siteId, q, limit = 50, offset = 0 } = {}) => {
+  const params = new URLSearchParams();
+  if (siteId) params.set('site_id', siteId);
+  if (q) params.set('q', q);
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  return apiFetch(`/api/conversations?${params.toString()}`);
+};
+
+export const listAllLeads = ({ siteId, q, rating, limit = 50, offset = 0 } = {}) => {
+  const params = new URLSearchParams();
+  if (siteId) params.set('site_id', siteId);
+  if (q) params.set('q', q);
+  if (rating) params.set('rating', rating);
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  return apiFetch(`/api/leads/all?${params.toString()}`);
+};
+
 // Missed Leads
 export const getMissedLeads = (siteId) => apiFetch(`/api/missed-leads/${siteId}`);
 export const getMissedLeadStats = (siteId) => apiFetch(`/api/missed-leads/${siteId}/stats`);

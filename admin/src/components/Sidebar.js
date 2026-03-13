@@ -54,6 +54,20 @@ export function Sidebar() {
           >
             📊 Dashboard
           </Link>
+          <Link
+            href="/dashboard/leads"
+            className={`nav-item ${isActive('/dashboard/leads') ? 'active' : ''}`}
+            onClick={() => setOpen(false)}
+          >
+            👥 All Leads
+          </Link>
+          <Link
+            href="/dashboard/chats"
+            className={`nav-item ${isActive('/dashboard/chats') ? 'active' : ''}`}
+            onClick={() => setOpen(false)}
+          >
+            💬 All Chats
+          </Link>
           {isAdmin && (
             <Link 
               href="/dashboard/admin" 

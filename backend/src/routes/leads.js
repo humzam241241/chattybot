@@ -8,6 +8,7 @@ const { getEffectiveRaffySettings } = require('../services/raffySettings');
 const { sendLeadEmail } = require('../services/mailer');
 const { trackApiUsage } = require('../middleware/usageTracking');
 const { checkSiteAccess } = require('../services/siteAccess');
+const { listLeadsForAdmin } = require('../services/adminLeads');
 
 const router = express.Router();
 
@@ -78,6 +79,35 @@ router.post(
     }
   }
 );
+
+/**
+ * GET /api/admin/leads/all
+ * Lists leads across all accessible sites (admin: all sites; non-admin: owned sites).
+ */
+router.get('/all', userAuth, requirePaidOrTrial, async (req, res) => {
+  const { site_id = null, q = null, rating = null, limit = 50, offset = 0 } = req.query;
+
+  try {
+    // If caller requests a specific site, enforce site access explicitly.
+    if (site_id) {
+      const access = await checkSiteAccess(pool, req.user, site_id);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+    }
+
+    const data = await listLeadsForAdmin({
+      user: req.user,
+      siteId: site_id || null,
+      q: q || null,
+      rating: rating || null,
+      limit,
+      offset,
+    });
+    return res.json(data);
+  } catch (err) {
+    console.error('List leads (all) error:', err);
+    return res.status(500).json({ error: 'Failed to list leads' });
+  }
+});
 
 /**
  * GET /lead/debug/all
@@ -220,16 +250,9 @@ router.get('/:site_id', userAuth, requirePaidOrTrial, async (req, res) => {
       query += ` AND l.lead_rating = $${params.length}`;
     }
 
-    // Sort: HOT first, then by most recently extracted/created
+    // Sort newest first so you always see recent leads.
     query += `
-      ORDER BY 
-        CASE l.lead_rating 
-          WHEN 'HOT' THEN 1 
-          WHEN 'WARM' THEN 2 
-          WHEN 'COLD' THEN 3 
-          ELSE 4 
-        END,
-        COALESCE(l.extracted_at, l.created_at) DESC
+      ORDER BY l.created_at DESC
       LIMIT $${params.length + 1}
     `;
     params.push(parseInt(limit));
