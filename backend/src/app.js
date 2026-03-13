@@ -39,6 +39,11 @@ const { userAuth } = require('./middleware/userAuth');
 const { startUsageResetWorker } = require('./workers/usageResetWorker');
 const meRouter = require('./routes/me');
 const estimateRouter = require('./routes/estimate');
+const serviceRequestsRouter = require('./routes/serviceRequests');
+const estimatesRouter = require('./routes/estimates');
+const industriesRouter = require('./routes/industries');
+const historicalJobsRouter = require('./routes/historicalJobs');
+const aiChatRouter = require('./routes/aiChat');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -142,7 +147,14 @@ adminApi.use('/reports', reportsRouter);
 adminApi.use('/analytics', analyticsRouter);
 adminApi.use('/reconcile', adminReconcileRouter);
 adminApi.use('/overview', adminOverviewRouter);
+adminApi.use('/service-requests', serviceRequestsRouter);
+adminApi.use('/estimates', estimatesRouter);
+adminApi.use('/historical-jobs', historicalJobsRouter);
+adminApi.use('/ai-chat', aiChatRouter);
 app.use('/api/admin', adminApi);
+
+// Industries API (public read, admin write)
+app.use('/api/industries', industriesRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
