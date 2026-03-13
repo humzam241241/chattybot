@@ -6,10 +6,17 @@ import { MessageCircle, Check } from 'lucide-react';
 import { messageReveal } from '../../lib/motion-variants';
 
 const DEMO_MESSAGES = [
+  { role: 'bot', text: "Hi! I'm here to help. What can I do for you today?" },
   { role: 'user', text: 'Do you offer free estimates?' },
-  { role: 'bot', text: 'Yes! What type of project?' },
-  { role: 'user', text: 'Roof inspection' },
-  { role: 'bot', text: "Great — let's schedule that." },
+  { role: 'bot', text: 'Yes! What type of project are you thinking about?' },
+  { role: 'user', text: 'Roof inspection for my home' },
+  { role: 'bot', text: 'We do those all the time. Are you looking for a full inspection or just a quote?' },
+  { role: 'user', text: 'Full inspection — we had some storm damage' },
+  { role: 'bot', text: "Got it. I'll get you on the schedule for a free inspection. What's the best number to reach you?" },
+  { role: 'user', text: '555-123-4567' },
+  { role: 'bot', text: "Perfect. We'll call within 24 hours to confirm. Anything else I can help with?" },
+  { role: 'user', text: 'That’s it, thanks!' },
+  { role: 'bot', text: "You're welcome — talk soon!" },
 ];
 
 export default function ChatDemo({ className = '' }) {
@@ -24,18 +31,18 @@ export default function ChatDemo({ className = '' }) {
     const addNext = () => {
       if (i >= DEMO_MESSAGES.length) {
         setTyping(false);
-        // Show "Lead captured" after last bot message
-        timeoutId = setTimeout(() => setLeadCaptured(true), 600);
+        timeoutId = setTimeout(() => setLeadCaptured(true), 500);
         return;
       }
       setTyping(true);
       setMessages((prev) => [...prev, DEMO_MESSAGES[i]]);
       i += 1;
-      const delay = i === 1 ? 700 : 1000 + (i === 2 ? 400 : 0);
-      timeoutId = setTimeout(addNext, delay);
+      // Vary delay: first message quick, then 800–1400ms so conversation feels natural
+      const baseDelay = i === 1 ? 600 : 800 + Math.min(i * 80, 600);
+      timeoutId = setTimeout(addNext, baseDelay);
     };
 
-    timeoutId = setTimeout(addNext, 500);
+    timeoutId = setTimeout(addNext, 400);
 
     return () => clearTimeout(timeoutId);
   }, []);
@@ -69,7 +76,7 @@ export default function ChatDemo({ className = '' }) {
 
       <div
         className="rounded-b-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-4 shadow-card"
-        style={{ minHeight: 260 }}
+        style={{ minHeight: 380 }}
       >
         <div className="flex flex-col gap-3">
           <AnimatePresence initial={false}>
