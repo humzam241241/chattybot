@@ -315,6 +315,7 @@ router.post('/:site_id/extract-from-chats', userAuth, async (req, res) => {
     }
 
     return res.json({
+      totalConversationsChecked: convosRes.rows.length,
       created: created.length,
       skipped: skipped.length,
       errors: errors.length,

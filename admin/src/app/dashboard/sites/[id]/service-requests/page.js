@@ -208,8 +208,10 @@ export default function ServiceRequestsPage() {
             <p>{extractResult.error}</p>
           ) : (
             <p>
-              Created <strong>{extractResult.created}</strong> service request(s), skipped {extractResult.skipped}, errors: {extractResult.errors}.
+              Checked <strong>{extractResult.totalConversationsChecked ?? '—'}</strong> conversation(s) for this client.
+              Created <strong>{extractResult.created}</strong> service request(s), skipped {extractResult.skipped} (already have a request or no user messages), errors: {extractResult.errors}.
               {extractResult.created > 0 && ' List refreshed.'}
+              {extractResult.totalConversationsChecked === 0 && ' No conversations found for this client — try another client or add chats first.'}
             </p>
           )}
         </div>
