@@ -3,7 +3,7 @@ import { requireBackendAuth } from '../../../../_utils/backend';
 
 export const dynamic = 'force-dynamic';
 
-const API_URL = process.env.API_URL;
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export async function POST(request, { params }) {
   if (!API_URL) return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });

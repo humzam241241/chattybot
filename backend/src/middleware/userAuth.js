@@ -39,13 +39,18 @@ async function getOrCreateAppUser(supabaseUser) {
 }
 
 async function userAuth(req, res, next) {
+  // Accept Bearer token from Authorization header or from admin client's x-supabase-token
   const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const supabaseToken = req.headers['x-supabase-token'];
+  let token = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else if (supabaseToken) {
+    token = supabaseToken;
+  }
+  if (!token) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  
-  const token = authHeader.slice(7);
   
   if (!supabase) {
     return res.status(500).json({ error: 'Auth not configured' });

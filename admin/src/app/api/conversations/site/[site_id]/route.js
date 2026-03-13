@@ -4,7 +4,7 @@ import { requireBackendAuth } from '../../../_utils/backend';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const API_URL = process.env.API_URL;
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export async function GET(request, { params }) {
   const site_id = params?.site_id;

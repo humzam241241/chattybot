@@ -44,6 +44,7 @@ const estimatesRouter = require('./routes/estimates');
 const industriesRouter = require('./routes/industries');
 const historicalJobsRouter = require('./routes/historicalJobs');
 const aiChatRouter = require('./routes/aiChat');
+const ragEvalRouter = require('./routes/ragEval');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -89,7 +90,7 @@ app.use(
       callback(null, true); // widget can be embedded anywhere
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-supabase-token'],
   })
 );
 
@@ -151,6 +152,7 @@ adminApi.use('/service-requests', serviceRequestsRouter);
 adminApi.use('/estimates', estimatesRouter);
 adminApi.use('/historical-jobs', historicalJobsRouter);
 adminApi.use('/ai-chat', aiChatRouter);
+adminApi.use('/rag-eval', ragEvalRouter);
 app.use('/api/admin', adminApi);
 
 // Industries API (public read, admin write)

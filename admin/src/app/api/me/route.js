@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireBackendAuth } from '../_utils/backend';
 
-const API_URL = process.env.API_URL;
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export async function GET(request) {
   const auth = requireBackendAuth(request);
