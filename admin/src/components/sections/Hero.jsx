@@ -7,9 +7,10 @@ import ChatDemo from '../chat/ChatDemo';
 import Hero3DBackground from './Hero3DBackground';
 import { transitionNormal } from '../../lib/motion-variants';
 
-const flyIn = {
-  hidden: { opacity: 0, y: 72 },
-  visible: { opacity: 1, y: 0 },
+// Text flies in from the left
+const flyInFromLeft = {
+  hidden: { opacity: 0, x: -80 },
+  visible: { opacity: 1, x: 0 },
 };
 
 const container = {
@@ -17,14 +18,13 @@ const container = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.15,
+      staggerChildren: 0.12,
+      delayChildren: 0.7, // robot is there first, then text starts sliding in
     },
   },
 };
 
-const FLY_IN_DURATION = 1;
-const ROBOT_FADE_DELAY = 1800; // start fading robot 1.8s after load (while content is flying in)
+const ROBOT_FADE_DELAY = 700; // robot visible first, then slowly fades as text slides in
 
 export default function Hero() {
   const [robotVisible, setRobotVisible] = useState(true);
@@ -47,8 +47,8 @@ export default function Hero() {
           transition={transitionNormal}
         >
           <motion.h1
-            variants={flyIn}
-            transition={{ duration: 0.7, ease: [0.25, 0.4, 0.25, 1] }}
+            variants={flyInFromLeft}
+            transition={{ duration: 0.75, ease: [0.25, 0.4, 0.25, 1] }}
             className="text-display-sm font-semibold tracking-tight text-[var(--ink)] md:text-display"
           >
             AI Chatbots That Convert{' '}
@@ -57,8 +57,8 @@ export default function Hero() {
             </span>
           </motion.h1>
           <motion.p
-            variants={flyIn}
-            transition={{ duration: 0.65, ease: [0.25, 0.4, 0.25, 1] }}
+            variants={flyInFromLeft}
+            transition={{ duration: 0.7, ease: [0.25, 0.4, 0.25, 1] }}
             className="mt-5 text-body-lg text-[var(--ink-secondary)]"
           >
             Install an AI employee on your website. It answers questions, captures
@@ -66,8 +66,8 @@ export default function Hero() {
             businesses never miss an opportunity.
           </motion.p>
           <motion.div
-            variants={flyIn}
-            transition={{ duration: 0.6, ease: [0.25, 0.4, 0.25, 1] }}
+            variants={flyInFromLeft}
+            transition={{ duration: 0.65, ease: [0.25, 0.4, 0.25, 1] }}
             className="mt-8 flex flex-wrap gap-3"
           >
             <Button href="/sign-up" variant="primary" size="lg">
@@ -78,8 +78,8 @@ export default function Hero() {
             </Button>
           </motion.div>
           <motion.p
-            variants={flyIn}
-            transition={{ duration: 0.55, ease: [0.25, 0.4, 0.25, 1] }}
+            variants={flyInFromLeft}
+            transition={{ duration: 0.6, ease: [0.25, 0.4, 0.25, 1] }}
             className="mt-5 text-caption text-[var(--ink-tertiary)]"
           >
             14-day free trial. No credit card required.
@@ -87,9 +87,9 @@ export default function Hero() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 64 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4, ease: [0.25, 0.4, 0.25, 1] }}
+          initial={{ opacity: 0, x: -56 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.85, delay: 1, ease: [0.25, 0.4, 0.25, 1] }}
           className="flex justify-center md:justify-end"
         >
           <ChatDemo />

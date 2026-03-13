@@ -14,7 +14,7 @@ export default function Hero3DBackground({ visible = true }) {
       className="absolute inset-0 z-0"
       initial={{ opacity: 1 }}
       animate={{ opacity: visible ? 1 : 0 }}
-      transition={{ duration: 1.4, ease: [0.25, 0.4, 0.25, 1] }}
+      transition={{ duration: 2.4, ease: [0.22, 0.6, 0.36, 1] }}
       aria-hidden
     >
       <div
