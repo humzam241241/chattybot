@@ -62,6 +62,7 @@ export default function RagEvaluationPage() {
 
   return (
     <SiteLayout siteName={site?.company_name || 'Site'}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <div className="page-header">
         <div>
           <h1 className="page-title">RAG Evaluation</h1>
@@ -174,6 +175,7 @@ export default function RagEvaluationPage() {
           </div>
         </>
       )}
+      </div>
     </SiteLayout>
   );
 }

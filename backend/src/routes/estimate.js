@@ -62,6 +62,7 @@ router.post(
 );
 
 // Public quote fetch for the customer quote page.
+// Supports both: (1) quote id from quotes table, (2) estimate id from estimates table (sent links).
 router.get(
   '/:quoteId',
   apiLimiter,
@@ -73,9 +74,39 @@ router.get(
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
+    const id = req.params.quoteId;
+
     try {
-      const quote = await getQuoteById({ quoteId: req.params.quoteId });
-      if (!quote) return res.status(404).json({ error: 'Quote not found' });
+      let quote = await getQuoteById({ quoteId: id });
+      if (!quote) {
+        const est = await pool.query(
+          `SELECT e.id, e.site_id, e.price_low, e.price_high, e.timeline_days_min, e.timeline_days_max,
+                  e.scope_of_work, e.notes, e.job_type
+           FROM estimates e WHERE e.id = $1`,
+          [id]
+        );
+        const row = est.rows[0];
+        if (!row) return res.status(404).json({ error: 'Quote not found' });
+        const timeline =
+          row.timeline_days_min != null && row.timeline_days_max != null
+            ? `${row.timeline_days_min}-${row.timeline_days_max} days`
+            : row.timeline_days_min != null
+              ? `${row.timeline_days_min} days`
+              : null;
+        quote = {
+          id: row.id,
+          site_id: row.site_id,
+          service_type: row.job_type || 'Service estimate',
+          price_low: Number(row.price_low),
+          price_high: Number(row.price_high),
+          timeline_estimate: timeline || 'Varies',
+          recommended_service: null,
+          roof_type: null,
+          urgency: null,
+          roof_size: null,
+          notes: row.notes || null,
+        };
+      }
 
       let booking_url = null;
       const settings = await getEffectiveRaffySettings(quote.site_id);

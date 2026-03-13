@@ -27,7 +27,7 @@ export default function ConversationDetailPage() {
           <p className="page-subtitle">{conversation_id}</p>
         </div>
         <div className="flex gap-2">
-          <Link href={`/sites/${id}/conversations`} className="btn btn-secondary">← Back</Link>
+          <Link href={`/dashboard/sites/${id}/conversations`} className="btn btn-secondary">← Back</Link>
         </div>
       </div>
 
@@ -54,7 +54,6 @@ export default function ConversationDetailPage() {
                     <span className="badge">{m.role}</span>
                     <span className="text-muted">{m?.created_at ? new Date(m.created_at).toLocaleString() : ''}</span>
                   </div>
-                  {m?.content ? <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div> : null}
                   {m?.media_url && (
                     <MessageMedia
                       conversationId={conversation_id}
@@ -62,6 +61,11 @@ export default function ConversationDetailPage() {
                       mediaContentType={m.media_content_type}
                     />
                   )}
+                  {m?.content && !/^\[User sent (a )?(roof )?photo\]$/i.test(m.content.trim()) ? (
+                    <div style={{ whiteSpace: 'pre-wrap', marginTop: m?.media_url ? 8 : 0 }}>{m.content}</div>
+                  ) : m?.content && !m?.media_url ? (
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
+                  ) : null}
                 </div>
               ))}
             </div>

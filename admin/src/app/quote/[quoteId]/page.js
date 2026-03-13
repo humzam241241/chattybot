@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-const API_URL = process.env.API_URL;
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

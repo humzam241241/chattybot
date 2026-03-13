@@ -315,7 +315,6 @@ export default function ConversationsPage() {
                     {isUser ? 'VISITOR' : 'BOT'}
                   </div>
                   <div style={styles.messageContent}>
-                    {m?.content ? <span>{m.content}</span> : null}
                     {m?.media_url && (
                       <MessageMedia
                         conversationId={selectedConversation}
@@ -323,6 +322,11 @@ export default function ConversationsPage() {
                         mediaContentType={m.media_content_type}
                       />
                     )}
+                    {m?.content && !/^\[User sent (a )?(roof )?photo\]$/i.test(String(m.content).trim()) ? (
+                      <span style={{ display: 'block', marginTop: m?.media_url ? 8 : 0 }}>{m.content}</span>
+                    ) : m?.content && !m?.media_url ? (
+                      <span>{m.content}</span>
+                    ) : null}
                     {!m?.content && !m?.media_url ? '—' : null}
                   </div>
                   <div style={styles.messageTime}>

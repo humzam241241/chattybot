@@ -384,6 +384,14 @@ export default function ServiceRequestsPage() {
                         >
                           View
                         </Link>
+                        {req.conversation_id && (
+                          <Link
+                            href={`/dashboard/sites/${siteId}/conversations/${req.conversation_id}`}
+                            className="btn btn-secondary btn-sm"
+                          >
+                            Conversation
+                          </Link>
+                        )}
                       </div>
                     </td>
                   </tr>
