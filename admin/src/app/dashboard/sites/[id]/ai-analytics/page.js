@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase';
+import { useAuth } from '../../../../../contexts/AuthContext';
 
 export default function AIAnalyticsPage() {
   const params = useParams();
   const siteId = params.id;
-  
+  const { session } = useAuth();
+
   const [intentAnalytics, setIntentAnalytics] = useState([]);
   const [classificationAnalytics, setClassificationAnalytics] = useState([]);
   const [recentIntents, setRecentIntents] = useState([]);
@@ -17,19 +18,16 @@ export default function AIAnalyticsPage() {
   const [days, setDays] = useState(30);
 
   const fetchData = useCallback(async () => {
+    if (!session?.access_token) {
+      setError('Not authenticated');
+      return;
+    }
     try {
       setLoading(true);
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        setError('Not authenticated');
-        return;
-      }
 
       const headers = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
+        'x-supabase-token': session.access_token,
       };
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -63,11 +61,11 @@ export default function AIAnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  }, [siteId, days]);
+  }, [siteId, days, session?.access_token]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (session?.access_token && siteId) fetchData();
+  }, [fetchData, session?.access_token, siteId]);
 
   const formatIntent = (intent) => {
     return intent.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
