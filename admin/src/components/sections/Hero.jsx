@@ -1,30 +1,54 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '../ui';
 import ChatDemo from '../chat/ChatDemo';
-import {
-  fadeInUp,
-  staggerContainer,
-  staggerItem,
-  transitionNormal,
-} from '../../lib/motion-variants';
+import Hero3DBackground from './Hero3DBackground';
+import { transitionNormal } from '../../lib/motion-variants';
 
-const containerVariants = staggerContainer(0.1, 0.15);
+const flyIn = {
+  hidden: { opacity: 0, y: 72 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const container = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.15,
+    },
+  },
+};
+
+const FLY_IN_DURATION = 1;
+const ROBOT_FADE_DELAY = 1800; // start fading robot 1.8s after load (while content is flying in)
 
 export default function Hero() {
+  const [robotVisible, setRobotVisible] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setRobotVisible(false), ROBOT_FADE_DELAY);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
-    <section className="relative px-4 pt-16 pb-24 md:pt-24 md:pb-30">
-      <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-[1fr,360px] md:gap-16 md:items-start">
+    <section className="relative min-h-[90vh] overflow-hidden bg-[var(--background)] px-4 pt-20 pb-24 md:min-h-[88vh] md:pt-28 md:pb-30">
+      <Hero3DBackground visible={robotVisible} />
+
+      <div className="relative z-10 mx-auto grid max-w-6xl gap-12 pt-4 md:grid-cols-[1fr,360px] md:gap-16 md:items-start md:pt-8">
         <motion.div
           className="max-w-xl"
-          variants={containerVariants}
+          variants={container}
           initial="hidden"
           animate="visible"
           transition={transitionNormal}
         >
           <motion.h1
-            variants={staggerItem}
+            variants={flyIn}
+            transition={{ duration: 0.7, ease: [0.25, 0.4, 0.25, 1] }}
             className="text-display-sm font-semibold tracking-tight text-[var(--ink)] md:text-display"
           >
             AI Chatbots That Convert{' '}
@@ -33,14 +57,19 @@ export default function Hero() {
             </span>
           </motion.h1>
           <motion.p
-            variants={staggerItem}
+            variants={flyIn}
+            transition={{ duration: 0.65, ease: [0.25, 0.4, 0.25, 1] }}
             className="mt-5 text-body-lg text-[var(--ink-secondary)]"
           >
             Install an AI employee on your website. It answers questions, captures
             leads, and notifies you by SMS or email — so contractors and local
             businesses never miss an opportunity.
           </motion.p>
-          <motion.div variants={staggerItem} className="mt-8 flex flex-wrap gap-3">
+          <motion.div
+            variants={flyIn}
+            transition={{ duration: 0.6, ease: [0.25, 0.4, 0.25, 1] }}
+            className="mt-8 flex flex-wrap gap-3"
+          >
             <Button href="/sign-up" variant="primary" size="lg">
               Start free trial
             </Button>
@@ -49,7 +78,8 @@ export default function Hero() {
             </Button>
           </motion.div>
           <motion.p
-            variants={staggerItem}
+            variants={flyIn}
+            transition={{ duration: 0.55, ease: [0.25, 0.4, 0.25, 1] }}
             className="mt-5 text-caption text-[var(--ink-tertiary)]"
           >
             14-day free trial. No credit card required.
@@ -57,10 +87,9 @@ export default function Hero() {
         </motion.div>
 
         <motion.div
-          variants={fadeInUp}
-          initial="hidden"
-          animate="visible"
-          transition={{ ...transitionNormal, delay: 0.25 }}
+          initial={{ opacity: 0, y: 64 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.4, ease: [0.25, 0.4, 0.25, 1] }}
           className="flex justify-center md:justify-end"
         >
           <ChatDemo />
