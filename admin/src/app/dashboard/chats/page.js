@@ -15,7 +15,7 @@ export default function AllChatsPage() {
   const [siteId, setSiteId] = useState('');
   const [q, setQ] = useState('');
   const [offset, setOffset] = useState(0);
-  const limit = 50;
+  const limit = 20;
 
   const [data, setData] = useState({ conversations: [], pagination: { total: 0, limit, offset: 0 } });
 
@@ -55,6 +55,13 @@ export default function AllChatsPage() {
   const total = data?.pagination?.total || 0;
   const pageStart = total === 0 ? 0 : offset + 1;
   const pageEnd = Math.min(offset + limit, total);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const currentPage = Math.floor(offset / limit) + 1;
+
+  function goToPage(page) {
+    const p = Math.max(1, Math.min(page, totalPages));
+    setOffset((p - 1) * limit);
+  }
 
   return (
     <div style={{ maxWidth: 1100 }}>
@@ -160,17 +167,46 @@ export default function AllChatsPage() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-            <button className="btn btn-secondary" disabled={offset === 0 || loading} onClick={() => setOffset(Math.max(0, offset - limit))}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
+            <button
+              className="btn btn-secondary"
+              disabled={offset === 0 || loading}
+              onClick={() => goToPage(currentPage - 1)}
+            >
               ← Prev
             </button>
-            <div className="text-muted" style={{ fontSize: 13 }}>
-              {pageStart}–{pageEnd} of {total}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: '#475569', marginRight: 8 }}>
+                {pageStart}–{pageEnd} of {total}
+              </span>
+              {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+                let p;
+                if (totalPages <= 7) p = i + 1;
+                else if (currentPage <= 4) p = i + 1;
+                else if (currentPage >= totalPages - 3) p = totalPages - 6 + i;
+                else p = currentPage - 3 + i;
+                if (p < 1) return null;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    className="btn btn-sm"
+                    style={{
+                      minWidth: 32,
+                      ...(p === currentPage ? { background: '#4338ca', color: '#fff', borderColor: '#4338ca' } : {}),
+                    }}
+                    disabled={loading}
+                    onClick={() => goToPage(p)}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
             </div>
             <button
               className="btn btn-secondary"
               disabled={offset + limit >= total || loading}
-              onClick={() => setOffset(offset + limit)}
+              onClick={() => goToPage(currentPage + 1)}
             >
               Next →
             </button>

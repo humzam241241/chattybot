@@ -108,7 +108,7 @@ export default function AdminOverviewPage() {
       </div>
 
       <div className="tabs">
-        {['overview', 'users', 'leads', 'usage'].map(tab => (
+        {['overview', 'intelligence', 'routing', 'users', 'leads', 'usage'].map(tab => (
           <button
             key={tab}
             className={`tab ${activeTab === tab ? 'active' : ''}`}
@@ -120,16 +120,55 @@ export default function AdminOverviewPage() {
       </div>
 
       {activeTab === 'overview' && overview && (
-        <div className="overview-grid">
-          <StatCard title="Total Leads" value={overview.leads?.total || 0} subtitle={`${overview.leads?.last_7_days || 0} last 7 days`} />
-          <StatCard title="Hot Leads" value={overview.leads?.hot || 0} highlight />
-          <StatCard title="Conversations" value={overview.conversations?.total || 0} subtitle={`${overview.conversations?.conversion_rate || 0}% conversion`} />
-          <StatCard title="Revenue (30d)" value={`$${(overview.payments?.last_30_days_revenue_cents || 0) / 100}`} />
-          <StatCard title="MRR" value={`$${overview.payments?.mrr_dollars || 0}`} highlight />
-          <StatCard title="Active Users" value={overview.users?.active || 0} subtitle={`${overview.users?.trialing || 0} trialing`} />
-          <StatCard title="SMS Sent" value={overview.sms?.outbound || 0} subtitle={`${overview.sms?.inbound || 0} received`} />
-          <StatCard title="Total Sites" value={overview.sites?.total || 0} />
+        <>
+          <div className="overview-grid">
+            <StatCard title="Total Leads" value={overview.leads?.total || 0} subtitle={`${overview.leads?.last_7_days || 0} last 7 days`} />
+            <StatCard title="Hot Leads" value={overview.leads?.hot || 0} highlight />
+            <StatCard title="Conversations" value={overview.conversations?.total || 0} subtitle={`${overview.conversations?.conversion_rate || 0}% conversion`} />
+            <StatCard title="Revenue (30d)" value={`$${(overview.payments?.last_30_days_revenue_cents || 0) / 100}`} />
+            <StatCard title="MRR" value={`$${overview.payments?.mrr_dollars || 0}`} highlight />
+            <StatCard title="Active Users" value={overview.users?.active || 0} subtitle={`${overview.users?.trialing || 0} trialing`} />
+            <StatCard title="SMS Sent" value={overview.sms?.outbound || 0} subtitle={`${overview.sms?.inbound || 0} received`} />
+            <StatCard title="Total Sites" value={overview.sites?.total || 0} />
+          </div>
+        </>
+      )}
+
+      {activeTab === 'intelligence' && (
+        <div className="intelligence-section">
+          <h2 className="section-title">Service Intelligence</h2>
+          <p className="section-desc">AI-powered intake, classification, estimates, and analytics. Open a client from the Dashboard to use these features.</p>
+          <div className="feature-cards">
+            <FeatureCard
+              title="Service Requests"
+              description="Incoming customer requests, classification, and intake."
+              href="/dashboard"
+              linkLabel="Go to Dashboard →"
+            />
+            <FeatureCard
+              title="Estimates & Quotes"
+              description="Generate and approve preliminary estimates, send quotes."
+              href="/dashboard"
+              linkLabel="Go to Dashboard →"
+            />
+            <FeatureCard
+              title="AI Analytics"
+              description="Intent and classification analytics per site."
+              href="/dashboard"
+              linkLabel="Go to Dashboard →"
+            />
+            <FeatureCard
+              title="Industries & Protocols"
+              description="Configure job types and service protocols by industry."
+              href="/dashboard"
+              linkLabel="Go to Dashboard →"
+            />
+          </div>
         </div>
+      )}
+
+      {activeTab === 'routing' && (
+        <RoutingQuoteSection />
       )}
 
       {activeTab === 'users' && (
@@ -380,7 +419,245 @@ export default function AdminOverviewPage() {
           font-weight: 600;
           margin-bottom: 12px;
         }
+        
+        .intelligence-section {
+          margin-bottom: 32px;
+        }
+        
+        .section-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+          margin-bottom: 6px;
+        }
+        
+        .section-desc {
+          font-size: 14px;
+          color: #475569;
+          margin-bottom: 20px;
+        }
+        
+        .feature-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 16px;
+        }
+        
+        .admin-page :global(.feature-card) {
+          background: #fff;
+          border: 1px solid #e4e4e7;
+          border-radius: 12px;
+          padding: 20px;
+          transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        
+        .admin-page :global(.feature-card:hover) {
+          border-color: #6366f1;
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.12);
+        }
+        
+        .admin-page :global(.feature-card h3) {
+          font-size: 15px;
+          font-weight: 600;
+          color: #4338ca;
+          margin-bottom: 8px;
+        }
+        
+        .admin-page :global(.feature-card p) {
+          font-size: 13px;
+          color: #475569;
+          margin-bottom: 12px;
+          line-height: 1.45;
+        }
+        
+        .admin-page :global(.feature-card a) {
+          font-size: 13px;
+          font-weight: 600;
+          color: #4338ca;
+          text-decoration: none;
+        }
+        
+        .admin-page :global(.feature-card a:hover) {
+          text-decoration: underline;
+        }
+        
+        .admin-page :global(.routing-section) {
+          max-width: 640px;
+        }
+        
+        .admin-page :global(.routing-section h2) {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+          margin-bottom: 8px;
+        }
+        
+        .admin-page :global(.routing-section .form-desc) {
+          font-size: 14px;
+          color: #475569;
+          margin-bottom: 24px;
+        }
+        
+        .admin-page :global(.routing-section .field) {
+          margin-bottom: 18px;
+        }
+        
+        .admin-page :global(.routing-section label) {
+          display: block;
+          font-size: 13px;
+          font-weight: 600;
+          color: #4338ca;
+          margin-bottom: 6px;
+        }
+        
+        .admin-page :global(.routing-section .input),
+        .admin-page :global(.routing-section .select),
+        .admin-page :global(.routing-section .textarea) {
+          width: 100%;
+          padding: 10px 14px;
+          border: 1px solid #e4e4e7;
+          border-radius: 8px;
+          font-size: 14px;
+          color: #0f172a;
+          background: #fff;
+        }
+        
+        .admin-page :global(.routing-section .textarea) {
+          min-height: 80px;
+          resize: vertical;
+        }
+        
+        .admin-page :global(.routing-actions) {
+          display: flex;
+          gap: 12px;
+          margin-top: 24px;
+        }
       `}</style>
+    </div>
+  );
+}
+
+function FeatureCard({ title, description, href, linkLabel }) {
+  return (
+    <div className="feature-card">
+      <h3>{title}</h3>
+      <p>{description}</p>
+      <a href={href}>{linkLabel}</a>
+    </div>
+  );
+}
+
+function RoutingQuoteSection() {
+  const [form, setForm] = useState({
+    material: '',
+    squareFootage: '',
+    part: '',
+    laborType: 'standard',
+    unit: 'per_sq_ft',
+    notes: '',
+  });
+  const [saved, setSaved] = useState(false);
+
+  function handleChange(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setSaved(false);
+  }
+
+  function handleSave() {
+    // Persist to localStorage for now; can wire to API later
+    try {
+      localStorage.setItem('chattybot_routing_quote_config', JSON.stringify(form));
+      setSaved(true);
+    } catch (e) {
+      console.warn('Could not save routing config', e);
+    }
+  }
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('chattybot_routing_quote_config');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setForm((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch (_) {}
+  }, []);
+
+  return (
+    <div className="routing-section">
+      <h2>Routing & quote config</h2>
+      <p className="form-desc">Default fields for estimates and routing. Change material, square footage, part, and other parameters used in quoting.</p>
+      <div className="field">
+        <label>Material</label>
+        <input
+          type="text"
+          className="input"
+          placeholder="e.g. Shingles, HVAC unit, Pipe"
+          value={form.material}
+          onChange={(e) => handleChange('material', e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label>Square footage</label>
+        <input
+          type="text"
+          className="input"
+          placeholder="e.g. 1200 or range 1000–1500"
+          value={form.squareFootage}
+          onChange={(e) => handleChange('squareFootage', e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label>Part / category</label>
+        <input
+          type="text"
+          className="input"
+          placeholder="e.g. Roof section, Compressor, Main line"
+          value={form.part}
+          onChange={(e) => handleChange('part', e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label>Labor type</label>
+        <select
+          className="select"
+          value={form.laborType}
+          onChange={(e) => handleChange('laborType', e.target.value)}
+        >
+          <option value="standard">Standard</option>
+          <option value="emergency">Emergency</option>
+          <option value="after_hours">After hours</option>
+          <option value="weekend">Weekend</option>
+        </select>
+      </div>
+      <div className="field">
+        <label>Pricing unit</label>
+        <select
+          className="select"
+          value={form.unit}
+          onChange={(e) => handleChange('unit', e.target.value)}
+        >
+          <option value="per_sq_ft">Per sq ft</option>
+          <option value="per_job">Per job</option>
+          <option value="per_hour">Per hour</option>
+          <option value="lump_sum">Lump sum</option>
+        </select>
+      </div>
+      <div className="field">
+        <label>Notes</label>
+        <textarea
+          className="textarea"
+          placeholder="Default notes or disclaimers for quotes"
+          value={form.notes}
+          onChange={(e) => handleChange('notes', e.target.value)}
+        />
+      </div>
+      <div className="routing-actions">
+        <button type="button" className="btn btn-primary" onClick={handleSave}>
+          Save config
+        </button>
+        {saved && <span style={{ color: '#4338ca', fontSize: 14, fontWeight: 500 }}>Saved.</span>}
+      </div>
     </div>
   );
 }
@@ -406,20 +683,20 @@ function StatCard({ title, value, subtitle, highlight }) {
         
         .stat-title {
           font-size: 13px;
-          color: var(--muted);
-          font-weight: 500;
+          color: #4338ca;
+          font-weight: 600;
           margin-bottom: 8px;
         }
         
         .stat-value {
           font-size: 28px;
           font-weight: 700;
-          color: var(--text);
+          color: #0f172a;
         }
         
         .stat-subtitle {
           font-size: 12px;
-          color: var(--muted);
+          color: #6366f1;
           margin-top: 4px;
         }
       `}</style>
