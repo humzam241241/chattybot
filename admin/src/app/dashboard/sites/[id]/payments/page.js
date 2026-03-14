@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import SiteLayout from '../../../../../components/SiteLayout';
 import { useAuth } from '../../../../../contexts/AuthContext';
 import { getPayments } from '../../../../../lib/api';
@@ -12,9 +13,15 @@ export default function PaymentsPage() {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  function loadPayments() {
+    if (!siteId) return;
+    setLoading(true);
+    getPayments(siteId).then(setList).catch(() => setList([])).finally(() => setLoading(false));
+  }
+
   useEffect(() => {
     if (!session?.access_token || !siteId) return;
-    getPayments(siteId).then(setList).catch(() => setList([])).finally(() => setLoading(false));
+    loadPayments();
   }, [session, siteId]);
 
   return (
@@ -22,8 +29,9 @@ export default function PaymentsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Payments</h1>
-          <p className="page-subtitle">Payment history</p>
+          <p className="page-subtitle">Payment history (invoice payments)</p>
         </div>
+        <button type="button" className="btn btn-secondary" onClick={loadPayments} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
       </div>
 
       {loading && <p className="text-muted">Loading payments...</p>}

@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import SiteLayout from '../../../../../components/SiteLayout';
 import { useAuth } from '../../../../../contexts/AuthContext';
-import { getCustomers } from '../../../../../lib/api';
+import { getCustomers, importCustomersFromLeads } from '../../../../../lib/api';
 
 export default function CustomersPage() {
   const { id: siteId } = useParams();
@@ -13,14 +13,34 @@ export default function CustomersPage() {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [importing, setImporting] = useState(false);
 
-  useEffect(() => {
-    if (!session?.access_token || !siteId) return;
+  function loadCustomers() {
+    if (!siteId) return;
+    setLoading(true);
     getCustomers(siteId, search || undefined)
       .then(setList)
       .catch(() => setList([]))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    if (!session?.access_token || !siteId) return;
+    loadCustomers();
   }, [session, siteId, search]);
+
+  async function handleImportFromLeads() {
+    setImporting(true);
+    try {
+      const result = await importCustomersFromLeads(siteId);
+      alert(`Imported ${result.created} new customers. ${result.skipped} leads already had a matching customer.`);
+      loadCustomers();
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   return (
     <SiteLayout siteId={siteId}>
@@ -29,9 +49,11 @@ export default function CustomersPage() {
           <h1 className="page-title">Customers</h1>
           <p className="page-subtitle">Customer records for this site</p>
         </div>
-        <Link href={`/dashboard/sites/${siteId}/customers/new`} className="btn btn-primary">
-          Add Customer
-        </Link>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-secondary" onClick={loadCustomers} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
+          <button type="button" className="btn btn-secondary" onClick={handleImportFromLeads} disabled={importing} title="Create customers from leads that don't have one yet">{importing ? '...' : 'Import from leads'}</button>
+          <Link href={`/dashboard/sites/${siteId}/customers/new`} className="btn btn-primary">Add Customer</Link>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>

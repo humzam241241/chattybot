@@ -13,8 +13,9 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState(30);
 
-  useEffect(() => {
-    if (!session?.access_token || !siteId) return;
+  function loadPipeline() {
+    if (!siteId) return;
+    setLoading(true);
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - range);
@@ -22,6 +23,11 @@ export default function PipelinePage() {
       .then(setSummary)
       .catch(() => setSummary(null))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    if (!session?.access_token || !siteId) return;
+    loadPipeline();
   }, [session, siteId, range]);
 
   return (
@@ -31,11 +37,14 @@ export default function PipelinePage() {
           <h1 className="page-title">Pipeline</h1>
           <p className="page-subtitle">Leads → jobs → revenue</p>
         </div>
-        <select className="input" value={range} onChange={(e) => setRange(Number(e.target.value))} style={{ width: 'auto' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button type="button" className="btn btn-secondary" onClick={loadPipeline} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
+          <select className="input" value={range} onChange={(e) => setRange(Number(e.target.value))} style={{ width: 'auto' }}>
           <option value={7}>Last 7 days</option>
           <option value={30}>Last 30 days</option>
           <option value={90}>Last 90 days</option>
-        </select>
+          </select>
+        </div>
       </div>
 
       {loading && <p className="text-muted">Loading...</p>}

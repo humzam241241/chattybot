@@ -16,12 +16,18 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    if (!session?.access_token || !siteId) return;
+  function loadJobs() {
+    if (!siteId) return;
+    setLoading(true);
     getJobs(siteId, filter !== 'all' ? { status: filter } : {})
       .then(setJobs)
       .catch(() => setJobs([]))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    if (!session?.access_token || !siteId) return;
+    loadJobs();
   }, [session, siteId, filter]);
 
   const byStatus = {};
@@ -35,9 +41,12 @@ export default function JobsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Jobs</h1>
-          <p className="page-subtitle">Job pipeline</p>
+          <p className="page-subtitle">Job pipeline — create from lead, service request, or estimate</p>
         </div>
-        <Link href={`/dashboard/sites/${siteId}/jobs/new`} className="btn btn-primary">New Job</Link>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-secondary" onClick={loadJobs} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
+          <Link href={`/dashboard/sites/${siteId}/jobs/new`} className="btn btn-primary">New Job</Link>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>

@@ -70,6 +70,22 @@ router.post('/:site_id/from-estimate', async (req, res) => {
   }
 });
 
+/** POST /api/admin/jobs/:site_id/from-lead */
+router.post('/:site_id/from-lead', async (req, res) => {
+  try {
+    const access = await checkSiteAccess(pool, req.user, req.params.site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+    const { lead_id, ...options } = req.body;
+    if (!lead_id) return res.status(400).json({ error: 'lead_id required' });
+    const job = await jobService.convertLeadToJob(req.params.site_id, lead_id, options);
+    if (!job) return res.status(400).json({ error: 'Could not create job from lead' });
+    res.status(201).json(job);
+  } catch (err) {
+    console.error('[jobs] From-lead error:', err);
+    res.status(500).json({ error: 'Failed to create job from lead' });
+  }
+});
+
 /** GET /api/admin/jobs/:site_id/:job_id */
 router.get('/:site_id/:job_id', async (req, res) => {
   try {

@@ -105,6 +105,49 @@ async function getAddressesByCustomer(customerId, siteId) {
 }
 
 /**
+ * Import customers from leads: create a customer for each lead that does not already
+ * have a matching customer (by email or phone). Returns { created, skipped }.
+ */
+async function importCustomersFromLeads(siteId) {
+  const leads = await pool.query(
+    'SELECT id, name, email, phone FROM leads WHERE site_id = $1 ORDER BY created_at DESC',
+    [siteId]
+  );
+  let created = 0;
+  let skipped = 0;
+  for (const lead of leads.rows) {
+    const hasEmail = lead.email && String(lead.email).trim();
+    const hasPhone = lead.phone && String(lead.phone).trim();
+    let existing = null;
+    if (hasEmail) {
+      const r = await pool.query(
+        'SELECT id FROM customers WHERE site_id = $1 AND email = $2 LIMIT 1',
+        [siteId, lead.email.trim()]
+      );
+      existing = r.rows[0];
+    }
+    if (!existing && hasPhone) {
+      const r = await pool.query(
+        'SELECT id FROM customers WHERE site_id = $1 AND phone = $2 LIMIT 1',
+        [siteId, lead.phone.trim()]
+      );
+      existing = r.rows[0];
+    }
+    if (existing) {
+      skipped++;
+      continue;
+    }
+    await createCustomer(siteId, {
+      name: lead.name || 'Customer',
+      email: lead.email || null,
+      phone: lead.phone || null,
+    });
+    created++;
+  }
+  return { created, skipped };
+}
+
+/**
  * Add a customer address.
  */
 async function addCustomerAddress(siteId, customerId, data) {
@@ -135,4 +178,5 @@ module.exports = {
   deleteCustomer,
   getAddressesByCustomer,
   addCustomerAddress,
+  importCustomersFromLeads,
 };

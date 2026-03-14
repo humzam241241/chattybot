@@ -15,9 +15,15 @@ export default function TechniciansPage() {
   const [form, setForm] = useState({ name: '', phone: '', role: '', active: true });
   const [saving, setSaving] = useState(false);
 
+  function loadTechnicians() {
+    if (!siteId) return;
+    setLoading(true);
+    getTechnicians(siteId).then(setList).catch(() => setList([])).finally(() => setLoading(false));
+  }
+
   useEffect(() => {
     if (!session?.access_token || !siteId) return;
-    getTechnicians(siteId).then(setList).catch(() => setList([])).finally(() => setLoading(false));
+    loadTechnicians();
   }, [session, siteId]);
 
   async function handleSubmit(e) {
@@ -43,7 +49,10 @@ export default function TechniciansPage() {
           <h1 className="page-title">Technicians</h1>
           <p className="page-subtitle">Team members for dispatch</p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => setShowForm(!showForm)}>{showForm ? 'Cancel' : 'Add Technician'}</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-secondary" onClick={loadTechnicians} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
+          <button type="button" className="btn btn-primary" onClick={() => setShowForm(!showForm)}>{showForm ? 'Cancel' : 'Add Technician'}</button>
+        </div>
       </div>
 
       {showForm && (

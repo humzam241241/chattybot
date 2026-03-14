@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import SiteLayout from '../../../../../../components/SiteLayout';
 import { useAuth } from '../../../../../../contexts/AuthContext';
-import { getJob, updateJob, addJobTask, updateJobTask } from '../../../../../../lib/api';
+import { getJob, updateJob, addJobTask, updateJobTask, createInvoice } from '../../../../../../lib/api';
 
 export default function JobDetailPage() {
   const { id: siteId, job_id: jobId } = useParams();
@@ -13,6 +13,8 @@ export default function JobDetailPage() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (!session?.access_token || !siteId || !jobId) return;
@@ -41,6 +43,20 @@ export default function JobDetailPage() {
     }
   }
 
+  async function handleCreateInvoice() {
+    if (!job?.customer_id) return;
+    setCreatingInvoice(true);
+    try {
+      const inv = await createInvoice(siteId, { customer_id: job.customer_id, job_id: jobId });
+      if (inv?.id) router.push(`/dashboard/sites/${siteId}/invoices/${inv.id}`);
+      else alert('Could not create invoice.');
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setCreatingInvoice(false);
+    }
+  }
+
   if (loading || !job) {
     return <SiteLayout siteId={siteId}><p className="text-muted">Loading…</p></SiteLayout>;
   }
@@ -64,6 +80,10 @@ export default function JobDetailPage() {
           </select>
           <Link href={`/dashboard/sites/${siteId}/customers/${job.customer_id}`} className="btn btn-secondary">Customer</Link>
           {job.estimate_id && <Link href={`/dashboard/sites/${siteId}/estimates/${job.estimate_id}`} className="btn btn-secondary">Estimate</Link>}
+          <Link href={`/dashboard/sites/${siteId}/dispatch?job_id=${jobId}`} className="btn btn-secondary">Send to dispatch</Link>
+          <button type="button" className="btn btn-primary" onClick={handleCreateInvoice} disabled={creatingInvoice}>
+            {creatingInvoice ? '...' : 'Create invoice'}
+          </button>
         </div>
       </div>
 

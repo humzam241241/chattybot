@@ -37,6 +37,19 @@ router.post('/:site_id', async (req, res) => {
   }
 });
 
+/** POST /api/admin/customers/:site_id/import-from-leads */
+router.post('/:site_id/import-from-leads', async (req, res) => {
+  try {
+    const access = await checkSiteAccess(pool, req.user, req.params.site_id);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+    const result = await customerService.importCustomersFromLeads(req.params.site_id);
+    res.json(result);
+  } catch (err) {
+    console.error('[customers] Import from leads error:', err);
+    res.status(500).json({ error: 'Failed to import customers from leads' });
+  }
+});
+
 /** POST /api/admin/customers/:site_id/:customer_id/addresses (must be before GET :customer_id) */
 router.post('/:site_id/:customer_id/addresses', async (req, res) => {
   try {

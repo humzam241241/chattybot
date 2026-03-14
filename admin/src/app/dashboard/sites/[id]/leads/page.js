@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { clearLeads, deleteLead, getLeads, getSite, getUsage, rescoreLeads } from '../../../../../lib/api';
+import { clearLeads, deleteLead, getLeads, getSite, getUsage, rescoreLeads, createJobFromLead } from '../../../../../lib/api';
+import { useRouter } from 'next/navigation';
 import SiteLayout from '../../../../../components/SiteLayout';
 import UsageCard from '../../../../../components/UsageCard';
 
@@ -15,6 +16,7 @@ const RATING_COLORS = {
 
 export default function LeadsPage() {
   const { id } = useParams();
+  const router = useRouter();
   const [leads, setLeads] = useState([]);
   const [site, setSite] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,6 +26,7 @@ export default function LeadsPage() {
   const [rescoring, setRescoring] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [clearing, setClearing] = useState(false);
+  const [convertingLeadId, setConvertingLeadId] = useState(null);
 
   async function loadData() {
     try {
@@ -176,13 +179,14 @@ export default function LeadsPage() {
                     <th>Date</th>
                     <th>Chat</th>
                     <th>Quotes</th>
+                    <th>Job</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {leads.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
+                      <td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
                         No leads captured yet.
                       </td>
                     </tr>

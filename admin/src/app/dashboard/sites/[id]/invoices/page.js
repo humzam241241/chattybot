@@ -14,12 +14,18 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
 
-  useEffect(() => {
-    if (!session?.access_token || !siteId) return;
+  function loadInvoices() {
+    if (!siteId) return;
+    setLoading(true);
     getInvoices(siteId, statusFilter ? { status: statusFilter } : {})
       .then(setList)
       .catch(() => setList([]))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    if (!session?.access_token || !siteId) return;
+    loadInvoices();
   }, [session, siteId, statusFilter]);
 
   return (
@@ -27,8 +33,9 @@ export default function InvoicesPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Invoices</h1>
-          <p className="page-subtitle">Create and manage invoices</p>
+          <p className="page-subtitle">Create from a job, or manage drafts</p>
         </div>
+        <button type="button" className="btn btn-secondary" onClick={loadInvoices} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>

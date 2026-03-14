@@ -54,6 +54,35 @@ async function convertServiceRequestToJob(siteId, requestId, options = {}) {
 }
 
 /**
+ * Create a job from a lead (creates customer from lead name/email/phone, then job).
+ */
+async function convertLeadToJob(siteId, leadId, options = {}) {
+  const lead = await pool.query(
+    'SELECT id, site_id, name, email, phone, issue FROM leads WHERE id = $1 AND site_id = $2',
+    [leadId, siteId]
+  );
+  if (lead.rows.length === 0) return null;
+  const r = lead.rows[0];
+  const customerService = require('./customerService');
+  let customerId = options.customer_id;
+  if (!customerId) {
+    const cust = await customerService.createCustomer(siteId, {
+      name: r.name || 'Customer',
+      email: r.email || null,
+      phone: r.phone || null,
+    });
+    customerId = cust.id;
+  }
+  return createJob(siteId, {
+    customer_id: customerId,
+    title: options.title || (r.issue ? r.issue.slice(0, 120) : 'Job from lead'),
+    description: r.issue || null,
+    job_status: 'lead',
+    priority: options.priority || 'normal',
+  });
+}
+
+/**
  * Create a job from an estimate (links estimate_id; customer from service_requests or options).
  */
 async function convertEstimateToJob(siteId, estimateId, options = {}) {
@@ -210,6 +239,7 @@ async function updateJobTask(taskId, siteId, data) {
 
 module.exports = {
   createJob,
+  convertLeadToJob,
   convertServiceRequestToJob,
   convertEstimateToJob,
   updateJobStatus,

@@ -162,6 +162,7 @@ export const getJobs = (siteId, opts = {}) => {
 export const createJob = (siteId, data) => crm(`jobs/${siteId}`, { method: 'POST', body: JSON.stringify(data) });
 export const createJobFromRequest = (siteId, requestId, options = {}) => crm(`jobs/${siteId}/from-request`, { method: 'POST', body: JSON.stringify({ request_id: requestId, ...options }) });
 export const createJobFromEstimate = (siteId, estimateId, options = {}) => crm(`jobs/${siteId}/from-estimate`, { method: 'POST', body: JSON.stringify({ estimate_id: estimateId, ...options }) });
+export const createJobFromLead = (siteId, leadId, options = {}) => crm(`jobs/${siteId}/from-lead`, { method: 'POST', body: JSON.stringify({ lead_id: leadId, ...options }) });
 export const getJob = (siteId, jobId) => crm(`jobs/${siteId}/${jobId}`);
 export const updateJob = (siteId, jobId, data) => crm(`jobs/${siteId}/${jobId}`, { method: 'PATCH', body: JSON.stringify(data) });
 export const addJobTask = (siteId, jobId, data) => crm(`jobs/${siteId}/${jobId}/tasks`, { method: 'POST', body: JSON.stringify(data) });
@@ -190,6 +191,7 @@ export const getInvoices = (siteId, opts = {}) => {
   return crm(`invoices/${siteId}${params.toString() ? `?${params}` : ''}`);
 };
 export const createInvoice = (siteId, data) => crm(`invoices/${siteId}`, { method: 'POST', body: JSON.stringify(data) });
+export const importCustomersFromLeads = (siteId) => crm(`customers/${siteId}/import-from-leads`, { method: 'POST' });
 export const getInvoice = (siteId, invoiceId) => crm(`invoices/${siteId}/${invoiceId}`);
 export const addInvoiceLineItem = (siteId, invoiceId, data) => crm(`invoices/${siteId}/${invoiceId}/line-items`, { method: 'POST', body: JSON.stringify(data) });
 export const updateInvoiceLineItem = (siteId, invoiceId, lineId, data) => crm(`invoices/${siteId}/${invoiceId}/line-items/${lineId}`, { method: 'PATCH', body: JSON.stringify(data) });
