@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import SiteLayout from '../../../../../components/SiteLayout';
 import { useAuth } from '../../../../../contexts/AuthContext';
@@ -28,6 +28,8 @@ function formatCurrency(amount) {
 
 export default function EstimatesPage() {
   const { id: siteId } = useParams();
+  const searchParams = useSearchParams();
+  const leadId = searchParams.get('lead_id');
   const { session } = useAuth();
   const [estimates, setEstimates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,9 +43,10 @@ export default function EstimatesPage() {
 
     async function fetchEstimates() {
       try {
-        const url = filter === 'all'
-          ? `/api/estimates/${siteId}`
-          : `/api/estimates/${siteId}?status=${filter}`;
+        const params = new URLSearchParams();
+        if (filter !== 'all') params.set('status', filter);
+        if (leadId) params.set('lead_id', leadId);
+        const url = `/api/estimates/${siteId}${params.toString() ? `?${params.toString()}` : ''}`;
 
         const res = await fetch(url, {
           headers: { 'x-supabase-token': session.access_token },
@@ -59,7 +62,7 @@ export default function EstimatesPage() {
     }
 
     fetchEstimates();
-  }, [session, siteId, filter]);
+  }, [session, siteId, filter, leadId]);
 
   async function handleAction(estimateId, action, body = {}) {
     try {
@@ -131,6 +134,15 @@ export default function EstimatesPage() {
         </div>
       </div>
 
+      {leadId && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="text-muted" style={{ margin: 0 }}>
+            Showing estimates for this lead.{' '}
+            <Link href={`/dashboard/sites/${siteId}/estimates`}>Show all estimates</Link>
+          </p>
+        </div>
+      )}
+
       {generateResult && (
         <div className={`card ${generateResult.error ? 'alert alert-error' : ''}`} style={{ marginBottom: 16 }}>
           {generateResult.error ? (
@@ -198,16 +210,31 @@ export default function EstimatesPage() {
                       </div>
                     </td>
                     <td>
-                      {formatCurrency(est.price_low)} - {formatCurrency(est.price_high)}
+                      <div>{formatCurrency(est.price_low)} - {formatCurrency(est.price_high)}</div>
+                      {est.price_source && (
+                        <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                          {est.price_source === 'historical' && est.historical_jobs_count != null
+                            ? `Based on ${est.historical_jobs_count} similar jobs`
+                            : 'Based on industry default'}
+                        </div>
+                      )}
                     </td>
                     <td>
-                      <span className={`badge ${
-                        est.confidence_level === 'high' ? 'bg-green-100 text-green-800' :
-                        est.confidence_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
+                      <span
+                        className={`badge ${
+                          est.confidence_level === 'high' ? 'bg-green-100 text-green-800' :
+                          est.confidence_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-600'
+                        }`}
+                        title={est.confidence_reasoning || ''}
+                      >
                         {est.confidence_level}
                       </span>
+                      {est.confidence_reasoning && (
+                        <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2, maxWidth: 160 }}>
+                          {est.confidence_reasoning}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <span className={`badge ${STATUS_COLORS[est.status] || ''}`}>
@@ -248,10 +275,11 @@ export default function EstimatesPage() {
                         )}
                         {est.status === 'approved' && (
                           <button
-                            onClick={() => handleAction(est.id, 'send', { channel: 'email' })}
+                            onClick={() => handleAction(est.id, 'send', { channel: 'both' })}
                             className="btn btn-primary btn-sm"
+                            title="Send to customer via Email + SMS when available"
                           >
-                            Send
+                            Send (Email + SMS)
                           </button>
                         )}
                         <Link

@@ -175,13 +175,14 @@ export default function LeadsPage() {
                     <th>Issue</th>
                     <th>Date</th>
                     <th>Chat</th>
+                    <th>Quotes</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {leads.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
+                      <td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
                         No leads captured yet.
                       </td>
                     </tr>
@@ -231,13 +232,23 @@ export default function LeadsPage() {
                         <td>
                           {lead.conversation_id && (
                             <Link 
-                              href={`/sites/${id}/conversations/${lead.conversation_id}`}
+                              href={`/dashboard/sites/${id}/conversations/${lead.conversation_id}`}
                               className="btn btn-secondary"
                               style={{ padding: '4px 8px', fontSize: '11px' }}
                             >
                               View
                             </Link>
                           )}
+                        </td>
+                        <td>
+                          <Link
+                            href={`/dashboard/sites/${id}/estimates?lead_id=${lead.id}`}
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '11px' }}
+                            title="View estimates for this lead"
+                          >
+                            Quotes
+                          </Link>
                         </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
                           <button

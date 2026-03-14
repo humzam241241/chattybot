@@ -21,6 +21,7 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
     { href: `/dashboard/sites/${id}/reports`, label: 'Reports', icon: '📈' },
     { href: `/dashboard/sites/${id}/files`, label: 'Files', icon: '📁' },
     { href: `/dashboard/sites/${id}/rag-eval`, label: 'RAG Test', icon: '🎯' },
+    { href: `/dashboard/sites/${id}/industries`, label: 'Industries & Protocols', icon: '🏭' },
     { href: `/dashboard/sites/${id}/settings`, label: 'Settings', icon: '⚙️' },
   ];
 

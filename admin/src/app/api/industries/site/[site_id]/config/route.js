@@ -11,24 +11,24 @@ export async function GET(request, { params }) {
   const auth = requireBackendAuth(request);
   if (!auth.ok) return auth.response;
 
-  const { site_id, estimate_id } = params;
+  const { site_id } = params;
   const baseUrl = API_URL.replace(/\/$/, '');
-  const backendUrl = `${baseUrl}/api/admin/estimates/${site_id}/${estimate_id}`;
+  const backendUrl = `${baseUrl}/api/industries/site/${site_id}/config`;
 
   const res = await fetch(backendUrl, { headers: auth.headers, cache: 'no-store' });
   const data = await res.json().catch(() => ({ error: 'Invalid response' }));
   return NextResponse.json(data, { status: res.status });
 }
 
-export async function PATCH(request, { params }) {
+export async function POST(request, { params }) {
   if (!API_URL) return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
 
   const auth = requireBackendAuth(request);
   if (!auth.ok) return auth.response;
 
-  const { site_id, estimate_id } = params;
+  const { site_id } = params;
   const baseUrl = API_URL.replace(/\/$/, '');
-  const backendUrl = `${baseUrl}/api/admin/estimates/${site_id}/${estimate_id}`;
+  const backendUrl = `${baseUrl}/api/industries/site/${site_id}/config`;
 
   let body;
   try {
@@ -38,7 +38,7 @@ export async function PATCH(request, { params }) {
   }
 
   const res = await fetch(backendUrl, {
-    method: 'PATCH',
+    method: 'POST',
     headers: { ...auth.headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     cache: 'no-store',

@@ -6,6 +6,7 @@
 
 const { getProtocolForRequest } = require('./protocolEngine');
 const { generateEstimate } = require('./priceEstimator');
+const { getAnalysesForRequest, runAnalysisForRequest } = require('./attachmentAnalysisService');
 
 /**
  * Generate a full estimate for a service request
@@ -76,18 +77,25 @@ async function generateFullEstimate(pool, siteId, requestId, options = {}) {
     historicalJobsCount: priceResult.historicalJobsCount,
   };
 
-  // Apply custom adjustments if provided
-  if (customAdjustments) {
-    if (customAdjustments.priceAdjustment) {
-      estimate.priceLow += customAdjustments.priceAdjustment;
-      estimate.priceHigh += customAdjustments.priceAdjustment;
-      estimate.recommendedPrice += customAdjustments.priceAdjustment;
+  // Photo/catbot: ensure attachment analysis exists and fold into estimate
+  if (request.attachments && request.attachments.length > 0) {
+    let analyses = await getAnalysesForRequest(pool, requestId, siteId);
+    if (analyses.length === 0) {
+      await runAnalysisForRequest(pool, siteId, requestId);
+      analyses = await getAnalysesForRequest(pool, requestId, siteId);
     }
-    if (customAdjustments.additionalScope) {
-      estimate.scopeOfWork += '\n\n' + customAdjustments.additionalScope;
-    }
-    if (customAdjustments.additionalRisks) {
-      estimate.riskWarnings.push(...customAdjustments.additionalRisks);
+    if (analyses.length > 0) {
+      const summaries = analyses
+        .filter((a) => a.raw_analysis)
+        .map((a) => (a.severity_assessment ? `[${a.severity_assessment}] ` : '') + (a.raw_analysis || '').slice(0, 300));
+      if (summaries.length > 0) {
+        estimate.riskWarnings = estimate.riskWarnings || [];
+        estimate.riskWarnings.push('Photo assessment: ' + summaries.join(' '));
+      }
+      const lowConfidence = analyses.some((a) => a.confidence != null && a.confidence < 0.6);
+      if (lowConfidence && estimate.confidence && estimate.confidence.level === 'high') {
+        estimate.confidence = { level: 'medium', reasoning: (estimate.confidence.reasoning || '') + ' Photo analysis had low confidence.' };
+      }
     }
   }
 
@@ -280,11 +288,11 @@ async function getEstimate(pool, estimateId, siteId) {
  * List estimates for a site
  */
 async function listEstimates(pool, siteId, options = {}) {
-  const { status, limit = 50, offset = 0 } = options;
+  const { status, limit = 50, offset = 0, leadId } = options;
 
   let query = `
     SELECT e.*, sr.customer_name, sr.phone, sr.email,
-           sr.problem_description, i.name as industry_name
+           sr.problem_description, sr.lead_id, i.name as industry_name
     FROM estimates e
     JOIN service_requests sr ON e.request_id = sr.id
     LEFT JOIN industries i ON e.industry_id = i.id
@@ -295,6 +303,11 @@ async function listEstimates(pool, siteId, options = {}) {
   if (status) {
     query += ` AND e.status = $${params.length + 1}`;
     params.push(status);
+  }
+
+  if (leadId) {
+    query += ` AND sr.lead_id = $${params.length + 1}`;
+    params.push(leadId);
   }
 
   query += ` ORDER BY e.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
@@ -343,6 +356,34 @@ async function updateEstimateStatus(pool, estimateId, siteId, status, userId, re
   return result.rows[0];
 }
 
+/**
+ * Update estimate fields (price_low, price_high, scope_of_work, notes).
+ * Only allowed for draft or pending_approval.
+ */
+async function updateEstimate(pool, estimateId, siteId, updates) {
+  const allowed = ['price_low', 'price_high', 'scope_of_work', 'notes'];
+  const setClauses = [];
+  const values = [estimateId, siteId];
+  let idx = 3;
+  for (const key of allowed) {
+    if (updates[key] !== undefined) {
+      setClauses.push(`${key} = $${idx}`);
+      values.push(updates[key]);
+      idx += 1;
+    }
+  }
+  if (setClauses.length === 0) {
+    return (await pool.query('SELECT * FROM estimates WHERE id = $1 AND site_id = $2', [estimateId, siteId])).rows[0];
+  }
+  const result = await pool.query(
+    `UPDATE estimates SET ${setClauses.join(', ')}, updated_at = NOW()
+     WHERE id = $1 AND site_id = $2 AND status IN ('draft', 'pending_approval')
+     RETURNING *`,
+    values
+  );
+  return result.rows[0];
+}
+
 module.exports = {
   generateFullEstimate,
   createEstimateRecord,
@@ -350,4 +391,5 @@ module.exports = {
   getEstimate,
   listEstimates,
   updateEstimateStatus,
+  updateEstimate,
 };

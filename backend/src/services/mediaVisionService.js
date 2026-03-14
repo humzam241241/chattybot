@@ -6,7 +6,7 @@ const MAX_DOWNLOAD_TIME_MS = 10000;
 const MAX_VISION_TIME_MS = 15000;
 const OPENAI_VISION_ABORT_MS = 7000;
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const BOOKING_URL = 'https://cal.com/ryans-roofing';
+const DEFAULT_BOOKING_URL = process.env.DEFAULT_BOOKING_URL || '';
 const DISCLAIMER =
   'Photos give a general idea, but a professional inspection is required for an accurate assessment.';
 
@@ -203,7 +203,9 @@ function formatRoofAssessment(responseText) {
 
   const suffix =
     `\n\n${DISCLAIMER}\n\n` +
-    `If you'd like, you can book a free inspection here:\n${BOOKING_URL}`;
+    (DEFAULT_BOOKING_URL
+      ? `If you'd like, you can book an inspection here:\n${DEFAULT_BOOKING_URL}`
+      : 'If you\'d like to book an inspection, use the booking link on our site.');
 
   const maxTotal = 500;
   const maxAssessment = Math.max(0, maxTotal - suffix.length);
@@ -220,7 +222,9 @@ function formatRoofAssessment(responseText) {
 function getVisionFallbackMessage() {
   return (
     "I couldn't analyze that image.\n\n" +
-    `You can try sending it again, or book a free roof inspection here:\n${BOOKING_URL}`
+    (DEFAULT_BOOKING_URL
+      ? `You can try sending it again, or book an inspection here:\n${DEFAULT_BOOKING_URL}`
+      : "You can try sending it again, or use the booking link on our site to schedule an inspection.")
   );
 }
 
@@ -251,5 +255,6 @@ module.exports = {
   buildRoofAssessmentFromTwilioMedia,
   formatRoofAssessment,
   getVisionFallbackMessage,
+  downloadTwilioMedia,
 };
 

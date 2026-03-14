@@ -146,7 +146,7 @@ export default function DashboardPage() {
               <p>Intent and classification analytics per site.</p>
               <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
             </Link>
-            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/settings` : '/dashboard'} className="intelligence-card">
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/industries` : '/dashboard'} className="intelligence-card">
               <h3>Industries & Protocols</h3>
               <p>Configure job types and service protocols by industry.</p>
               <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
@@ -378,21 +378,23 @@ export default function DashboardPage() {
         }
         
         .add-card {
-          border: 2px dashed #e4e4e7;
+          border: 2px solid var(--primary-accent);
           align-items: center;
           justify-content: center;
-          background: #fafafa;
+          background: var(--primary-accent);
           min-height: 200px;
+          color: #fff;
         }
         
         .add-card:hover {
-          border-color: #6366f1;
-          background: rgba(99, 102, 241, 0.05);
+          background: var(--primary-accent-hover);
+          border-color: var(--primary-accent-hover);
+          color: #fff;
         }
         
         .add-icon {
           font-size: 48px;
-          color: #4338ca;
+          color: #fff;
           font-weight: 300;
           line-height: 1;
           margin-bottom: 8px;
@@ -400,7 +402,7 @@ export default function DashboardPage() {
         
         .add-text {
           font-weight: 600;
-          color: #4338ca;
+          color: #fff;
           font-size: 15px;
         }
         

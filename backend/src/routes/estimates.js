@@ -13,7 +13,16 @@ const {
   getEstimate,
   listEstimates,
   updateEstimateStatus,
+  updateEstimate,
 } = require('../services/serviceIntelligence/estimateGenerator');
+const { getLineItems, upsertLineItems } = require('../services/serviceIntelligence/estimateLineItems');
+const { getAnalysesForRequest } = require('../services/serviceIntelligence/attachmentAnalysisService');
+
+function withPriceSource(row) {
+  if (!row) return row;
+  const count = row.historical_jobs_count != null ? parseInt(row.historical_jobs_count, 10) : 0;
+  return { ...row, price_source: count >= 3 ? 'historical' : 'protocol' };
+}
 const { sendEstimate, recordCustomerResponse } = require('../services/serviceIntelligence/quoteSender');
 const { scheduleFollowUps, cancelFollowUps } = require('../services/serviceIntelligence/followUpScheduler');
 
@@ -109,7 +118,7 @@ router.post('/:site_id/generate-from-requests', userAuth, async (req, res) => {
 router.get('/:site_id', userAuth, async (req, res) => {
   try {
     const { site_id } = req.params;
-    const { status, limit, offset } = req.query;
+    const { status, limit, offset, lead_id } = req.query;
 
     const access = await checkSiteAccess(pool, req.user, site_id);
     if (!access.ok) {
@@ -120,9 +129,10 @@ router.get('/:site_id', userAuth, async (req, res) => {
       status,
       limit: parseInt(limit) || 50,
       offset: parseInt(offset) || 0,
+      leadId: lead_id || null,
     });
 
-    res.json(estimates);
+    res.json(estimates.map(withPriceSource));
   } catch (err) {
     console.error('[estimates] List error:', err);
     res.status(500).json({ error: 'Failed to list estimates' });
@@ -143,7 +153,7 @@ router.get('/:site_id/pending', userAuth, async (req, res) => {
     }
 
     const estimates = await listEstimates(pool, site_id, { status: 'pending_approval' });
-    res.json(estimates);
+    res.json(estimates.map(withPriceSource));
   } catch (err) {
     console.error('[estimates] Pending error:', err);
     res.status(500).json({ error: 'Failed to list pending estimates' });
@@ -168,10 +178,78 @@ router.get('/:site_id/:estimate_id', userAuth, async (req, res) => {
       return res.status(404).json({ error: 'Estimate not found' });
     }
 
-    res.json(estimate);
+    const lineItems = await getLineItems(pool, estimate_id, site_id);
+    const attachmentAnalyses = estimate.request_id
+      ? await getAnalysesForRequest(pool, estimate.request_id, site_id)
+      : [];
+    const payload = withPriceSource(estimate);
+    payload.line_items = lineItems;
+    payload.line_items_total =
+      lineItems.length > 0
+        ? lineItems.reduce((sum, li) => sum + (parseFloat(li.amount) || 0), 0)
+        : null;
+    payload.attachment_analyses = attachmentAnalyses;
+
+    res.json(payload);
   } catch (err) {
     console.error('[estimates] Get error:', err);
     res.status(500).json({ error: 'Failed to get estimate' });
+  }
+});
+
+/**
+ * PATCH /api/admin/estimates/:site_id/:estimate_id
+ * Update estimate fields and/or line items (draft or pending_approval only).
+ */
+router.patch('/:site_id/:estimate_id', userAuth, async (req, res) => {
+  try {
+    const { site_id, estimate_id } = req.params;
+    const { price_low, price_high, scope_of_work, notes, line_items } = req.body;
+
+    const access = await checkSiteAccess(pool, req.user, site_id);
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
+    }
+
+    const updates = {};
+    if (price_low !== undefined) updates.price_low = parseFloat(price_low);
+    if (price_high !== undefined) updates.price_high = parseFloat(price_high);
+    if (scope_of_work !== undefined) updates.scope_of_work = scope_of_work;
+    if (notes !== undefined) updates.notes = notes;
+
+    if (Object.keys(updates).length > 0) {
+      const updated = await updateEstimate(pool, estimate_id, site_id, updates);
+      if (!updated) {
+        return res.status(400).json({
+          error: 'Estimate not found or cannot be edited (only draft/pending_approval)',
+        });
+      }
+    }
+
+    if (Array.isArray(line_items)) {
+      const result = await upsertLineItems(pool, estimate_id, site_id, line_items);
+      if (!result.ok) {
+        return res.status(400).json({ error: result.error });
+      }
+    }
+
+    const estimate = await getEstimate(pool, estimate_id, site_id);
+    const lineItems = await getLineItems(pool, estimate_id, site_id);
+    const attachmentAnalyses = estimate.request_id
+      ? await getAnalysesForRequest(pool, estimate.request_id, site_id)
+      : [];
+    const payload = withPriceSource(estimate);
+    payload.line_items = lineItems;
+    payload.line_items_total =
+      lineItems.length > 0
+        ? lineItems.reduce((sum, li) => sum + (parseFloat(li.amount) || 0), 0)
+        : null;
+    payload.attachment_analyses = attachmentAnalyses;
+
+    res.json(payload);
+  } catch (err) {
+    console.error('[estimates] PATCH error:', err);
+    res.status(500).json({ error: 'Failed to update estimate' });
   }
 });
 
@@ -233,7 +311,7 @@ router.post('/:site_id/:estimate_id/reject', userAuth, async (req, res) => {
 router.post('/:site_id/:estimate_id/send', userAuth, async (req, res) => {
   try {
     const { site_id, estimate_id } = req.params;
-    const { channel = 'email' } = req.body;
+    const { channel = 'both' } = req.body;
 
     const access = await checkSiteAccess(pool, req.user, site_id);
     if (!access.ok) {
