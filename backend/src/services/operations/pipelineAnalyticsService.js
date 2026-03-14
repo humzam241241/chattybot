@@ -26,7 +26,7 @@ async function calculateLeadConversion(siteId, fromDate, toDate) {
 async function calculateRevenue(siteId, fromDate, toDate) {
   const r = await pool.query(
     `SELECT COALESCE(SUM(amount), 0)::numeric AS revenue
-     FROM payments
+     FROM invoice_payments
      WHERE site_id = $1 AND paid_at >= $2 AND paid_at <= $3`,
     [siteId, fromDate, toDate]
   );
@@ -76,7 +76,7 @@ async function getPipelineSummary(siteId, options = {}) {
   const byStatus = {};
   jobs.rows.forEach((row) => { byStatus[row.job_status] = parseInt(row.count, 10); });
 
-  let revQuery = 'SELECT COALESCE(SUM(amount), 0)::numeric AS total FROM payments WHERE site_id = $1';
+  let revQuery = 'SELECT COALESCE(SUM(amount), 0)::numeric AS total FROM invoice_payments WHERE site_id = $1';
   const revParams = [siteId];
   if (from_date) { revParams.push(from_date); revQuery += ` AND paid_at >= $${revParams.length}`; }
   if (to_date) { revParams.push(to_date); revQuery += ` AND paid_at <= $${revParams.length}`; }

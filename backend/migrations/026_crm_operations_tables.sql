@@ -204,9 +204,9 @@ CREATE TRIGGER update_invoice_line_items_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
--- PAYMENTS
+-- INVOICE PAYMENTS (CRM; distinct from Stripe billing 'payments' table)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS payments (
+CREATE TABLE IF NOT EXISTS invoice_payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
   invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
@@ -217,12 +217,20 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_payments_site ON payments(site_id);
-CREATE INDEX idx_payments_invoice ON payments(invoice_id);
+CREATE INDEX idx_invoice_payments_site ON invoice_payments(site_id);
+CREATE INDEX idx_invoice_payments_invoice ON invoice_payments(invoice_id);
 
 -- ============================================================================
--- UPDATED_AT TRIGGERS (reuse existing function from 022)
+-- UPDATED_AT TRIGGERS (ensure generic function exists; do not reference site_id)
 -- ============================================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 DROP TRIGGER IF EXISTS update_customers_updated_at ON customers;
 CREATE TRIGGER update_customers_updated_at
   BEFORE UPDATE ON customers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

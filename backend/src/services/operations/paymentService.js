@@ -5,7 +5,7 @@ async function recordPayment(siteId, invoiceId, data) {
   const id = uuidv4();
   const amount = Number(data.amount) || 0;
   await pool.query(
-    `INSERT INTO payments (id, site_id, invoice_id, amount, payment_method, paid_at, notes)
+    `INSERT INTO invoice_payments (id, site_id, invoice_id, amount, payment_method, paid_at, notes)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [
       id,
@@ -19,13 +19,13 @@ async function recordPayment(siteId, invoiceId, data) {
   );
   const invoiceService = require('./invoiceService');
   await invoiceService.markInvoicePaid(invoiceId, siteId);
-  const r = await pool.query('SELECT * FROM payments WHERE id = $1 AND site_id = $2', [id, siteId]);
+  const r = await pool.query('SELECT * FROM invoice_payments WHERE id = $1 AND site_id = $2', [id, siteId]);
   return r.rows[0] || null;
 }
 
 async function getPaymentsByInvoice(invoiceId, siteId) {
   const r = await pool.query(
-    'SELECT * FROM payments WHERE invoice_id = $1 AND site_id = $2 ORDER BY paid_at DESC',
+    'SELECT * FROM invoice_payments WHERE invoice_id = $1 AND site_id = $2 ORDER BY paid_at DESC',
     [invoiceId, siteId]
   );
   return r.rows;
@@ -50,7 +50,7 @@ async function getPaymentsBySite(siteId, options = {}) {
   params.push(limit, offset);
   const r = await pool.query(
     `SELECT p.*, i.customer_id, i.job_id
-     FROM payments p
+     FROM invoice_payments p
      JOIN invoices i ON i.id = p.invoice_id AND i.site_id = p.site_id
      ${where}
      ORDER BY p.paid_at DESC

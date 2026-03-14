@@ -1,6 +1,6 @@
 # ChattyBot
 
-ChattyBot is a **multi-tenant, white-label AI chatbot platform** for businesses and contractors. It provides an embeddable chat widget, RAG-powered answers, lead capture, **Service Intelligence** (intake, classification, estimates, quotes), and optional SMS/WhatsApp via Twilio. The backend uses **Postgres + pgvector** (Supabase) and **OpenAI** for embeddings and chat; **Supabase Auth** for admin sign-in; **Stripe** for billing.
+ChattyBot is a **multi-tenant, white-label AI chatbot platform** for businesses and contractors. It provides an embeddable chat widget, RAG-powered answers, lead capture, **Service Intelligence** (intake, classification, estimates, quotes), **AI Service CRM** (customers, jobs, dispatch, technicians, invoices, payments, pipeline), and optional SMS/WhatsApp via Twilio. The backend uses **Postgres + pgvector** (Supabase) and **OpenAI** for embeddings and chat; **Supabase Auth** for admin sign-in; **Stripe** for billing.
 
 This `README.md` is the **single source of truth** for engineers onboarding to the repository (architecture, setup, deployment, operations).
 
@@ -45,8 +45,9 @@ This `README.md` is the **single source of truth** for engineers onboarding to t
 - **Lead intelligence** — Extraction, scoring (HOT/WARM/COLD), notifications, missed-lead detection.
 - **Twilio** — Inbound SMS/WhatsApp webhooks (TwiML); outbound from notification pipeline.
 - **White-label** — Per-tenant branding, system prompt, suggested questions, booking URL.
-- **Admin dashboard** — Next.js app: sites, ingestion, files, conversations, leads, **Service Intelligence**, analytics.
+- **Admin dashboard** — Next.js app: sites, ingestion, files, conversations, leads, **Service Intelligence**, **CRM** (customers, jobs, dispatch, technicians, invoices, payments, pipeline), analytics.
 - **Service Intelligence** — Industry-agnostic contractor workflow: service requests, AI classification, estimates with line items, photo/attachment analysis, industries & protocols, historical jobs.
+- **AI Service CRM** — Customers, jobs, job tasks, technicians, appointments, dispatch, invoices, invoice payments, pipeline analytics; convert service requests/estimates to jobs.
 - **Billing** — Stripe subscriptions (Pro/Plus/Ultra), checkout, customer portal.
 - **Auth** — Supabase Auth for admin; `app_users` + `is_admin` for backend authorization.
 - **Public quote page** — Shareable quote view at `/quote/:quoteId` (e.g. for estimate links).
@@ -114,6 +115,7 @@ Postgres (Supabase)
    ├── documents (pgvector)
    ├── leads, files
    ├── industries, service_protocols, service_requests, estimates, estimate_line_items
+   ├── customers, jobs, job_tasks, technicians, appointments, dispatch_events, invoices, invoice_line_items, invoice_payments
    ├── historical_jobs, attachment_analysis, ai_intents, ai_classifications
    └── api_usage, sms_usage, phone_numbers
 ```
@@ -193,6 +195,15 @@ Industry-agnostic contractor workflow: intake → classification → estimates �
 - `historical_jobs`, `attachment_analysis`, `ai_intents`, `ai_classifications`
 - Migrations: `022_service_intelligence_engine.sql`, `023_service_protocols_seed.sql`, `024_ai_intent_classification_tables.sql`, `025_estimate_line_items.sql`
 
+### AI Service CRM
+
+Operations tables and flows for running jobs, dispatch, and billing (distinct from Stripe billing).
+
+- **Tables** — `customers`, `customer_addresses`, `technicians`, `jobs`, `job_tasks`, `appointments`, `dispatch_events`, `invoices`, `invoice_line_items`, `invoice_payments` (CRM payments; Stripe billing uses `payments`).
+- **Services** — `backend/src/services/operations/`: customerService, technicianService, jobService, dispatchService, invoiceService, paymentService, pipelineAnalyticsService.
+- **Admin** — Customers, Jobs (list/Kanban/detail), Dispatch (schedule by day), Technicians, Invoices (line items, send, mark paid), Payments, Pipeline (revenue, jobs by status). Service request/estimate detail: “Convert to Job” / “Create Job”.
+- **Migration** — `026_crm_operations_tables.sql` (run after 025).
+
 ---
 
 ## 6. API Reference
@@ -241,6 +252,24 @@ Industry-agnostic contractor workflow: intake → classification → estimates �
 | Historical Jobs | GET/POST | `/historical-jobs/:site_id` | List / create |
 | | GET/DELETE | `/historical-jobs/:site_id/:job_id` | Get / delete |
 | | POST | `/historical-jobs/:site_id/import` | Bulk import |
+| **CRM** | | | |
+| Customers | GET/POST | `/customers/:site_id` | List / create |
+| | GET/PATCH/DELETE | `/customers/:site_id/:customer_id` | Get / update / delete |
+| | POST | `/customers/:site_id/:customer_id/addresses` | Add address |
+| Jobs | GET/POST | `/jobs/:site_id` | List / create (or from request/estimate) |
+| | GET/PATCH | `/jobs/:site_id/:job_id` | Get / update |
+| | POST | `/jobs/:site_id/:job_id/tasks` | Add task; PATCH task |
+| Technicians | GET/POST | `/technicians/:site_id` | List / create |
+| | GET/PATCH | `/technicians/:site_id/:technician_id` | Get / update |
+| Dispatch | GET | `/appointments/:site_id/schedule` | Schedule for date |
+| | GET/POST/PATCH | `/appointments/:site_id` | List / create / update appointment |
+| Invoices | GET/POST | `/invoices/:site_id` | List / create |
+| | GET/PATCH | `/invoices/:site_id/:invoice_id` | Get / update; send; mark paid |
+| | POST/PATCH | `/invoices/:site_id/:invoice_id/line-items` | Add / update line item |
+| Payments (CRM) | GET | `/payments/:site_id` | List (invoice_payments) |
+| | GET | `/payments/:site_id/invoice/:invoice_id` | By invoice |
+| | POST | `/payments/:site_id` | Record payment |
+| Pipeline | GET | `/pipeline/:site_id` | Summary (revenue, jobs by status) |
 | AI Chat / Analytics | POST | `/ai-chat/:site_id/message` | Send message (test) |
 | | GET | `/ai-chat/:site_id/intents` | List intents |
 | | GET | `/ai-chat/:site_id/classifications` | List classifications |
@@ -297,6 +326,13 @@ Industry-agnostic contractor workflow: intake → classification → estimates �
 | `historical_jobs` | Past jobs for pricing |
 | `attachment_analysis` | Photo/attachment vision results |
 | `ai_intents`, `ai_classifications` | Intent/classification analytics |
+| **CRM** | |
+| `customers`, `customer_addresses` | CRM customers and addresses |
+| `technicians` | Field technicians |
+| `jobs`, `job_tasks` | Jobs and tasks |
+| `appointments`, `dispatch_events` | Scheduling and dispatch |
+| `invoices`, `invoice_line_items` | Invoices and line items |
+| `invoice_payments` | CRM payments (Stripe billing uses `payments`) |
 
 ### Migrations
 
@@ -329,6 +365,7 @@ Apply in order from `backend/migrations/`:
 | 023 | service_protocols_seed | Seed protocols |
 | 024 | ai_intent_classification_tables | ai_intents, ai_classifications |
 | 025 | estimate_line_items | estimate_line_items |
+| 026 | crm_operations_tables | customers, jobs, technicians, appointments, invoices, invoice_payments, etc. |
 
 ---
 
