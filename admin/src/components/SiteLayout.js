@@ -98,7 +98,9 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
       </aside>
 
       {/* Main Content */}
-      <main className="site-main">{children}</main>
+      <main className="site-main">
+        <div className="site-main-inner">{children}</div>
+      </main>
 
       <style jsx global>{`
         .site-layout {
@@ -243,10 +245,16 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
         .site-main {
           margin-left: 220px;
           flex: 1;
+          min-width: 0;
           padding: 32px;
-          max-width: 1000px;
+          display: flex;
+          justify-content: center;
           background: #ffffff;
           color: #0f172a;
+        }
+        .site-main-inner {
+          width: 100%;
+          max-width: 1000px;
         }
         
         @media (max-width: 900px) {
@@ -266,8 +274,8 @@ export default function SiteLayout({ children, siteName = 'Client' }) {
           .site-main {
             margin-left: 0;
             padding: 72px 16px 32px;
-            max-width: 100%;
           }
+          .site-main-inner { max-width: 100%; }
         }
         
         @media (max-width: 480px) {

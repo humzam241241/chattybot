@@ -305,7 +305,7 @@ export default function ServiceRequestsPage() {
       {requests.length > 0 && (
         <div className="card">
           <div className="table-wrap">
-            <table>
+            <table style={{ minWidth: 860 }}>
               <thead>
                 <tr>
                   <th>Customer</th>
