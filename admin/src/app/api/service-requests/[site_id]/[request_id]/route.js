@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireBackendAuth } from '../../../../_utils/backend';
+import { requireBackendAuth } from '../../../_utils/backend';
 
 export const dynamic = 'force-dynamic';
 
