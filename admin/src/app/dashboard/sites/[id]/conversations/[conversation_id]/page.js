@@ -55,13 +55,17 @@ export default function ConversationDetailPage() {
                     <span className="text-muted">{m?.created_at ? new Date(m.created_at).toLocaleString() : ''}</span>
                   </div>
                   {m?.media_url && (
-                    <MessageMedia
-                      conversationId={conversation_id}
-                      messageId={m.id}
-                      mediaContentType={m.media_content_type}
-                    />
+                    <div style={{ minHeight: 60 }}>
+                      <MessageMedia
+                        conversationId={conversation_id}
+                        messageId={m.id}
+                        mediaContentType={m.media_content_type}
+                      />
+                    </div>
                   )}
-                  {m?.content && !/^\[User sent (a )?(roof )?photo\]$/i.test(m.content.trim()) ? (
+                  {!m?.media_url && /^\[User sent (a )?(roof )?photo\]$/i.test((m?.content || '').trim()) ? (
+                    <div style={{ color: 'var(--muted-foreground)', fontStyle: 'italic' }}>📷 Photo shared</div>
+                  ) : m?.content && !/^\[User sent (a )?(roof )?photo\]$/i.test(m.content.trim()) ? (
                     <div style={{ whiteSpace: 'pre-wrap', marginTop: m?.media_url ? 8 : 0 }}>{m.content}</div>
                   ) : m?.content && !m?.media_url ? (
                     <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>

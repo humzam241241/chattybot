@@ -41,7 +41,7 @@ export default function MessageMedia({ conversationId, messageId, mediaContentTy
   }, [conversationId, messageId]);
 
   if (error) return <span className="text-muted">Failed to load media</span>;
-  if (!src) return <span className="text-muted">Loading photo…</span>;
+  if (!src) return <div style={{ minHeight: 48, display: 'flex', alignItems: 'center' }}><span className="text-muted">Loading photo…</span></div>;
 
   if (isImageType(mediaContentType)) {
     return (

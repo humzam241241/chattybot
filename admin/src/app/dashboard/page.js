@@ -131,22 +131,22 @@ export default function DashboardPage() {
           <h2 className="intelligence-title">Service Intelligence</h2>
           <p className="intelligence-desc">AI-powered intake, classification, estimates, and analytics. Select a client below to open Service Requests, Estimates, and AI Analytics.</p>
           <div className="intelligence-cards">
-            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/service-requests` : '/dashboard'} className="intelligence-card">
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/service-requests` : '/dashboard/sites/new'} className="intelligence-card">
               <h3>Service Requests</h3>
               <p>Incoming customer requests, classification, and intake.</p>
               <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
             </Link>
-            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/estimates` : '/dashboard'} className="intelligence-card">
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/estimates` : '/dashboard/sites/new'} className="intelligence-card">
               <h3>Estimates & Quotes</h3>
               <p>Generate and approve preliminary estimates, send quotes.</p>
               <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
             </Link>
-            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/ai-analytics` : '/dashboard'} className="intelligence-card">
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/ai-analytics` : '/dashboard/sites/new'} className="intelligence-card">
               <h3>AI Analytics</h3>
               <p>Intent and classification analytics per site.</p>
               <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
             </Link>
-            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/industries` : '/dashboard'} className="intelligence-card">
+            <Link href={sites.length ? `/dashboard/sites/${sites[0].id}/industries` : '/dashboard/sites/new'} className="intelligence-card">
               <h3>Industries & Protocols</h3>
               <p>Configure job types and service protocols by industry.</p>
               <span className="card-link">{sites.length ? 'Open →' : 'Add a client first'}</span>
@@ -440,12 +440,7 @@ export default function DashboardPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          opacity: 0;
           transition: all 0.15s;
-        }
-        
-        .client-card:hover .delete-btn {
-          opacity: 1;
         }
         
         .delete-btn:hover {

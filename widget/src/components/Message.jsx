@@ -16,7 +16,7 @@ export default function Message({ role, content, timestamp, primaryColor, imageU
             <img className="cb-msg-image" src={imageUrl} alt="Uploaded" />
           </div>
         ) : null}
-        {content}
+        {content && (!imageUrl || (content !== 'Photo' && content !== 'Image shared')) ? content : null}
       </div>
       <span className="cb-msg-time">{formatTime(timestamp)}</span>
     </div>

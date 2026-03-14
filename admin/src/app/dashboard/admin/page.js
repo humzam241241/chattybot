@@ -326,23 +326,25 @@ export default function AdminOverviewPage() {
         
         .tab {
           padding: 8px 16px;
-          border: none;
-          background: none;
+          border: 1px solid #e2e8f0;
+          background: #fff;
           cursor: pointer;
           font-weight: 500;
-          color: var(--muted);
-          border-radius: 6px;
+          color: #475569;
+          border-radius: 8px;
           transition: all 0.2s;
         }
         
         .tab:hover {
-          background: var(--bg);
-          color: var(--text);
+          background: #f8fafc;
+          border-color: #cbd5e1;
+          color: #0f172a;
         }
         
         .tab.active {
-          background: var(--primary);
-          color: white;
+          background: #4338ca;
+          border-color: #4338ca;
+          color: #fff;
         }
         
         .overview-grid {
@@ -670,20 +672,20 @@ function StatCard({ title, value, subtitle, highlight }) {
       {subtitle && <div className="stat-subtitle">{subtitle}</div>}
       <style jsx>{`
         .stat-card {
-          background: var(--surface);
-          border: 1px solid var(--border);
+          background: #fff;
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
           padding: 20px;
         }
         
         .stat-card.highlight {
-          border-color: var(--primary);
-          background: rgba(99, 102, 241, 0.05);
+          border-color: #4338ca;
+          background: #eef2ff;
         }
         
         .stat-title {
           font-size: 13px;
-          color: #4338ca;
+          color: #64748b;
           font-weight: 600;
           margin-bottom: 8px;
         }
@@ -696,7 +698,7 @@ function StatCard({ title, value, subtitle, highlight }) {
         
         .stat-subtitle {
           font-size: 12px;
-          color: #6366f1;
+          color: #64748b;
           margin-top: 4px;
         }
       `}</style>

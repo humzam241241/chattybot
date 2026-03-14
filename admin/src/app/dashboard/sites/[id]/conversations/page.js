@@ -322,7 +322,9 @@ export default function ConversationsPage() {
                         mediaContentType={m.media_content_type}
                       />
                     )}
-                    {m?.content && !/^\[User sent (a )?(roof )?photo\]$/i.test(String(m.content).trim()) ? (
+                    {!m?.media_url && /^\[User sent (a )?(roof )?photo\]$/i.test((m?.content || '').trim()) ? (
+                      <span style={{ color: 'var(--muted-foreground)', fontStyle: 'italic' }}>📷 Photo shared</span>
+                    ) : m?.content && !/^\[User sent (a )?(roof )?photo\]$/i.test(String(m.content).trim()) ? (
                       <span style={{ display: 'block', marginTop: m?.media_url ? 8 : 0 }}>{m.content}</span>
                     ) : m?.content && !m?.media_url ? (
                       <span>{m.content}</span>
