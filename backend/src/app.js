@@ -45,6 +45,13 @@ const industriesRouter = require('./routes/industries');
 const historicalJobsRouter = require('./routes/historicalJobs');
 const aiChatRouter = require('./routes/aiChat');
 const ragEvalRouter = require('./routes/ragEval');
+const customersRouter = require('./routes/customers');
+const jobsRouter = require('./routes/jobs');
+const techniciansRouter = require('./routes/technicians');
+const dispatchRouter = require('./routes/dispatch');
+const invoicesRouter = require('./routes/invoices');
+const paymentsRouter = require('./routes/payments');
+const pipelineRouter = require('./routes/pipeline');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -153,6 +160,13 @@ adminApi.use('/estimates', estimatesRouter);
 adminApi.use('/historical-jobs', historicalJobsRouter);
 adminApi.use('/ai-chat', aiChatRouter);
 adminApi.use('/rag-eval', ragEvalRouter);
+adminApi.use('/customers', customersRouter);
+adminApi.use('/jobs', jobsRouter);
+adminApi.use('/technicians', techniciansRouter);
+adminApi.use('/appointments', dispatchRouter);
+adminApi.use('/invoices', invoicesRouter);
+adminApi.use('/payments', paymentsRouter);
+adminApi.use('/pipeline', pipelineRouter);
 app.use('/api/admin', adminApi);
 
 // Industries API (public read, admin write)

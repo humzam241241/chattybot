@@ -33,6 +33,7 @@ async function apiFetch(path, options = {}) {
     throw new Error(msg);
   }
 
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -142,4 +143,71 @@ export const getSubscriptionStatus = () => apiFetch('/api/stripe/subscription');
 
 // Usage
 export const getUsage = (siteId) => apiFetch(`/api/usage/${siteId}`);
+
+// CRM (admin-proxy → backend /api/admin)
+const crm = (path, options = {}) => apiFetch(`/api/admin-proxy/${path}`, options);
+export const getCustomers = (siteId, q) => crm(`customers/${siteId}${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+export const createCustomer = (siteId, data) => crm(`customers/${siteId}`, { method: 'POST', body: JSON.stringify(data) });
+export const getCustomer = (siteId, customerId) => crm(`customers/${siteId}/${customerId}`);
+export const updateCustomer = (siteId, customerId, data) => crm(`customers/${siteId}/${customerId}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteCustomer = (siteId, customerId) => crm(`customers/${siteId}/${customerId}`, { method: 'DELETE' });
+export const addCustomerAddress = (siteId, customerId, data) => crm(`customers/${siteId}/${customerId}/addresses`, { method: 'POST', body: JSON.stringify(data) });
+
+export const getJobs = (siteId, opts = {}) => {
+  const params = new URLSearchParams();
+  if (opts.status) params.set('status', opts.status);
+  if (opts.customer_id) params.set('customer_id', opts.customer_id);
+  return crm(`jobs/${siteId}${params.toString() ? `?${params}` : ''}`);
+};
+export const createJob = (siteId, data) => crm(`jobs/${siteId}`, { method: 'POST', body: JSON.stringify(data) });
+export const createJobFromRequest = (siteId, requestId, options = {}) => crm(`jobs/${siteId}/from-request`, { method: 'POST', body: JSON.stringify({ request_id: requestId, ...options }) });
+export const createJobFromEstimate = (siteId, estimateId, options = {}) => crm(`jobs/${siteId}/from-estimate`, { method: 'POST', body: JSON.stringify({ estimate_id: estimateId, ...options }) });
+export const getJob = (siteId, jobId) => crm(`jobs/${siteId}/${jobId}`);
+export const updateJob = (siteId, jobId, data) => crm(`jobs/${siteId}/${jobId}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const addJobTask = (siteId, jobId, data) => crm(`jobs/${siteId}/${jobId}/tasks`, { method: 'POST', body: JSON.stringify(data) });
+export const updateJobTask = (siteId, jobId, taskId, data) => crm(`jobs/${siteId}/${jobId}/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) });
+
+export const getTechnicians = (siteId, activeOnly) => crm(`technicians/${siteId}${activeOnly ? '?active=true' : ''}`);
+export const createTechnician = (siteId, data) => crm(`technicians/${siteId}`, { method: 'POST', body: JSON.stringify(data) });
+export const updateTechnician = (siteId, techId, data) => crm(`technicians/${siteId}/${techId}`, { method: 'PATCH', body: JSON.stringify(data) });
+
+export const getAppointments = (siteId, opts = {}) => {
+  const params = new URLSearchParams();
+  if (opts.technician_id) params.set('technician_id', opts.technician_id);
+  if (opts.from) params.set('from', opts.from);
+  if (opts.to) params.set('to', opts.to);
+  return crm(`appointments/${siteId}${params.toString() ? `?${params}` : ''}`);
+};
+export const getScheduleForDay = (siteId, date) => crm(`appointments/${siteId}/schedule/${date}`);
+export const createAppointment = (siteId, data) => crm(`appointments/${siteId}`, { method: 'POST', body: JSON.stringify(data) });
+export const updateAppointment = (siteId, appointmentId, data) => crm(`appointments/${siteId}/${appointmentId}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const assignTechnicianToAppointment = (siteId, appointmentId, technicianId) => crm(`appointments/${siteId}/${appointmentId}/assign`, { method: 'POST', body: JSON.stringify({ technician_id: technicianId }) });
+
+export const getInvoices = (siteId, opts = {}) => {
+  const params = new URLSearchParams();
+  if (opts.customer_id) params.set('customer_id', opts.customer_id);
+  if (opts.status) params.set('status', opts.status);
+  return crm(`invoices/${siteId}${params.toString() ? `?${params}` : ''}`);
+};
+export const createInvoice = (siteId, data) => crm(`invoices/${siteId}`, { method: 'POST', body: JSON.stringify(data) });
+export const getInvoice = (siteId, invoiceId) => crm(`invoices/${siteId}/${invoiceId}`);
+export const addInvoiceLineItem = (siteId, invoiceId, data) => crm(`invoices/${siteId}/${invoiceId}/line-items`, { method: 'POST', body: JSON.stringify(data) });
+export const updateInvoiceLineItem = (siteId, invoiceId, lineId, data) => crm(`invoices/${siteId}/${invoiceId}/line-items/${lineId}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const sendInvoice = (siteId, invoiceId) => crm(`invoices/${siteId}/${invoiceId}/send`, { method: 'POST' });
+export const markInvoicePaid = (siteId, invoiceId) => crm(`invoices/${siteId}/${invoiceId}/mark-paid`, { method: 'POST' });
+
+export const getPayments = (siteId, opts = {}) => {
+  const params = new URLSearchParams();
+  if (opts.customer_id) params.set('customer_id', opts.customer_id);
+  return crm(`payments/${siteId}${params.toString() ? `?${params}` : ''}`);
+};
+export const getPaymentsByInvoice = (siteId, invoiceId) => crm(`payments/${siteId}/invoice/${invoiceId}`);
+export const recordPayment = (siteId, data) => crm(`payments/${siteId}`, { method: 'POST', body: JSON.stringify(data) });
+
+export const getPipelineSummary = (siteId, opts = {}) => {
+  const params = new URLSearchParams();
+  if (opts.from_date) params.set('from_date', opts.from_date);
+  if (opts.to_date) params.set('to_date', opts.to_date);
+  return crm(`pipeline/${siteId}${params.toString() ? `?${params}` : ''}`);
+};
 

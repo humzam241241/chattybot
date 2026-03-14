@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import SiteLayout from '../../../../../../components/SiteLayout';
 import { useAuth } from '../../../../../../contexts/AuthContext';
+import { createJobFromRequest } from '../../../../../../lib/api';
 
 const STATUS_COLORS = {
   new: 'bg-blue-100 text-blue-800',
@@ -35,6 +36,8 @@ export default function ServiceRequestDetailPage() {
   const [error, setError] = useState(null);
   const [classifying, setClassifying] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [convertingToJob, setConvertingToJob] = useState(false);
+  const router = useRouter();
 
   async function fetchRequest() {
     const res = await fetch(`/api/service-requests/${siteId}/${requestId}`, {
@@ -69,6 +72,18 @@ export default function ServiceRequestDetailPage() {
       alert(err.message);
     } finally {
       setClassifying(false);
+    }
+  }
+
+  async function handleConvertToJob() {
+    try {
+      setConvertingToJob(true);
+      const job = await createJobFromRequest(siteId, request.id);
+      router.push(`/dashboard/sites/${siteId}/jobs/${job.id}`);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setConvertingToJob(false);
     }
   }
 
@@ -166,6 +181,14 @@ export default function ServiceRequestDetailPage() {
           >
             Quotes
           </Link>
+          <button
+            type="button"
+            onClick={handleConvertToJob}
+            disabled={convertingToJob}
+            className="btn btn-secondary"
+          >
+            {convertingToJob ? 'Creating…' : 'Convert to Job'}
+          </button>
         </div>
       </div>
 

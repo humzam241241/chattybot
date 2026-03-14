@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import SiteLayout from '../../../../../../components/SiteLayout';
 import { useAuth } from '../../../../../../contexts/AuthContext';
+import { createJobFromEstimate } from '../../../../../../lib/api';
 
 const STATUS_COLORS = {
   draft: 'bg-gray-100 text-gray-700',
@@ -43,6 +44,8 @@ export default function EstimateDetailPage() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [approveAndSending, setApproveAndSending] = useState(false);
+  const [convertingToJob, setConvertingToJob] = useState(false);
+  const router = useRouter();
 
   async function fetchEstimate() {
     const res = await fetch(`/api/estimates/${siteId}/${estimateId}`, {
@@ -74,6 +77,18 @@ export default function EstimateDetailPage() {
   }, [session, siteId, estimateId]);
 
   const canEdit = estimate && EDITABLE_STATUSES.includes(estimate.status);
+
+  async function handleConvertToJob() {
+    try {
+      setConvertingToJob(true);
+      const job = await createJobFromEstimate(siteId, estimateId);
+      router.push(`/dashboard/sites/${siteId}/jobs/${job.id}`);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setConvertingToJob(false);
+    }
+  }
 
   function updateLineItem(index, field, value) {
     setLineItems((prev) => {
@@ -253,6 +268,11 @@ export default function EstimateDetailPage() {
           <p className="page-subtitle">
             {estimate.customer_name || 'Unknown'} · {estimate.job_type?.replace(/_/g, ' ')}
           </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-secondary" onClick={handleConvertToJob} disabled={convertingToJob}>
+            {convertingToJob ? 'Creating…' : 'Create Job'}
+          </button>
         </div>
       </div>
 
