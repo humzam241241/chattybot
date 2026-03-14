@@ -79,6 +79,10 @@ export default function ServiceRequestDetailPage() {
     try {
       setConvertingToJob(true);
       const job = await createJobFromRequest(siteId, request.id);
+      if (!job?.id) {
+        alert('Could not create job.');
+        return;
+      }
       router.push(`/dashboard/sites/${siteId}/jobs/${job.id}`);
     } catch (err) {
       alert(err.message);

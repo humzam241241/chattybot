@@ -47,7 +47,7 @@ router.post('/:site_id', async (req, res) => {
   try {
     const access = await checkSiteAccess(pool, req.user, req.params.site_id);
     if (!access.ok) return res.status(access.status).json({ error: access.error });
-    const { invoice_id, amount, payment_method, paid_at, notes } = req.body;
+    const { invoice_id, amount, payment_method, paid_at, notes, stripe_payment_intent_id } = req.body;
     if (!invoice_id || amount == null) {
       return res.status(400).json({ error: 'invoice_id and amount required' });
     }
@@ -56,6 +56,7 @@ router.post('/:site_id', async (req, res) => {
       payment_method,
       paid_at,
       notes,
+      stripe_payment_intent_id,
     });
     res.status(201).json(payment);
   } catch (err) {

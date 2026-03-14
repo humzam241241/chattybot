@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import SiteLayout from '../../../../../../components/SiteLayout';
 import { useAuth } from '../../../../../../contexts/AuthContext';
-import { getJob, updateJob, addJobTask, updateJobTask, createInvoice } from '../../../../../../lib/api';
+import { getJob, updateJob, addJobTask, updateJobTask, createInvoice, getTechnicians } from '../../../../../../lib/api';
 
 export default function JobDetailPage() {
   const { id: siteId, job_id: jobId } = useParams();
   const { session } = useAuth();
   const [job, setJob] = useState(null);
+  const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState(false);
@@ -20,6 +21,11 @@ export default function JobDetailPage() {
     if (!session?.access_token || !siteId || !jobId) return;
     getJob(siteId, jobId).then(setJob).catch(() => setJob(null)).finally(() => setLoading(false));
   }, [session, siteId, jobId]);
+
+  useEffect(() => {
+    if (!session?.access_token || !siteId) return;
+    getTechnicians(siteId).then((t) => setTechnicians(Array.isArray(t) ? t : [])).catch(() => setTechnicians([]));
+  }, [session, siteId]);
 
   async function handleStatusChange(status) {
     try {
@@ -91,6 +97,13 @@ export default function JobDetailPage() {
         <div className="card-title">Customer & details</div>
         <p><strong>Customer:</strong> <Link href={`/dashboard/sites/${siteId}/customers/${job.customer_id}`}>{job.customer_name}</Link></p>
         <p><strong>Contact:</strong> {job.customer_email || job.customer_phone || '—'}</p>
+        <p>
+          <strong>Technician:</strong>{' '}
+          <select className="input" style={{ width: 'auto', display: 'inline-block' }} value={job.technician_id || ''} onChange={(e) => handleTechnicianChange(e.target.value)}>
+            <option value="">— Unassigned —</option>
+            {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </p>
         {job.description && <p><strong>Description:</strong> {job.description}</p>}
         {job.scheduled_date && <p><strong>Scheduled:</strong> {new Date(job.scheduled_date).toLocaleString()}</p>}
       </div>

@@ -5,8 +5,8 @@ async function recordPayment(siteId, invoiceId, data) {
   const id = uuidv4();
   const amount = Number(data.amount) || 0;
   await pool.query(
-    `INSERT INTO invoice_payments (id, site_id, invoice_id, amount, payment_method, paid_at, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO invoice_payments (id, site_id, invoice_id, amount, payment_method, paid_at, notes, stripe_payment_intent_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       id,
       siteId,
@@ -15,6 +15,7 @@ async function recordPayment(siteId, invoiceId, data) {
       data.payment_method || null,
       data.paid_at || new Date().toISOString(),
       data.notes || null,
+      data.stripe_payment_intent_id || null,
     ]
   );
   const invoiceService = require('./invoiceService');

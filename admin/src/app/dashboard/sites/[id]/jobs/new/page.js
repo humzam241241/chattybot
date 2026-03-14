@@ -18,7 +18,7 @@ export default function NewJobPage() {
 
   useEffect(() => {
     if (!session?.access_token || !siteId) return;
-    getCustomers(siteId).then(setCustomers).catch(() => setCustomers([]));
+    getCustomers(siteId).then((data) => setCustomers(Array.isArray(data) ? data : [])).catch(() => setCustomers([]));
   }, [session, siteId]);
 
   useEffect(() => {
@@ -32,9 +32,13 @@ export default function NewJobPage() {
     setSaving(true);
     try {
       const job = await createJob(siteId, form);
+      if (!job || !job.id) {
+        alert('Could not create job. Please try again.');
+        return;
+      }
       router.push(`/dashboard/sites/${siteId}/jobs/${job.id}`);
     } catch (err) {
-      alert(err.message);
+      alert(err?.message || 'Failed to create job');
     } finally {
       setSaving(false);
     }

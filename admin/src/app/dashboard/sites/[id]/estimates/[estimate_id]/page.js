@@ -82,9 +82,13 @@ export default function EstimateDetailPage() {
     try {
       setConvertingToJob(true);
       const job = await createJobFromEstimate(siteId, estimateId);
+      if (!job?.id) {
+        alert('Could not create job.');
+        return;
+      }
       router.push(`/dashboard/sites/${siteId}/jobs/${job.id}`);
     } catch (err) {
-      alert(err.message);
+      alert(err?.message || 'Failed to create job');
     } finally {
       setConvertingToJob(false);
     }
@@ -314,8 +318,8 @@ export default function EstimateDetailPage() {
           </div>
           <div style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
             {estimate.price_source === 'historical' && estimate.historical_jobs_count != null
-              ? `Based on ${estimate.historical_jobs_count} similar completed jobs`
-              : 'Based on industry default—add past jobs to improve accuracy.'}
+              ? `Based on ${estimate.historical_jobs_count} similar completed jobs (industry & protocols)`
+              : 'Pricing from industry & service protocols—add historical jobs to improve accuracy.'}
           </div>
           {estimate.confidence_reasoning && (
             <div style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>

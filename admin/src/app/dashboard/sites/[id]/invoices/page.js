@@ -33,9 +33,12 @@ export default function InvoicesPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Invoices</h1>
-          <p className="page-subtitle">Create from a job, or manage drafts</p>
+          <p className="page-subtitle">Manual or from job; amounts from line items / estimates</p>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={loadInvoices} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-secondary" onClick={loadInvoices} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
+          <Link href={`/dashboard/sites/${siteId}/invoices/new`} className="btn btn-primary">New invoice</Link>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -49,7 +52,12 @@ export default function InvoicesPage() {
       </div>
 
       {loading && <p className="text-muted">Loading invoices...</p>}
-      {!loading && list.length === 0 && <div className="card"><p className="text-muted">No invoices. Create one from a job.</p></div>}
+      {!loading && list.length === 0 && (
+        <div className="card">
+          <p className="text-muted">No invoices yet.</p>
+          <Link href={`/dashboard/sites/${siteId}/invoices/new`} className="btn btn-primary" style={{ marginTop: 12 }}>New invoice</Link>
+        </div>
+      )}
       {!loading && list.length > 0 && (
         <div className="card">
           <div className="table-wrap">

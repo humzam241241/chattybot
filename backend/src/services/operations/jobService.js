@@ -145,9 +145,11 @@ async function getJobsBySite(siteId, options = {}) {
 
   params.push(limit, offset);
   const r = await pool.query(
-    `SELECT j.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+    `SELECT j.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
+       t.name AS technician_name
      FROM jobs j
      LEFT JOIN customers c ON c.id = j.customer_id AND c.site_id = j.site_id
+     LEFT JOIN technicians t ON t.id = j.technician_id AND t.site_id = j.site_id
      ${where}
      ORDER BY j.created_at DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -158,9 +160,11 @@ async function getJobsBySite(siteId, options = {}) {
 
 async function getJob(jobId, siteId) {
   const r = await pool.query(
-    `SELECT j.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone, c.address AS customer_address
+    `SELECT j.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone, c.address AS customer_address,
+       t.name AS technician_name
      FROM jobs j
      LEFT JOIN customers c ON c.id = j.customer_id AND c.site_id = j.site_id
+     LEFT JOIN technicians t ON t.id = j.technician_id AND t.site_id = j.site_id
      WHERE j.id = $1 AND j.site_id = $2`,
     [jobId, siteId]
   );
@@ -171,7 +175,7 @@ async function updateJob(jobId, siteId, data) {
   const fields = [];
   const values = [];
   let i = 1;
-  const allowed = ['customer_id', 'service_request_id', 'estimate_id', 'title', 'description', 'job_status', 'priority', 'scheduled_date'];
+  const allowed = ['customer_id', 'service_request_id', 'estimate_id', 'technician_id', 'title', 'description', 'job_status', 'priority', 'scheduled_date'];
   for (const key of allowed) {
     if (data[key] !== undefined) {
       fields.push(`${key} = $${i}`);

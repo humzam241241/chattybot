@@ -14,7 +14,7 @@ export default function JobsPage() {
   const { session } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('all'); // 'all' = Kanban columns
 
   function loadJobs() {
     if (!siteId) return;
@@ -41,7 +41,7 @@ export default function JobsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Jobs</h1>
-          <p className="page-subtitle">Job pipeline — create from lead, service request, or estimate</p>
+          <p className="page-subtitle">Kanban — pipeline by status. Create from lead, service request, or estimate.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-secondary" onClick={loadJobs} disabled={loading}>{loading ? '...' : 'Refresh'}</button>
@@ -50,10 +50,11 @@ export default function JobsPage() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>View:</span>
           {['all', ...STATUSES].map((s) => (
             <button key={s} type="button" className={`btn btn-sm ${filter === s ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(s)}>
-              {s === 'all' ? 'All' : s.replace(/_/g, ' ')}
+              {s === 'all' ? 'Kanban' : s.replace(/_/g, ' ')}
             </button>
           ))}
         </div>
@@ -62,15 +63,18 @@ export default function JobsPage() {
       {loading && <p className="text-muted">Loading jobs...</p>}
 
       {!loading && filter === 'all' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(200px, 1fr))', gap: 16, overflowX: 'auto', paddingBottom: 8 }}>
           {STATUSES.map((status) => (
-            <div key={status} className="card" style={{ minHeight: 120 }}>
-              <div className="card-title" style={{ textTransform: 'capitalize' }}>{status.replace(/_/g, ' ')}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div key={status} className="card" style={{ minHeight: 280, minWidth: 200 }}>
+              <div className="card-title" style={{ textTransform: 'capitalize', borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                {status.replace(/_/g, ' ')} ({(byStatus[status] || []).length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
                 {(byStatus[status] || []).map((j) => (
-                  <Link key={j.id} href={`/dashboard/sites/${siteId}/jobs/${j.id}`} style={{ padding: 8, background: 'var(--bg)', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}>
-                    <div style={{ fontWeight: 600 }}>{j.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{j.customer_name}</div>
+                  <Link key={j.id} href={`/dashboard/sites/${siteId}/jobs/${j.id}`} style={{ padding: 10, background: 'var(--bg)', borderRadius: 8, textDecoration: 'none', color: 'inherit', border: '1px solid var(--border)' }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{j.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>{j.customer_name}</div>
+                    {j.technician_name && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>👤 {j.technician_name}</div>}
                   </Link>
                 ))}
                 {(!byStatus[status] || byStatus[status].length === 0) && <p className="text-muted" style={{ fontSize: 13 }}>None</p>}
