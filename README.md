@@ -1,6 +1,6 @@
-## ChattyBot
+# ChattyBot
 
-ChattyBot is a **multi-tenant, white-label AI chatbot platform**. It lets you create a tenant (“site”), ingest that site’s content (website + files), and embed a branded chat widget on the customer’s website. The backend uses **RAG (retrieval-augmented generation)** over **pgvector** embeddings and generates answers via OpenAI.
+ChattyBot is a **multi-tenant, white-label AI chatbot platform** for businesses and contractors. It provides an embeddable chat widget, RAG-powered answers, lead capture, **Service Intelligence** (intake, classification, estimates, quotes), and optional SMS/WhatsApp via Twilio. The backend uses **Postgres + pgvector** (Supabase) and **OpenAI** for embeddings and chat; **Supabase Auth** for admin sign-in; **Stripe** for billing.
 
 This `README.md` is the **single source of truth** for engineers onboarding to the repository (architecture, setup, deployment, operations).
 
@@ -8,22 +8,50 @@ This `README.md` is the **single source of truth** for engineers onboarding to t
 
 ---
 
+## Table of Contents
+
+1. [Product Overview](#1-product-overview)
+2. [System Architecture](#2-system-architecture)
+3. [Monorepo Structure](#3-monorepo-structure)
+4. [Core Features](#4-core-features)
+5. [Service Intelligence](#5-service-intelligence)
+6. [API Reference](#6-api-reference)
+7. [Multi-Tenant Model](#7-multi-tenant-model)
+8. [Database Overview](#8-database-overview)
+9. [Environment Variables](#9-environment-variables)
+10. [Local Development Setup](#10-local-development-setup)
+11. [Widget Embed](#11-widget-embed-instructions)
+12. [Twilio Setup](#12-twilio-setup)
+13. [File Ingestion](#13-file-ingestion-pipeline)
+14. [Deployment](#14-deployment)
+15. [Workers / Background Jobs](#15-workers--background-jobs)
+16. [Usage Tracking](#16-usage-tracking)
+17. [Tenant Onboarding](#17-tenant-onboarding-flow)
+18. [Security](#18-security-checklist)
+19. [Troubleshooting](#19-troubleshooting)
+20. [Documentation & Client Setup](#20-documentation--client-setup)
+21. [Common Development Tasks](#21-common-development-tasks)
+
+---
+
 ## 1. Product Overview
 
-Core capabilities:
+### Core Capabilities
 
-- Embeddable widget installed via a single `<script>` tag
-- RAG chat with multi-turn context + streaming (SSE)
-- Website ingestion via Playwright crawling
-- File ingestion (PDF/DOCX/XLSX) with extracted text persisted for reprocessing/debugging
-- Lead intelligence (extraction + scoring + notifications + missed-lead detection)
-- Twilio SMS/WhatsApp inbound webhooks and outbound notifications
-- White-label configuration per tenant (branding + behavior)
-- Admin + analytics dashboards
+- **Embeddable widget** — Single `<script>` tag; configurable branding (colors, name, intro).
+- **RAG chat** — Multi-turn context, streaming (SSE), retrieval from pgvector embeddings.
+- **Website ingestion** — Playwright-based crawling, chunking, embedding.
+- **File ingestion** — PDF/DOCX/XLSX with extracted text persisted for reprocessing.
+- **Lead intelligence** — Extraction, scoring (HOT/WARM/COLD), notifications, missed-lead detection.
+- **Twilio** — Inbound SMS/WhatsApp webhooks (TwiML); outbound from notification pipeline.
+- **White-label** — Per-tenant branding, system prompt, suggested questions, booking URL.
+- **Admin dashboard** — Next.js app: sites, ingestion, files, conversations, leads, **Service Intelligence**, analytics.
+- **Service Intelligence** — Industry-agnostic contractor workflow: service requests, AI classification, estimates with line items, photo/attachment analysis, industries & protocols, historical jobs.
+- **Billing** — Stripe subscriptions (Pro/Plus/Ultra), checkout, customer portal.
+- **Auth** — Supabase Auth for admin; `app_users` + `is_admin` for backend authorization.
+- **Public quote page** — Shareable quote view at `/quote/:quoteId` (e.g. for estimate links).
 
 ### Quick Start (Local Dev)
-
-Minimal runnable path for engineers:
 
 ```bash
 # 1) Backend
@@ -44,6 +72,8 @@ npm install
 npm run build
 ```
 
+Backend: `http://localhost:3001`. Admin: `http://localhost:3000`. Widget build output: `widget/dist/widget.js`.
+
 ---
 
 ## 2. System Architecture
@@ -55,18 +85,11 @@ Customer website
   → widget (embed script)
     → backend (Express)
       → Postgres + pgvector (Supabase)
-        ↔ OpenAI (embeddings + chat completions)
+        ↔ OpenAI (embeddings + chat)
+        ↔ Anthropic (optional: vision/photo analysis)
 ```
 
-High-level request path for chat:
-
-1. Widget loads and fetches **site config** from the backend.
-2. Widget sends user message to backend (`/chat` or `/chat/stream`).
-3. Backend retrieves relevant chunks via pgvector similarity search (tenant scoped by `site_id`).
-4. Backend calls OpenAI to generate a response using retrieved context.
-5. Backend persists conversation/messages and returns the assistant response (streaming for SSE endpoints).
-
-### Architecture diagram (component boundaries)
+### Component Diagram
 
 ```
 Customer Website
@@ -77,48 +100,31 @@ Widget (Vite bundle)
    ▼
 Backend API (Express)
    │
-   ├── RAG Engine
-   │      ├ Embeddings (OpenAI)
-   │      ├ Retrieval (pgvector)
-   │      └ Prompt assembly
-   │
-   ├── Ingestion Pipeline
-   │      ├ Playwright crawler
-   │      ├ File processors (PDF/DOCX/XLSX)
-   │      └ Chunk + embed → store
-   │
-   ├── Messaging
-   │      ├ Twilio webhooks (TwiML replies)
-   │      └ Outbound notifications (Twilio REST)
-   │
-   └── Workers
-          ├ Summaries
-          ├ Lead extraction
-          ├ Missed-lead detection
-          └ Reports / reconciliation
+   ├── RAG Engine (embeddings, pgvector retrieval, prompt assembly)
+   ├── Ingestion (Playwright crawler, file processors, chunk + embed → documents)
+   ├── Service Intelligence (requests, classification, estimates, line items, industries)
+   ├── Messaging (Twilio webhooks, outbound notifications)
+   ├── Auth (Supabase JWT → app_users, checkSiteAccess)
+   ├── Billing (Stripe checkout, webhooks, usage)
+   └── Workers (summaries, lead extraction, missed leads, reports, reconciliation)
    ▼
 Postgres (Supabase)
-   ├ sites
-   ├ conversations
-   ├ messages
-   ├ documents (pgvector)
-   ├ leads
-   ├ files
-   └ usage tables
+   ├── sites, app_users
+   ├── conversations, messages (media_url for photos)
+   ├── documents (pgvector)
+   ├── leads, files
+   ├── industries, service_protocols, service_requests, estimates, estimate_line_items
+   ├── historical_jobs, attachment_analysis, ai_intents, ai_classifications
+   └── api_usage, sms_usage, phone_numbers
 ```
 
 ### RAG Pipeline
 
-1. User message arrives (widget → backend)
-2. Backend generates an embedding for the query
-3. Similarity search against `documents.embedding` (tenant scoped by `site_id`)
-4. Top \(K\) chunks retrieved
-5. Prompt constructed with:
-   - system prompt + “raffy” configuration
-   - recent conversation history
-   - retrieved chunks
-6. OpenAI completion generates response
-7. Response returned (optionally streamed via SSE)
+1. User message → backend (`/chat` or `/chat/stream`).
+2. Embedding generated for query (OpenAI).
+3. Similarity search on `documents.embedding` (scoped by `site_id`).
+4. Top K chunks + conversation history + system prompt → OpenAI completion.
+5. Response persisted; returned (optionally streamed via SSE).
 
 ---
 
@@ -126,267 +132,254 @@ Postgres (Supabase)
 
 ```
 chattybot/
-├── backend/          Express API + workers (deploy to Render)
-├── widget/           Embeddable widget (Vite build → single JS bundle)
-├── admin/            Admin dashboard (Next.js)
-└── admin-dashboard/  Analytics dashboard (React)
+├── backend/          Express API, workers, migrations (deploy: Render)
+├── widget/           Embeddable widget (Vite → dist/widget.js)
+├── admin/            Next.js admin dashboard (deploy: Vercel)
+├── admin-dashboard/  Legacy analytics dashboard (React, optional)
+└── docs/             Client setup guides (e.g. docs/clients/)
 ```
 
-- `backend/`: API, ingestion pipeline, RAG, Twilio webhooks, lead pipeline, workers.
-- `widget/`: chat bubble + UI, bundled to a single `widget.js` for customer sites.
-- `admin/`: manages sites, ingestion, files, conversations, leads, settings.
-- `admin-dashboard/`: analytics UI (stats, transcripts, operational views).
+- **backend/** — Routes, services, RAG, ingestion, Twilio, Service Intelligence, Stripe, migrations.
+- **widget/** — Chat bubble, streaming, lead form, image upload; single bundle for customer sites.
+- **admin/** — Supabase auth, dashboard, per-site nav (Overview, Leads, Chats, Service Requests, Estimates, AI Analytics, Missed Leads, Analytics, Reports, Files, RAG Test, Industries & Protocols, Settings), embed code, delete clients.
+- **docs/** — Client configuration guides (e.g. Ryan's Roofing); see [§20](#20-documentation--client-setup).
 
 ---
 
 ## 4. Core Features
 
-- **RAG chat**
-  - Context retrieval from pgvector embeddings
-  - Streaming responses (SSE) and non-streaming endpoints
-  - Conversation logging (`conversations`, `messages`)
-- **Website crawler**
-  - Playwright-based crawling, domain-limited
-  - Chunking + embedding pipeline for discovered content
-- **File ingestion**
-  - PDF/DOCX/XLSX extraction → chunking → embeddings
-  - Extracted text stored in `files.extracted_text`
-- **Lead intelligence**
-  - AI extraction + scoring
-  - Missed-lead detection and reconciliation
-  - Notifications (email + optional SMS/WhatsApp)
+- **RAG chat** — pgvector retrieval, streaming (SSE) and non-streaming, conversation logging.
+- **Website crawler** — Playwright, domain-limited, chunk + embed pipeline.
+- **File ingestion** — PDF/DOCX/XLSX → extracted text in `files.extracted_text` → chunks → documents.
+- **Lead intelligence** — AI extraction, scoring, missed-lead detection, email/SMS notifications.
+- **Twilio** — Inbound SMS/WhatsApp (TwiML); outbound via notification service.
+- **White-label** — `sites` + `raffy_overrides`: name, role, tone, notifications, booking URL.
+- **Message media** — User photos (widget upload or Twilio media) stored as `messages.media_url` / `media_content_type`; admin conversation view proxies and displays images.
+- **Analytics** — Conversation summaries, lead extraction workers, admin dashboards.
+- **Stripe** — Checkout sessions, customer portal, subscription status; plan enforcement via `requirePaidOrTrial` where applicable.
+- **Supabase Auth** — Admin sign-in; JWT passed to backend; `app_users` and `is_admin` drive access.
 
-  Lead data flow:
+---
 
-  ```
-  Conversation → lead signals
-          ↓
-    AI extraction
-          ↓
-   Lead scoring
-  (HOT/WARM/COLD)
-          ↓
- Notification pipeline
-   (email/SMS/WA)
-  ```
+## 5. Service Intelligence
 
-- **Twilio messaging**
-  - Inbound SMS/WhatsApp webhooks (TwiML replies)
-  - Outbound sends from notification pipeline (Twilio REST API)
-- **White-label configuration**
-  - Per-site branding (colors, company name)
-  - Per-site behavior via system prompt + `raffy_overrides`
+Industry-agnostic contractor workflow: intake → classification → estimates → line items → send (email/SMS).
 
-  White-label layers:
+### Concepts
 
-  - Level 1: Branding (name, color)
-  - Level 2: Behavior (system prompt + tone/guardrails)
-  - Level 3: Communication (Twilio routing + lead notifications)
+- **Industries** — e.g. roofing, HVAC, plumbing (table `industries`).
+- **Service protocols** — Job types per industry with scope, pricing bands, risk factors (`service_protocols`).
+- **Service requests** — Incoming customer requests (from chats or manual); stored in `service_requests` with optional `attachments` (e.g. photo URLs).
+- **Classification** — AI assigns job type, industry, urgency; results in `ai_classifications` and on the request.
+- **Estimates** — Generated from a service request (or manually); price range, confidence, optional line items (`estimates`, `estimate_line_items`).
+- **Attachment/photo analysis** — Vision (e.g. Claude) on request attachments; results in `attachment_analysis` and feed into estimate confidence/risk.
+- **Historical jobs** — Past job outcomes per site for pricing intelligence (`historical_jobs`).
 
-  `raffy_overrides` (legacy naming) typically contains:
+### Admin Flows
 
-  - `name`
-  - `role`
-  - `tone`
-  - `notifications` (lead destinations)
-  - `booking` (URL / embed settings)
-- **Analytics**
-  - Conversation summaries and lead extraction workers
-  - Dashboards for stats and transcripts
+- **Service Requests** — List/filter (new, classified, needs_assessment, estimated); extract from chats; manual request; classify; generate estimate; view detail.
+- **Estimates & Quotes** — List by site (optional `lead_id`); view detail; edit line items (draft/pending_approval); approve & send (email + SMS); copy for billing.
+- **Industries & Protocols** — Per-site industry; link to protocols; configure job types and service protocols.
+- **AI Analytics** — Intent and classification analytics per site (from `ai_intents`, `ai_classifications`).
 
-### Core API Endpoints (minimal reference)
+### Key Backend Services
 
-Public/widget:
+- `backend/src/services/serviceIntelligence/` — intake, problemClassifier, estimateGenerator, estimateLineItems, attachmentAnalysisService.
+- Routes: `serviceRequests`, `estimates`, `industries`, `historicalJobs` (under `/api/admin` or public read for industries).
 
-- `GET /site-config/:site_id`
-- `POST /chat`
-- `POST /chat/stream` (SSE)
-- `POST /lead`
+### Database (Service Intelligence)
 
-Ingestion:
+- `industries`, `service_protocols`, `service_requests`, `estimates`, `estimate_line_items`
+- `historical_jobs`, `attachment_analysis`, `ai_intents`, `ai_classifications`
+- Migrations: `022_service_intelligence_engine.sql`, `023_service_protocols_seed.sql`, `024_ai_intent_classification_tables.sql`, `025_estimate_line_items.sql`
 
-- `POST /ingest/:site_id` (admin-auth)
+---
 
-Admin (mounted under `/api/admin`):
+## 6. API Reference
 
-- `GET /api/admin/sites`
-- `POST /api/admin/ingest/:site_id`
-- `GET /api/admin/conversations/site/:site_id`
-- `GET /api/admin/conversations/:conversation_id`
-- `GET /api/admin/files/:site_id`
-- `POST /api/admin/files/upload`
+### Public / Widget
 
-Messaging:
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/site-config/:site_id` | Widget config (branding, intro, suggested questions) |
+| POST | `/chat` | Non-streaming chat |
+| POST | `/chat/stream` | Streaming chat (SSE) |
+| POST | `/lead` | Lead submission |
+| GET | `/api/industries` | List industries (public) |
+| GET | `/api/industries/:industry_id/protocols` | Protocols for industry |
+| GET | `/api/industries/site/:site_id/config` | Site industry config (auth) |
+
+### Admin API (prefix `/api/admin`, auth required)
+
+| Area | Method | Path | Description |
+|------|--------|------|-------------|
+| Sites | GET/POST | `/sites` | List / create sites |
+| | GET/PUT/DELETE | `/sites/:id` | Get, update, delete site |
+| Ingest | POST | `/ingest/:site_id` | Trigger website ingestion |
+| | GET | `/ingest/:site_id/status` | Ingestion status |
+| Leads | GET | `/leads/:site_id` | List leads (filter, rescore) |
+| | GET | `/leads/all` | All leads (admin) |
+| | DELETE | `/leads/:site_id/:lead_id` | Delete lead |
+| Files | GET | `/files/:site_id` | List files |
+| | POST | `/files/upload` | Upload files |
+| | POST | `/files/reprocess/:file_id` | Reprocess file |
+| | DELETE | `/files/file/:file_id` | Delete file |
+| Conversations | GET | `/conversations/site/:site_id` | List conversations |
+| | GET | `/conversations/:id` | Get conversation + messages |
+| | GET | `/conversations/:id/messages/:msg_id/media` | Proxy message media (image/file) |
+| Service Requests | GET/POST | `/service-requests/:site_id` | List / create |
+| | GET/PATCH | `/service-requests/:site_id/:request_id` | Get / update |
+| | POST | `/service-requests/:site_id/:request_id/classify` | Classify request |
+| | POST | `/service-requests/:site_id/extract-from-chats` | Extract from conversations |
+| Estimates | GET/POST | `/estimates/:site_id` | List / create (from request) |
+| | GET/PATCH | `/estimates/:site_id/:estimate_id` | Get / update (incl. line items) |
+| | POST | `/estimates/:site_id/:estimate_id/approve` | Approve |
+| | POST | `/estimates/:site_id/:estimate_id/reject` | Reject |
+| | POST | `/estimates/:site_id/:estimate_id/send` | Send quote (email/SMS) |
+| Industries | GET | `/industries/site/:site_id/config` | Site industry config |
+| | POST | `/industries/site/:site_id/config` | Update site config |
+| Historical Jobs | GET/POST | `/historical-jobs/:site_id` | List / create |
+| | GET/DELETE | `/historical-jobs/:site_id/:job_id` | Get / delete |
+| | POST | `/historical-jobs/:site_id/import` | Bulk import |
+| AI Chat / Analytics | POST | `/ai-chat/:site_id/message` | Send message (test) |
+| | GET | `/ai-chat/:site_id/intents` | List intents |
+| | GET | `/ai-chat/:site_id/classifications` | List classifications |
+| | GET | `/ai-chat/:site_id/analytics/intents` | Intent analytics |
+| | GET | `/ai-chat/:site_id/analytics/classifications` | Classification analytics |
+| Missed Leads | GET | `/missed-leads/:site_id` | List missed leads |
+| Reports | GET | `/reports/:site_id` | Reports |
+| Analytics | GET | `/analytics/:site_id` | Analytics |
+| Reconcile | POST | `/reconcile` | Data reconciliation |
+| Overview | GET | `/overview` | Admin overview stats |
+| RAG Eval | GET/POST | `/rag-eval/:site_id` | RAG test |
+
+### Twilio (public webhooks)
 
 - `POST /webhooks/twilio/sms`
 - `POST /webhooks/twilio/whatsapp`
 
----
+### Stripe
 
-## 5. Multi-Tenant Model
-
-Tenant = **Site**.
-
-- **Tenant key**: `site_id` (UUID)
-- **Isolation rule**: any query touching tenant data (conversations, messages, leads, files, documents, usage) must filter by `site_id`.
-- **Authorization**: enforced on the backend
-  - Site access must go through `checkSiteAccess(user, siteId)`
-  - Admin privileges come only from `app_users.is_admin`
-
-This repo follows a “thin routes, service layer” pattern: routes validate input and call services; business logic lives in `backend/src/services`.
+- `POST /api/stripe/webhook` — Webhook (raw body)
+- Checkout, portal, subscription: see `backend/src/routes/stripe.js`
 
 ---
 
-## 6. Database Overview
+## 7. Multi-Tenant Model
 
-Major tables you’ll interact with:
-
-- `sites`: tenant configuration (domain, branding, prompts, overrides)
-- `conversations`: one conversation thread per visitor (tenant scoped)
-- `messages`: chat messages for a conversation
-- `files`: uploaded files (includes `extracted_text`)
-- `documents`: embedding “chunks” stored as `vector(...)` with `site_id`
-- `leads`: extracted lead records + scoring metadata
-- `phone_numbers`: maps inbound Twilio numbers → `site_id` (supports multiple numbers per site)
-- `api_usage`: API usage metering per site
-- `sms_usage`: SMS/WhatsApp usage metering per site
-- `app_users`: authenticated users; `is_admin` controls admin privileges
-
-Embeddings / pgvector:
-
-- The repo stores chunk embeddings in `documents.embedding` (pgvector).
-- Similarity search is used to retrieve context per request, always scoped by `site_id`.
-
-Note on `file_chunks`:
-
-- Some systems use a separate `file_chunks` table; **this repo currently uses `documents` for stored chunks/embeddings** (both web + file-sourced content ultimately becomes “documents” for retrieval).
-
-Migrations:
-
-- SQL migrations live in `backend/migrations/` and should be applied in order.
-- Recent notable migrations include:
-  - `011_usage_tracking.sql` (usage tables)
-  - `018_files_extracted_text.sql` (persist extracted file text)
-  - `019_phone_numbers.sql` (multi-number Twilio routing)
-  - `020_conversations_user_phone.sql` (Twilio conversation persistence)
+- **Tenant** = **Site** (`site_id` UUID).
+- **Isolation**: All tenant data (conversations, messages, leads, files, documents, service_requests, estimates, usage) must filter by `site_id`.
+- **Authorization**: `checkSiteAccess(user, siteId)`; admin from `app_users.is_admin` only. No frontend trust; enforce on backend.
+- **Pattern**: Thin routes; business logic in `backend/src/services`. Parameterized queries only.
 
 ---
 
-## 7. Environment Variables
+## 8. Database Overview
+
+### Major Tables
+
+| Table | Purpose |
+|-------|---------|
+| `sites` | Tenant config (domain, branding, raffy_overrides) |
+| `app_users` | Auth; `is_admin` for admin API |
+| `conversations` | One per visitor/session; `site_id` |
+| `messages` | Chat messages; `media_url`, `media_content_type` for photos |
+| `files` | Uploaded files; `extracted_text` |
+| `documents` | Embedding chunks (pgvector), `site_id` |
+| `leads` | Extracted leads, scoring |
+| `phone_numbers` | Twilio number → `site_id` (SMS/WhatsApp) |
+| `api_usage`, `sms_usage` | Metering per site |
+| `industries` | Industry master list |
+| `service_protocols` | Job types per industry |
+| `service_requests` | Incoming requests; optional attachments |
+| `estimates` | Quotes; link to request/lead |
+| `estimate_line_items` | Line items per estimate |
+| `historical_jobs` | Past jobs for pricing |
+| `attachment_analysis` | Photo/attachment vision results |
+| `ai_intents`, `ai_classifications` | Intent/classification analytics |
+
+### Migrations
+
+Apply in order from `backend/migrations/`:
+
+| # | File | Summary |
+|---|------|---------|
+| 001 | initial | Core schema |
+| 002 | files_conversations_settings | Files, conversations, settings |
+| 003 | lead_scoring | Lead scoring |
+| 004 | conversation_overview_view | Views |
+| 005 | enhanced_leads | Lead enhancements |
+| 006 | agency_features | Agency support |
+| 007 | conversation_summary_jobs | Summary jobs |
+| 008 | data_reconciliation | Reconciliation |
+| 009 | conversation_contact_consent | Consent |
+| 010 | users_ownership | Users/ownership |
+| 011 | usage_tracking | Usage tables |
+| 012 | usage_metering | Metering |
+| 013 | saas_site_usage_and_plan | Plans |
+| 014 | stripe_billing_site_subscriptions | Stripe |
+| 015 | twilio_site_routing | Twilio routing |
+| 016 | conversation_misunderstood_count | Misunderstood count |
+| 017 | smart_quote_tool | Quote tool |
+| 018 | files_extracted_text | Extracted text on files |
+| 019 | phone_numbers | Multi-number Twilio |
+| 020 | conversations_user_phone | User phone on conversations |
+| 021 | messages_media | media_url, media_content_type on messages |
+| 022 | service_intelligence_engine | Industries, protocols, requests, estimates, historical_jobs |
+| 023 | service_protocols_seed | Seed protocols |
+| 024 | ai_intent_classification_tables | ai_intents, ai_classifications |
+| 025 | estimate_line_items | estimate_line_items |
+
+---
+
+## 9. Environment Variables
 
 ### Backend (`backend/.env`)
 
-**Required (core functionality):**
+**Required:** `DATABASE_URL`, `OPENAI_API_KEY`, `ADMIN_SECRET`
 
-- `DATABASE_URL` — Postgres connection string (Supabase recommended)
-- `OPENAI_API_KEY` — OpenAI API key
-- `ADMIN_SECRET` — backend admin bearer token
+**Supabase:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`
 
-**Common optional:**
+**Server:** `PORT` (default 3001), `NODE_ENV`, `ALLOWED_ORIGINS`
 
-- `PORT` — defaults to `3001`
-- `NODE_ENV` — set to `production` in production
-- `ALLOWED_ORIGINS` — comma-separated CORS allowlist for admin origins
+**Anthropic (optional, vision):** `ANTHROPIC_API_KEY`, `CLAUDE_VISION_MODEL`
 
-**Ingestion / Playwright (Render compatibility):**
+**Stripe:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO`, `STRIPE_PRICE_ID_PLUS`, `STRIPE_PRICE_ID_ULTRA`, `FRONTEND_URL`
 
-- `INGEST_MAX_PAGES` — cap crawl size (Render-safe defaults are often `10`)
-- `INGEST_CONCURRENCY` — crawler concurrency
-- `PLAYWRIGHT_BROWSERS_PATH=0` — required on Render
-- `NODE_OPTIONS=--max-old-space-size=512` — optional memory cap
+**Email (Resend):** `RESEND_API_KEY`, `EMAIL_FROM`, `LEAD_NOTIFICATION_EMAIL`, `REPLY_TO`
 
-**Supabase storage (file uploads):**
+**Twilio:** `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `TWILIO_WHATSAPP_NUMBER` (bare E.164), `TWILIO_DEFAULT_SITE_ID`, `ALLOW_TWILIO_DEFAULT_FALLBACK`
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_STORAGE_BUCKET`
+**Ingestion:** `INGEST_MAX_PAGES`, `INGEST_CONCURRENCY`, `PLAYWRIGHT_BROWSERS_PATH=0` (Render), `NODE_OPTIONS=--max-old-space-size=512` (optional)
 
-**Twilio (optional):**
+### Admin (`admin/.env.local`)
 
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_AUTH_TOKEN`
-- `TWILIO_PHONE_NUMBER` — **SMS sender** (E.164), e.g. `+19187719609`
-- `TWILIO_WHATSAPP_NUMBER` — **WhatsApp sender** (**bare E.164**), e.g. `+14155238886`
-- `TWILIO_DEFAULT_SITE_ID` — dev convenience fallback site
-- `ALLOW_TWILIO_DEFAULT_FALLBACK` — set `true` to allow default fallback in production (otherwise unmapped numbers won’t respond)
-
-**Lead notifications (optional):**
-
-- `LEAD_NOTIFICATION_EMAIL` — fallback owner email
-
-### Admin (`admin/.env` / `.env.local`)
-
-The repo includes `admin/.env.example` with the definitive list. Typical keys:
-
-- `NEXT_PUBLIC_API_URL` — backend URL (public)
-- `NEXT_PUBLIC_WIDGET_URL` — widget URL used for embed code generator (public)
-- `BACKEND_URL` — server-side backend URL (Next.js API routes)
-- `ADMIN_SECRET` — must match backend `ADMIN_SECRET`
-
-### Widget (`widget/.env` optional)
-
-- `VITE_DEFAULT_API_URL` — default backend URL (can be overridden by `data-api-url` in the embed snippet)
-
-### Analytics dashboard (`admin-dashboard/.env`)
-
-- `REACT_APP_API_URL`
-- `REACT_APP_ADMIN_SECRET`
-
----
-
-## 8. Local Development Setup
-
-### Database
-
-1. Create a Supabase project (or Postgres).
-2. Enable `vector` extension.
-3. Apply migrations from `backend/migrations/` in order (Supabase SQL editor).
-
-### Backend
-
-```bash
-cd backend
-npm install
-copy .env.example .env
-npm run dev
-```
-
-Backend runs on `http://localhost:3001`.
-
-### Admin (Next.js)
-
-```bash
-cd admin
-npm install
-copy .env.example .env
-npm run dev
-```
-
-Admin runs on `http://localhost:3000`.
+- `API_URL` or `NEXT_PUBLIC_API_URL` — Backend URL
+- `ADMIN_SECRET` — Must match backend
+- `NEXT_PUBLIC_APP_URL` — For Stripe redirects
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase Auth
+- `NEXT_PUBLIC_ADMIN_EMAILS` — Comma-separated admin emails
+- `NEXT_PUBLIC_WIDGET_URL`, `NEXT_PUBLIC_API_URL` — For embed code
 
 ### Widget
 
-```bash
-cd widget
-npm install
-npm run build
-```
-
-Build output: `widget/dist/widget.js`.
-
-### Analytics dashboard (optional)
-
-```bash
-cd admin-dashboard
-npm install
-npm start
-```
+- `VITE_DEFAULT_API_URL` — Default backend (overridable by `data-api-url` in embed).
 
 ---
 
-## 9. Widget Embed Instructions
+## 10. Local Development Setup
 
-Paste the following before `</body>` on the customer site:
+1. **Database** — Supabase (or Postgres); enable `vector`; run migrations in order.
+2. **Backend** — `cd backend && npm install && copy .env.example .env && npm run dev`
+3. **Admin** — `cd admin && npm install && copy .env.example .env.local && npm run dev`
+4. **Widget** — `cd widget && npm install && npm run build`
+5. **Admin dashboard (optional)** — `cd admin-dashboard && npm install && npm start`
+
+---
+
+## 11. Widget Embed Instructions
+
+Before `</body>` on the customer site:
 
 ```html
 <script
@@ -398,237 +391,102 @@ Paste the following before `</body>` on the customer site:
 
 ---
 
-## 10. Twilio Setup
+## 12. Twilio Setup
 
-### Inbound webhook routing
-
-Inbound webhooks are public endpoints:
-
-- `POST /webhooks/twilio/sms`
-- `POST /webhooks/twilio/whatsapp`
-
-Inbound messages route to a tenant using the destination number (`To`):
-
-- Primary mapping: `phone_numbers(phone_number, channel, site_id)`
-- Backward compatibility: `sites.twilio_phone` and `sites.twilio_whatsapp`
-
-### `phone_numbers` table
-
-The `phone_numbers` table exists to support **multiple numbers per site**:
-
-- `phone_number` (E.164)
-- `channel` (`sms` or `whatsapp`)
-- `site_id` (tenant)
-
-### Outbound notifications
-
-Outbound sends are only performed by the notification pipeline (not the Twilio webhook reply flow).
-
-Code path:
-
-- shared client: `backend/src/services/twilioClient.js`
-- outbound send wrapper: `backend/src/services/notificationService.js`
-
-### WhatsApp formatting rules (critical)
-
-- Twilio WhatsApp addressing uses `whatsapp:+E164`.
-- **Environment variable must be bare E.164**:
-
-```bash
-TWILIO_WHATSAPP_NUMBER=+14155238886
-```
-
-The code adds the `whatsapp:` prefix when sending.
+- **Inbound:** `POST /webhooks/twilio/sms`, `POST /webhooks/twilio/whatsapp`. Route by `To` → `phone_numbers` (or legacy `sites.twilio_phone` / `sites.twilio_whatsapp`).
+- **Outbound:** Via `notificationService` / `twilioClient` (e.g. lead notifications).
+- **WhatsApp:** Env must be **bare E.164** (e.g. `+14155238886`); code adds `whatsapp:`.
 
 ---
 
-## 11. File Ingestion Pipeline
+## 13. File Ingestion Pipeline
 
-At a high level:
-
-1. Admin uploads a file (`files` row created).
-2. Backend extracts text based on MIME type:
-   - PDF → `pdf-parse`
-   - DOCX → docx extraction
-   - XLSX → sheet-to-text extraction
-3. Extracted text is persisted to `files.extracted_text`.
-4. Text is chunked and embedded via OpenAI embeddings.
-5. Embeddings are stored in `documents` (pgvector) and scoped by `site_id`.
+1. Admin uploads file → `files` row.
+2. Extract text (PDF/DOCX/XLSX) → store in `files.extracted_text`.
+3. Chunk → embed (OpenAI) → store in `documents` with `site_id`.
 
 ---
 
-## 12. Deployment
+## 14. Deployment
 
-### Backend (Render)
+- **Backend** — Render (Web Service); root `backend`; `npm start`; set env (including `PLAYWRIGHT_BROWSERS_PATH=0` for ingestion).
+- **Admin** — Vercel; root `admin`; set env (API_URL, Supabase, Stripe, etc.).
+- **Widget** — Vercel or CDN; serve `widget/dist/widget.js` at stable URL.
 
-- Service type: Web Service
-- Root directory: `backend`
-- Build: `npm install`
-- Start: `npm start`
-- Set env vars in Render dashboard (see section 7)
-
-Render notes for ingestion:
-
-- Set `PLAYWRIGHT_BROWSERS_PATH=0`
-- Consider setting `NODE_OPTIONS=--max-old-space-size=512`
-- Consider lowering `INGEST_MAX_PAGES` (free-tier memory)
-
-### Admin (Vercel)
-
-- Deploy `admin/`
-- Configure environment variables in Vercel project settings
-
-### Widget (Vercel or CDN)
-
-- Deploy `widget/` build output (`dist/`)
-- Ensure `widget.js` is accessible at a stable URL for customer embed snippets
-
-### Analytics dashboard (Vercel, optional)
-
-- Deploy `admin-dashboard/`
-- Set `REACT_APP_API_URL` + `REACT_APP_ADMIN_SECRET`
-
-### Scaling Strategy (notes)
-
-Current architecture is designed to scale incrementally:
-
-- **Backend**
-  - Stateless Express servers (scale horizontally via Render replicas)
-  - Keep ingestion-heavy workloads bounded via limits and/or separate worker processes
-- **Database**
-  - Supabase Postgres + pgvector
-  - Index tuning and query hygiene matter as tenant count grows
-- **Workers**
-  - Can be separated from web process (PM2 or dedicated worker service)
-  - Future-friendly to queue-backed ingestion (Redis/BullMQ) if needed
-
-Future improvements typically considered:
-
-- caching layer (Redis) for hot site config and repeated retrieval patterns
-- embedding batching / backpressure for high ingestion throughput
-- pgvector index tuning for your dataset and recall/latency targets
+Scaling: stateless backend; Supabase Postgres; workers can be split (PM2 or queue) later.
 
 ---
 
-## 13. Workers / Background Jobs
+## 15. Workers / Background Jobs
 
-The backend includes scheduled/background workers for:
-
-- **Conversation summaries** — generates summaries for idle/eligible conversations
-- **Lead extraction** — extracts structured lead data from conversation history
-- **Missed lead detection** — flags conversations with lead intent but missing contact info
-- **Weekly reports** — aggregates weekly stats and sends site reports
-- **Data reconciliation** — periodic recovery of missed/partial lead data
-
-Operational options:
-
-- **PM2** using `ecosystem.config.js`
-- **External cron** running worker scripts on a schedule
+- Conversation summaries, lead extraction, missed-lead detection, weekly reports, data reconciliation. Run via PM2 or external cron.
 
 ---
 
-## 14. Usage Tracking
+## 16. Usage Tracking
 
-Usage tracking is stored in:
-
-- `api_usage` — tracks API usage per `site_id` (metering)
-- `sms_usage` — tracks inbound/outbound SMS/WhatsApp usage per `site_id`
-
-These tables are used for monitoring, reporting, and (if enabled) plan enforcement.
+- `api_usage`, `sms_usage` per `site_id` for metering and (optional) plan enforcement.
 
 ---
 
-## 15. Tenant Onboarding Flow
+## 17. Tenant Onboarding Flow
 
-Typical steps to onboard a new customer:
-
-1. Create a **site** in the admin dashboard (company name, domain, brand color).
-2. Configure **white-label settings** (tone, system prompt, suggested questions, booking URL).
-3. Set up content:
-   - Run **website ingestion** (Playwright crawl), and/or
-   - Upload **files** (PDF/DOCX/XLSX)
-4. Copy/paste the **widget embed snippet** into the customer’s website.
-5. Validate:
-   - widget loads
-   - chat responds
-   - conversation appears in admin dashboards
-6. (Optional) Configure communications:
-   - owner notification email
-   - Twilio phone routing (`phone_numbers`) for SMS/WhatsApp
+1. Create **site** in admin (name, domain, color).
+2. Configure white-label (prompt, tone, booking URL, notifications).
+3. Ingest website and/or upload files.
+4. Add widget embed to customer site.
+5. (Optional) Configure Twilio (`phone_numbers`), industry/protocols, Service Intelligence.
+6. Validate chat, leads, and (if used) Service Requests/Estimates.
 
 ---
 
-## 16. Security Checklist
+## 18. Security Checklist
 
-- **Admin auth**
-  - Keep `ADMIN_SECRET` secret and rotate if leaked
-  - Ensure admin routes require backend authentication
-- **Secrets management**
-  - Never commit `.env`
-  - Store secrets in Render/Vercel env settings
-- **Twilio validation**
-  - Validate webhook signatures in production
-  - Route inbound numbers only through `phone_numbers` (avoid ambiguous fallbacks)
-- **Tenant isolation**
-  - Every customer query must include `site_id` filtering
-  - No frontend-based permission trust; enforce on backend
-- **SQL safety**
-  - Parameterized queries only; no string concatenation
-
-### Production Checklist
-
-- `NODE_ENV=production` set
-- `ADMIN_SECRET` is strong and rotated if leaked
-- CORS allowlist (`ALLOWED_ORIGINS`) set for admin origins
-- Rate limiting enabled on public endpoints
-- Twilio webhook signature validation enabled in production
-- `phone_numbers` mappings configured for all inbound numbers (avoid relying on fallback)
-- Ingestion limits tuned for your compute (Render: `PLAYWRIGHT_BROWSERS_PATH=0`, `INGEST_MAX_PAGES`, `INGEST_CONCURRENCY`)
-- Monitoring/log access confirmed (Render/Vercel dashboards)
+- Keep `ADMIN_SECRET` secret; rotate if leaked.
+- Never commit `.env`; use platform env (Render/Vercel).
+- Validate Twilio webhook signatures in production.
+- All tenant data filtered by `site_id`; `checkSiteAccess`; admin from `app_users.is_admin` only.
+- Parameterized queries only; no string concatenation for SQL.
 
 ---
 
-## 17. Troubleshooting
+## 19. Troubleshooting
 
-### Twilio outbound `20003 Authenticate`
-
-Check backend logs for:
-
-- `[Twilio] SID length: 34`
-- `[Twilio] TOKEN length: 32`
-
-Common causes:
-
-- Render env vars not matching what you tested locally
-- Hidden whitespace in secrets (trimmed in code, but still validate lengths)
-- `TWILIO_WHATSAPP_NUMBER` incorrectly includes `whatsapp:` (should be **bare E.164**)
-
-### Playwright ingestion failures / OOM on Render
-
-- Ensure `PLAYWRIGHT_BROWSERS_PATH=0`
-- Reduce `INGEST_MAX_PAGES` and/or `INGEST_CONCURRENCY`
-- Increase memory plan if ingestion workload is large
-
-### PDFs not extracting
-
-- Confirm `pdf-parse` is installed and the backend logs show non-zero extracted text length.
-- Use the admin “reprocess” action for files to regenerate embeddings after fixes.
+- **Twilio 20003:** Check SID/token length; no `whatsapp:` in `TWILIO_WHATSAPP_NUMBER`; trim whitespace in secrets.
+- **Playwright/OOM:** `PLAYWRIGHT_BROWSERS_PATH=0`; reduce `INGEST_MAX_PAGES`/`INGEST_CONCURRENCY`.
+- **PDFs not extracting:** Check `pdf-parse`; use admin “reprocess” for files.
+- **Admin build (Vercel):** Ensure API route imports use correct relative path to `_utils/backend` (e.g. `../../../_utils/backend` from `api/service-requests/[site_id]/[request_id]/route.js`).
 
 ---
 
-## Common Development Tasks
+## 20. Documentation & Client Setup
 
-### Add a new tenant setting
+- **docs/clients/README.md** — Overview of client setup guides; platform is generalized (any contractor).
+- **docs/clients/ryans-roofing-raffy-setup.md** — Example: Ryan's Roofing (Ontario); same features apply to plumbing, HVAC, etc.
 
-1. Add a column (or JSON field) on `sites` via migration in `backend/migrations/`
-2. Update backend services that read/write site configuration
-3. Update admin UI to manage the setting
-4. Ensure widget config fetch includes it (if needed client-side)
+---
 
-### Add a new ingestion type
+## 21. Common Development Tasks
 
-1. Add a parser/extractor in the backend file ingestion service
-2. Normalize extracted text
-3. Reuse the chunk + embedding pipeline and store in `documents` scoped by `site_id`
-4. Add UI support (upload + reprocess) and validate end-to-end retrieval
+### Add a tenant setting
 
+1. Migration: add column or JSON on `sites`.
+2. Backend services: read/write.
+3. Admin UI: edit; widget config if needed.
+
+### Add an ingestion type
+
+1. Parser in file ingestion service; normalize text.
+2. Reuse chunk + embed pipeline → `documents` with `site_id`.
+3. Admin upload/reprocess UI.
+
+### Add a Service Intelligence field
+
+1. Migration: column on `service_requests`, `estimates`, or related table (with `site_id` where applicable).
+2. Service layer: read/write; keep routes thin.
+3. Admin: list/detail forms and API proxies.
+
+### Add an API route (admin)
+
+1. Backend route under `/api/admin` (or public); auth and `checkSiteAccess` for tenant data.
+2. Admin Next.js API route in `admin/src/app/api/` proxying to backend with `requireBackendAuth`; use correct relative path to `_utils/backend` (count directory depth from route file to `api/`).
